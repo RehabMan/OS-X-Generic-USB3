@@ -115,7 +115,7 @@ void CLASS::EnableComplianceMode(void)
 __attribute__((visibility("hidden")))
 IOReturn CLASS::HCSelect(uint8_t arg, uint8_t flag)
 {
-	static char const xhciMuxedPorts[80] = "XHCA\0XHCB\0XHCC\0XHCD";
+	static char const xHCMuxedPorts[80] = "XHCA\0XHCB\0XHCC\0XHCD";
 	char const* method;
 
 	if (!_muxedPortsSearched)
@@ -125,7 +125,7 @@ IOReturn CLASS::HCSelect(uint8_t arg, uint8_t flag)
 		arg > 14U)
 		return kIOReturnNoMemory;
 	if (flag == 1U)
-		method = &xhciMuxedPorts[arg * 5U];
+		method = &xHCMuxedPorts[arg * 5U];
 	else if (!flag)
 		method = &_muxName[arg * 5U];
 	else

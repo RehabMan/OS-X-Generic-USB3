@@ -260,7 +260,7 @@ void CLASS::PrintCapRegs(PrintSink* pSink)
 		struct XHCIXECPStruct cap;
 		do {
 			*reinterpret_cast<uint32_t*>(&cap) = Read32Reg(q);
-			pSink->print("  xHCI Extended Cap ID %u, Specific %#x\n", cap.capId, cap.capSpecific);
+			pSink->print("  xHC Extended Cap ID %u, Specific %#x\n", cap.capId, cap.capSpecific);
 			switch (cap.capId) {
 				case 1U:
 					pSink->print("    Legacy CTLSTS %#x\n", q[1]);

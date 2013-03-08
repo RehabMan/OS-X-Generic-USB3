@@ -392,7 +392,7 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 		*pFirstTrbIndex = static_cast<int32_t>(pFirstTrbInFragment - pRing->ptr);
 	if (pLastTrbIndex)
 		*pLastTrbIndex = static_cast<int16_t>(lastTrbIndex);
-	if (*pTrbCount)
+	if (pTrbCount)
 		*pTrbCount = static_cast<uint32_t>(TrbCountInTD);
 	return kIOReturnSuccess;
 }

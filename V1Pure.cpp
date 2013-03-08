@@ -61,7 +61,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		return kIOReturnNoDevice;
 	}
 	if (hciv < 0x100U) {
-		IOLog("%s: Unsupported XHCI version %#x\n", __FUNCTION__, static_cast<uint32_t>(hciv));
+		IOLog("%s: Unsupported xHC version %#x\n", __FUNCTION__, static_cast<uint32_t>(hciv));
 		UIMFinalize();
 		return kIOReturnUnsupported;
 	}
