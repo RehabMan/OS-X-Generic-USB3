@@ -30,6 +30,7 @@ IOReturn CLASS::RestartControllerFromReset(void)
 {
 	if (_uimInitialized)
 		return kIOReturnSuccess;
+	TakeOwnershipFromBios();
 	EnableXHCIPorts();
 	DisableComplianceMode();
 	IOReturn rc = ResetController();

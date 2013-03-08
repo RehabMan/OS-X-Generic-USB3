@@ -98,38 +98,40 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		UIMFinalize();
 		return rc;
 	}
+	uint32_t hcc = Read32Reg(&_pXHCICapRegisters->HCCParams);
+	if (m_invalid_regspace) {
+		IOLog("%s: Invalid regspace (3)\n", __FUNCTION__);
+		UIMFinalize();
+		return kIOReturnNoDevice;
+	}
+	DecodeExtendedCapability(hcc);
+	TakeOwnershipFromBios();
 	_maxNumEndpoints = (kUSBMaxPipes - 1) * 256;
 	EnableXHCIPorts();
 	if (_errataBits & kErrataIntelPantherPoint)
 		_maxNumEndpoints = 64;
 	uint32_t u = Read8Reg(&_pXHCICapRegisters->CapLength);
 	if (m_invalid_regspace) {
-		IOLog("%s: Invalid regspace (3)\n", __FUNCTION__);
+		IOLog("%s: Invalid regspace (4)\n", __FUNCTION__);
 		UIMFinalize();
 		return kIOReturnNoDevice;
 	}
 	_pXHCIOperationalRegisters = reinterpret_cast<struct XHCIOpRegisters volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + u);
 	u = Read32Reg(&_pXHCICapRegisters->RTSOff);
 	if (m_invalid_regspace) {
-		IOLog("%s: Invalid regspace (4)\n", __FUNCTION__);
+		IOLog("%s: Invalid regspace (5)\n", __FUNCTION__);
 		UIMFinalize();
 		return kIOReturnNoDevice;
 	}
 	_pXHCIRuntimeRegisters = reinterpret_cast<struct XHCIRuntimeRegisters volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + u);
 	u = Read32Reg(&_pXHCICapRegisters->DBOff);
 	if (m_invalid_regspace) {
-		IOLog("%s: Invalid regspace (5)\n", __FUNCTION__);
+		IOLog("%s: Invalid regspace (6)\n", __FUNCTION__);
 		UIMFinalize();
 		return kIOReturnNoDevice;
 	}
 	_pXHCIDoorbellRegisters = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + u);
 	DisableComplianceMode();
-	uint32_t hcc = Read32Reg(&_pXHCICapRegisters->HCCParams);
-	if (m_invalid_regspace) {
-		IOLog("%s: Invalid regspace (6)\n", __FUNCTION__);
-		UIMFinalize();
-		return kIOReturnNoDevice;
-	}
 	u = XHCI_HCC_PSA_SZ_MAX(hcc);
 	if (u)
 		_maxPSASize = 1U << (1U + u);
@@ -255,7 +257,6 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	_unknown2 = 0U;
 	_unknown1 = 0U;
 	_magic = 0xDEADBEEFU;
-	DecodeExtendedCapability(hcc);
 	rc = AllocRHThreadCalls();
 	if (rc != kIOReturnSuccess) {
 		IOLog("%s: AllocRHThreadCalls failed, rc == %#x\n", __FUNCTION__, rc);

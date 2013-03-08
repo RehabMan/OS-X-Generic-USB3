@@ -165,7 +165,9 @@ void CLASS::DecodeExtendedCapability(uint32_t hccParams)
 	_pXHCIExtendedCapRegisters = reinterpret_cast<XHCIXECPStruct volatile*>(reinterpret_cast<uint32_t volatile*>(_pXHCICapRegisters) + ecp);
 	XHCIXECPStruct volatile* iter = _pXHCIExtendedCapRegisters;
 	while (true) {
-		if (iter->capId == 2U)
+		if (iter->capId == 1U)
+			_pUSBLegSup = reinterpret_cast<uint32_t volatile*>(iter);
+		else if (iter->capId == 2U)
 			DecodeSupportedProtocol(iter);
 		if (!(iter->next))
 			break;
@@ -191,6 +193,33 @@ void CLASS::DecodeSupportedProtocol(XHCIXECPStruct volatile* pCap)
 			_v3ExpansionData->_rootHubPortsHSStartRange = pSPCap->compatiblePortOffset;
 			break;
 	}
+}
+
+__attribute__((visibility("hidden")))
+void CLASS::TakeOwnershipFromBios(void)
+{
+	uint32_t v;
+	IOReturn rc;
+
+	if (!_pUSBLegSup)
+		return;
+	v = Read32Reg(_pUSBLegSup);
+	if (m_invalid_regspace)
+		return;
+	if (v & (1U << 16)) {
+		v |= (1U << 24);
+		Write32Reg(_pUSBLegSup, v);
+		rc = XHCIHandshake(_pUSBLegSup, 1U << 16, 0U, 100);
+		if (rc == kIOReturnNoDevice)
+			return;
+		if (rc == kIOReturnTimeout)
+			IOLog("%s: Unable to take ownership of xHC from BIOS within 100 ms\n", __FUNCTION__);
+	}
+	v = Read32Reg(_pUSBLegSup + 1);
+	if (m_invalid_regspace)
+		return;
+	if (v & (7U << 29))
+		Write32Reg(_pUSBLegSup + 1, v);
 }
 
 __attribute__((noinline, visibility("hidden")))

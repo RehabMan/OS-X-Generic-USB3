@@ -52,6 +52,7 @@ private:
 									// offset 0x2D8
 	uint32_t volatile* _pXHCIDoorbellRegisters;
 									// offset 0x2E0
+	uint32_t volatile* _pUSBLegSup;	// Added
 
 	/*
 	 * Misc
@@ -567,6 +568,7 @@ public:
 	uint32_t GetPortSCForWriting(int16_t);	// original virtual
 	void DecodeExtendedCapability(uint32_t);
 	void DecodeSupportedProtocol(XHCIXECPStruct volatile*);
+	void TakeOwnershipFromBios(void);
 	IOReturn StopUSBBus(void);
 	void RestartUSBBus(void);
 	IOReturn WaitForUSBSts(uint32_t, uint32_t);
