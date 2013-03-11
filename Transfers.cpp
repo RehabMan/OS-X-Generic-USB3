@@ -280,6 +280,13 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 	TrbCountInTD = 0;
 	fourth = 0U;
 	TrbCountInFragment = 0;
+	/*
+	 * TBD:
+	 *   If we call PutBackTRB and return an error, pTd is returned
+	 *     to queuedHead to be rescheduled later, but we may have
+	 *     already trigerred some TD fragments from it.  So pTd
+	 *     needs to be updated to reflect fragments completed.
+	 */
 	do {
 		pTrb = GetNextTRB(pRing, 0, &pFirstTrbInFragment, isFirstFragment && !bytesPreceedingThisTD);
 		if (!pTrb) {
@@ -300,7 +307,13 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 											 offsetInBuffer,
 											 command);
 			if (rc != kIOReturnSuccess) {
-				PutBackTRB(pRing, pTrb);
+				/*
+				 * TBD: The transaction should be aborted if this
+				 *   happens, since it means genIOVMSegments has
+				 *   failed and there's a defect in the memory descriptor.
+				 *   If the TD is requeued, it causes an infinite loop.
+				 */
+				PutBackTRB(pRing, pFirstTrbInFragment);
 				return rc;
 			}
 		}
@@ -349,10 +362,25 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 
 	if (TrbCountInTD == 1) {
 		if (GetRing(slot, endpoint, 0U)) {
-			if (onMaxBoundary)
-				fourth |= XHCI_TRB_3_IOC_BIT | XHCI_TRB_3_ISP_BIT;
-			else if (isFirstFragment)
+			if (onMaxBoundary) {
+				fourth |= XHCI_TRB_3_IOC_BIT;
+				switch (XHCI_TRB_3_TYPE_GET(fourth)) {
+					case XHCI_TRB_TYPE_NORMAL:
+					case XHCI_TRB_TYPE_DATA_STAGE:
+					case XHCI_TRB_TYPE_ISOCH:
+						fourth |= XHCI_TRB_3_ISP_BIT;
+						break;
+				}
+			} else if (isFirstFragment)
+				switch (XHCI_TRB_3_TYPE_GET(fourth)) {
+					case XHCI_TRB_TYPE_NORMAL:
+					case XHCI_TRB_TYPE_ISOCH:
 				fourth |= XHCI_TRB_3_BEI_BIT |XHCI_TRB_3_ISP_BIT;
+						break;
+					case XHCI_TRB_TYPE_DATA_STAGE:
+						fourth |= XHCI_TRB_3_ISP_BIT;
+						break;
+				}
 			fourth &= ~(XHCI_TRB_3_CHAIN_BIT | XHCI_TRB_3_ENT_BIT);
 			if (lastTrbIndex == pRing->numTRBs - 2U)
 				pRing->ptr[pRing->numTRBs - 1U].d &= ~XHCI_TRB_3_CHAIN_BIT;
@@ -375,9 +403,10 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 		pTrb->c = 0U;
 #endif
 		fourth = pTrb->d & XHCI_TRB_3_CYCLE_BIT;
-		fourth ^= XHCI_TRB_3_TYPE_SET(XHCI_TRB_TYPE_EVENT_DATA) | XHCI_TRB_3_CYCLE_BIT;
+		fourth ^= (XHCI_TRB_3_TYPE_SET(XHCI_TRB_TYPE_EVENT_DATA) | XHCI_TRB_3_CYCLE_BIT);
 		if (multiTDTransaction && !finalTDInTransaction)
 			fourth |= XHCI_TRB_3_CHAIN_BIT;
+		++TrbCountInFragment;
 		++TrbCountInTD;
 		if (onMaxBoundary)
 			fourth |= XHCI_TRB_3_IOC_BIT;
@@ -389,7 +418,7 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 	if (TrbCountInFragment)
 		CloseFragment(pRing, pFirstTrbInFragment, fourth);
 	if (pFirstTrbIndex)
-		*pFirstTrbIndex = static_cast<int32_t>(pFirstTrbInFragment - pRing->ptr);
+		*pFirstTrbIndex = pFirstTrbInFragment ? static_cast<int32_t>(pFirstTrbInFragment - pRing->ptr) : -1;
 	if (pLastTrbIndex)
 		*pLastTrbIndex = static_cast<int16_t>(lastTrbIndex);
 	if (pTrbCount)
@@ -525,10 +554,21 @@ IOReturn CLASS::GenerateNextPhysicalSegment(TRBStruct* pTrb, uint32_t* pLength, 
 __attribute__((visibility("hidden")))
 void CLASS::PutBackTRB(ringStruct* pRing, TRBStruct* pTrb)
 {
+	if (!pRing || !pTrb)
+		return;
+	bool isFirst = true;
 	int32_t index = static_cast<int32_t>(pTrb - pRing->ptr);
 	if (index < 0 || index >= pRing->numTRBs)
 		return;
 	while (pRing->enqueueIndex != index) {
+		if (isFirst)
+			isFirst = false;
+		else {
+			if (pRing->cycleState)
+				pRing->ptr[pRing->enqueueIndex].d &= ~XHCI_TRB_3_CYCLE_BIT;
+			else
+				pRing->ptr[pRing->enqueueIndex].d |= XHCI_TRB_3_CYCLE_BIT;
+		}
 		if (pRing->enqueueIndex == pRing->dequeueIndex)
 			break;
 		if (pRing->enqueueIndex) {
@@ -977,19 +1017,19 @@ __attribute__((visibility("hidden")))
 void XHCIAsyncEndpoint::UpdateTimeouts(bool isRHPortDisconnected, uint32_t frameNumber, bool isEndpointOk)
 {
 	uint64_t addr;
+	int64_t trbIndex64;
 	XHCIAsyncTD* pTd;
 	IOUSBCommand* command;
 	IOReturn passthruReturnCode;
 	uint32_t transferLength, ndto, cto, uims4, uims5, uims6;
-	int32_t trbIndex, next;
+	int32_t next;
 	bool screwed;
 
-	addr = (static_cast<uint64_t>(pRing->stopTrb.b) << 32) |  (pRing->stopTrb.a & ~15U);
+	addr = GenericUSBXHCI::GetTRBAddr64(&pRing->stopTrb);
 	transferLength = XHCI_TRB_2_REM_GET(pRing->stopTrb.c);
-	if (addr)
-		trbIndex = GenericUSBXHCI::DiffTRBIndex(addr, pRing->physAddr);
-	else
-		trbIndex = pRing->dequeueIndex;
+	trbIndex64 = GenericUSBXHCI::DiffTRBIndex(addr, pRing->physAddr);
+	if (trbIndex64 < 0 || trbIndex64 >= pRing->numTRBs - 1U)
+		trbIndex64 = pRing->dequeueIndex;
 	pTd = scheduledHead;
 	if (!pTd)
 		return;
@@ -1013,9 +1053,9 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool isRHPortDisconnected, uint32_t frame
 			uims4 = command->GetUIMScratch(4U);
 			uims6 = command->GetUIMScratch(6U);
 			if (!uims6 ||
-				command->GetUIMScratch(3U) != static_cast<uint32_t>(trbIndex) ||
+				command->GetUIMScratch(3U) != static_cast<uint32_t>(trbIndex64) ||
 				uims4 != transferLength) {
-				command->SetUIMScratch(3U, static_cast<uint32_t>(trbIndex));
+				command->SetUIMScratch(3U, static_cast<uint32_t>(trbIndex64));
 				command->SetUIMScratch(4U, transferLength);
 				command->SetUIMScratch(6U, frameNumber);
 			} else if (frameNumber - uims6 > ndto) {

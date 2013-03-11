@@ -420,8 +420,9 @@ public:
 	uint64_t Read64Reg(uint64_t volatile const*);
 	void Write32Reg(uint32_t volatile*, uint32_t);
 	void Write64Reg(uint64_t volatile*, uint64_t, __unused bool);
-	static int32_t DiffTRBIndex(uint64_t a, uint64_t b) { return static_cast<int32_t>(a - b) >> 4; }
+	static int64_t DiffTRBIndex(uint64_t a, uint64_t b) { return static_cast<int64_t>(a - b) >> 4; }
 	static void SetTRBAddr64(TRBStruct*, uint64_t);
+	static uint64_t GetTRBAddr64(TRBStruct const* pTrb) { return (static_cast<uint64_t>(pTrb->b) << 32) | (pTrb->a & ~15U); }
 	static void SetDCBAAAddr64(uint64_t*, uint64_t);
 	static void ClearTRB(TRBStruct*, bool);
 	uint8_t GetSlotID(int32_t);
@@ -603,7 +604,7 @@ public:
 	bool FilterEventRing(int32_t, bool*);
 	bool PollEventRing2(int32_t);
 	void PollForCMDCompletions(int32_t);
-	void DoStopCompletion(TRBStruct*);
+	bool DoStopCompletion(TRBStruct*);
 	void processTransferEvent(TRBStruct*);
 	bool processTransferEvent2(TRBStruct*, int32_t);
 	IOReturn InitAnEventRing(int32_t);

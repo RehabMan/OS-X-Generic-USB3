@@ -174,27 +174,30 @@ IOReturn CLASS::EnqueCMD(TRBStruct* trb, int32_t trbType, TRBCallback callback, 
 __attribute__((visibility("hidden")))
 bool CLASS::DoCMDCompletion(TRBStruct trb)
 {
+	int64_t idx64;
 	TRBCallbackEntry copy;
-	uint64_t addr = static_cast<uint64_t>(trb.b) << 32 | (trb.a & ~15U);
-	int32_t newIdx, idx = DiffTRBIndex(addr, _commandRing.physAddr);
-	if (idx < 0 || idx >= static_cast<int32_t>(_commandRing.numTRBs) - 1) {
-		if (!addr)
+	uint16_t newIdx;
+	uint64_t addr = GetTRBAddr64(&trb);
+	if (!addr) {
 			IOLog("%s: Zero pointer in CCE\n", __FUNCTION__);
-		else
-			IOLog("%s: bad pointer in CCE: %d\n", __FUNCTION__, idx);
+		return false;
+	}
+	idx64 = DiffTRBIndex(addr, _commandRing.physAddr);
+	if (idx64 < 0 || idx64 >= _commandRing.numTRBs - 1U) {
+		IOLog("%s: bad pointer in CCE: %lld\n", __FUNCTION__, idx64);
 		return false;
 	}
 	if (XHCI_TRB_2_ERROR_GET(trb.c) == XHCI_TRB_ERROR_CMD_RING_STOP) {
 		_commandRing.stopPending = false;
-		_commandRing.dequeueIndex = static_cast<uint16_t>(idx);
+		_commandRing.dequeueIndex = static_cast<uint16_t>(idx64);
 		return true;
 	}
-	newIdx = idx + 1;
-	if (newIdx >= static_cast<int32_t>(_commandRing.numTRBs) - 1)
-		newIdx = 0;
-	_commandRing.dequeueIndex = static_cast<uint16_t>(newIdx);
-	copy = _commandRing.callbacks[idx];
-	bzero(&_commandRing.callbacks[idx], sizeof *_commandRing.callbacks);
+	newIdx = static_cast<uint16_t>(idx64) + 1U;
+	if (newIdx >= _commandRing.numTRBs - 1U)
+		newIdx = 0U;
+	copy = _commandRing.callbacks[idx64];
+	bzero(&_commandRing.callbacks[idx64], sizeof *_commandRing.callbacks);
+	_commandRing.dequeueIndex = newIdx;
 	if (copy.func)
 		copy.func(this, &trb, copy.param);
 	return true;
@@ -205,20 +208,20 @@ bool CLASS::DoCMDCompletion(TRBStruct trb)
 #pragma mark -
 
 __attribute__((visibility("hidden")))
-void CLASS::_CompleteSlotCommand(GenericUSBXHCI* owner, TRBStruct* trb, void* param)
+void CLASS::_CompleteSlotCommand(GenericUSBXHCI* owner, TRBStruct* pTrb, void* param)
 {
-	owner->CompleteSlotCommand(trb, param);
+	owner->CompleteSlotCommand(pTrb, param);
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::CompleteSlotCommand(TRBStruct* trb, void* param)
+void CLASS::CompleteSlotCommand(TRBStruct* pTrb, void* param)
 {
-	int32_t ret, err = static_cast<int32_t>(XHCI_TRB_2_ERROR_GET(trb->c));
+	int32_t ret, err = static_cast<int32_t>(XHCI_TRB_2_ERROR_GET(pTrb->c));
 	if (err == XHCI_TRB_ERROR_SUCCESS)
-		ret = static_cast<int32_t>(XHCI_TRB_3_SLOT_GET(trb->d));
+		ret = static_cast<int32_t>(XHCI_TRB_3_SLOT_GET(pTrb->d));
 	else
 		ret = -1000 - err;
-	*reinterpret_cast<int32_t*>(param) = ret;
+	*static_cast<int32_t*>(param) = ret;
 #if 0
 	/*
 	 * Called from either of
@@ -240,16 +243,19 @@ void CLASS::CompleteSlotCommand(TRBStruct* trb, void* param)
 #if 0
 /*
  * Unused
+ *   This is used to handle TRB_RENESAS_GET_FW command
+ *   Lower 16 bits of pTrb->c are FWVersionMajor:FWVersionMinor
+ *   each field 8 bits.
  */
 __attribute__((visibility("hidden")))
-void CLASS::CompleteRenesasVendorCommand(TRBStruct* trb, void* param)
+void CLASS::CompleteRenesasVendorCommand(TRBStruct* pTrb, void* param)
 {
-	uint32_t err = XHCI_TRB_2_ERROR_GET(trb->c);
+	int32_t ret, err = static_cast<int32_t>(XHCI_TRB_2_ERROR_GET(pTrb->c));
 	if (err == XHCI_TRB_ERROR_SUCCESS)
-		err = trb->c & UINT16_MAX;
+		ret = static_cast<int32_t>(pTrb->c & UINT16_MAX);
 	else
-		err += 1000U;
-	*static_cast<uint32_t*>(param) = err;
+		ret = -1000 - err;
+	*static_cast<int32_t*>(param) = err;
 	GetCommandGate()->commandWakeup(param);
 }
 #endif

@@ -274,7 +274,19 @@ bool CLASS::PollEventRing2(int32_t interrupter)
 			DoCMDCompletion(localTrb);
 			break;
 		case XHCI_TRB_EVENT_TRANSFER:
-			return processTransferEvent2(&localTrb, interrupter);
+			/*
+			 * Note: processTransferEvent2 returns false
+			 *   if the TransferEvent had invalid data
+			 *   in it (slot #, endpoint#, TRB pointer.)
+			 *   Linux driver says this means the xHC
+			 *   is "hosed" and should be reset.
+			 *   We ignore it.
+			 *   Additionally, Intel xHC returns spurious
+			 *   TransferEvent TRBs (see XHCI_SPURIOUS_SUCCESS),
+			 *   so we want to ignore those too.
+			 */
+			processTransferEvent2(&localTrb, interrupter);
+			break;
 #if 0
 		case XHCI_TRB_EVENT_PORT_STS_CHANGE:
 			PrintEventTRB(&localTrb, interrupter, false, 0);
@@ -366,7 +378,7 @@ void CLASS::PollForCMDCompletions(int32_t interrupter)
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::DoStopCompletion(TRBStruct* pTrb)
+bool CLASS::DoStopCompletion(TRBStruct* pTrb)
 {
 	uint64_t addr;
 	ringStruct* pRing;
@@ -374,11 +386,15 @@ void CLASS::DoStopCompletion(TRBStruct* pTrb)
 	uint8_t slot, endpoint;
 
 	slot = static_cast<uint8_t>(XHCI_TRB_3_SLOT_GET(pTrb->d));
+	if (!slot || slot > _numSlots || SlotPtr(slot)->isInactive())
+		return false;
 	endpoint = static_cast<uint8_t>(XHCI_TRB_3_EP_GET(pTrb->d));
+	if (!endpoint)
+		return false;
 	if (IsStreamsEndpoint(slot, endpoint)) {
-		addr = (static_cast<uint64_t>(pTrb->b) << 32) | pTrb->a;
+		addr = GetTRBAddr64(pTrb);
 		if (!addr)
-			return;
+			return false;	// save the trouble
 		pRing = FindStream(slot, endpoint, addr, &trbIndexInRingQueue, true);
 #if 0
 		if (!pRing)
@@ -388,6 +404,7 @@ void CLASS::DoStopCompletion(TRBStruct* pTrb)
 		pRing = GetRing(slot, endpoint, 0U);
 	if (pRing)
 		pRing->stopTrb = *pTrb;
+	return true;
 }
 
 #pragma mark -
@@ -522,18 +539,16 @@ __attribute__((visibility("hidden")))
 void CLASS::processTransferEvent(TRBStruct* pTrb)
 {
 	ringStruct* pRing;
-	ContextStruct* pContext;
 	int32_t slot, endpoint;
 
 	/*
 	 * Interrupt Context
 	 */
 	slot = static_cast<int32_t>(XHCI_TRB_3_SLOT_GET(pTrb->d));
-	pContext = GetSlotContext(slot);
-	if (!pContext)
+	if (slot <= 0 || slot > _numSlots || SlotPtr(slot)->isInactive())
 		return;
 	endpoint = static_cast<int32_t>(XHCI_TRB_3_EP_GET(pTrb->d));
-	if (!IsIsocEP(slot, endpoint))
+	if (!endpoint || !IsIsocEP(slot, endpoint))
 		return;
 	pRing = GetRing(slot, endpoint, 0U);
 	if (pRing->isInactive()) {
@@ -571,29 +586,33 @@ void CLASS::processTransferEvent(TRBStruct* pTrb)
 __attribute__((visibility("hidden")))
 bool CLASS::processTransferEvent2(TRBStruct* pTrb, int32_t interrupter)
 {
+	int64_t diffIndex64;
 	ringStruct *pRing;
+	XHCIAsyncEndpoint* asyncEp;
+	XHCIAsyncTD* pTd;
 	int32_t trbIndexInRingQueue;
 	IOReturn rc;
 	uint16_t next;
-	uint8_t speed, epState;
 	bool callCompletion, resetEndpoint;
 
 	/*
 	 * Threaded Handler Context
 	 */
-	uint64_t addr = (static_cast<uint64_t>(pTrb->b) << 32) | (pTrb->a & ~15U);
+	uint64_t addr = GetTRBAddr64(pTrb);
 	uint32_t transferLength = XHCI_TRB_2_REM_GET(pTrb->c);
 	int32_t err = static_cast<int32_t>(XHCI_TRB_2_ERROR_GET(pTrb->c));
 	int32_t slot = static_cast<int32_t>(XHCI_TRB_3_SLOT_GET(pTrb->d));
 	int32_t endpoint = static_cast<int32_t>(XHCI_TRB_3_EP_GET(pTrb->d));
 	bool ED = ((pTrb->d) & XHCI_TRB_3_ISP_BIT) != 0U;
 
-	if (err == XHCI_TRB_ERROR_STOPPED || err == XHCI_TRB_ERROR_LENGTH) {
-		DoStopCompletion(pTrb);
-		return true;
-	}
+	if (err == XHCI_TRB_ERROR_STOPPED || err == XHCI_TRB_ERROR_LENGTH)
+		return DoStopCompletion(pTrb);
 
+	if (slot <= 0 || slot > _numSlots || SlotPtr(slot)->isInactive() || !endpoint)
+		return false;
 	if (IsStreamsEndpoint(slot, endpoint)) {
+		if (!addr)
+			return false;	// save the trouble
 		pRing = FindStream(slot, endpoint, addr, &trbIndexInRingQueue, true);
 		if (!pRing) {
 #if 0
@@ -609,9 +628,12 @@ bool CLASS::processTransferEvent2(TRBStruct* pTrb, int32_t interrupter)
 		switch (err) {
 			case XHCI_TRB_ERROR_RING_UNDERRUN:
 			case XHCI_TRB_ERROR_RING_OVERRUN:
+#if 0
 			case XHCI_TRB_ERROR_STOPPED:
 			case XHCI_TRB_ERROR_LENGTH:
-				if (!pRing->isochEndpoint)
+#endif
+				if ((pRing->epType | CTRL_EP) != ISOC_IN_EP ||
+					!pRing->isochEndpoint)
 					return true;
 #if 0
 				XHCIIsochEndpoint* isocEp = pRing->isochEndpoint;
@@ -627,16 +649,16 @@ bool CLASS::processTransferEvent2(TRBStruct* pTrb, int32_t interrupter)
 #endif
 				return true;
 		}
-		trbIndexInRingQueue = DiffTRBIndex(addr, pRing->physAddr);
+		if (!pRing->md)
+			return false;
+		diffIndex64 = DiffTRBIndex(addr, pRing->physAddr);
+		if (diffIndex64 < 0 || diffIndex64 >= pRing->numTRBs - 1U) // Note: originally > pRing->numTRBs
+			return true;
+		trbIndexInRingQueue = static_cast<int32_t>(diffIndex64);
 	}
 #if 0
 	PrintEventTRB(pTrb, interrupter, false, pRing);
 #endif
-	if (!pRing->md)
-		return false;
-	if (trbIndexInRingQueue < 0 ||
-		trbIndexInRingQueue >= static_cast<int32_t>(pRing->numTRBs)) // Note: originally >
-		return true;
 	if (IsIsocEP(slot, endpoint)) {
 		next = static_cast<uint16_t>(trbIndexInRingQueue + 1);
 		if (next >= pRing->numTRBs - 1U)
@@ -644,14 +666,12 @@ bool CLASS::processTransferEvent2(TRBStruct* pTrb, int32_t interrupter)
 		pRing->dequeueIndex = next;
 		return true;
 	}
-	speed = GetSlCtxSpeed(GetSlotContext(slot));
-	epState = static_cast<uint8_t>(XHCI_EPCTX_0_EPSTATE_GET(GetSlotContext(slot, endpoint)->_e.dwEpCtx0));
-	XHCIAsyncEndpoint* asyncEp = pRing->asyncEndpoint;
+	asyncEp = pRing->asyncEndpoint;
 	if (!asyncEp)
 		return true;
-	XHCIAsyncTD* pTd = asyncEp->GetTDFromActiveQueueWithIndex(static_cast<uint16_t>(trbIndexInRingQueue));
+	pTd = asyncEp->GetTDFromActiveQueueWithIndex(static_cast<uint16_t>(trbIndexInRingQueue));
 	if (!pTd) {
-		if (epState != EP_STATE_HALTED)
+		if (XHCI_EPCTX_0_EPSTATE_GET(GetSlotContext(slot, endpoint)->_e.dwEpCtx0) != EP_STATE_HALTED)
 			return true;
 		trbIndexInRingQueue = CountRingToED(pRing, trbIndexInRingQueue, &transferLength, true);
 		pTd = asyncEp->GetTDFromActiveQueueWithIndex(static_cast<uint16_t>(trbIndexInRingQueue));
@@ -659,7 +679,7 @@ bool CLASS::processTransferEvent2(TRBStruct* pTrb, int32_t interrupter)
 			return true;
 	}
 	if (pRing->enqueueIndex == pRing->dequeueIndex)
-		return true;
+		return true;	// TBD: why skip RetireTDs here???
 	next = static_cast<uint16_t>(trbIndexInRingQueue + 1);
 	if (next >= pRing->numTRBs - 1U)
 		next = 0U;
@@ -669,7 +689,7 @@ bool CLASS::processTransferEvent2(TRBStruct* pTrb, int32_t interrupter)
 	if (err != XHCI_TRB_ERROR_SUCCESS) {
 		callCompletion = true;
 		resetEndpoint = pTd->multiTDTransaction;
-		rc = TranslateXHCIStatus(err, (endpoint & 1) != 0, speed, false);
+		rc = TranslateXHCIStatus(err, (endpoint & 1) != 0, GetSlCtxSpeed(GetSlotContext(slot)), false);
 	} else {
 		callCompletion = pTd->onMaxTDBytesBoundary;
 		resetEndpoint = false;

@@ -154,6 +154,10 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 	 *   available bandwidth, not exact byte count.  W/o an exact byte-count
 	 *   it is pointless for the driver to pre-empt the xHC's complex
 	 *   internal bookkeeping done to reserve bandwidth for periodic endpoints.
+	 * Addendum: This static check is done because Intel Series 7 chipset
+	 *   does not do its own bandwidth allocation.  Instead, it lets the
+	 *   periodic endpoints be configured, and any bandwidth shortage
+	 *   later shows up as errors during transfers.
 	 */
 	if (epState == EP_STATE_DISABLED ||
 		XHCI_EPCTX_1_MAXP_SIZE_GET(pEpContext->_e.dwEpCtx1) < myMaxPacketSize) {
@@ -415,7 +419,8 @@ bool CLASS::IsIsocEP(int32_t slot, int32_t endpoint)
 {
 	uint32_t epType;
 	ContextStruct* pContext = GetSlotContext(slot, endpoint);
-	if (!pContext)
+	if (!pContext ||
+		XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0) == EP_STATE_DISABLED)
 		return false;
 	epType = XHCI_EPCTX_1_EPTYPE_GET(pContext->_e.dwEpCtx1);
 	return epType == ISOC_OUT_EP || epType == ISOC_IN_EP;
@@ -522,7 +527,7 @@ IOReturn CLASS::CreateStream(int32_t slot, int32_t endpoint, uint32_t streamId)
 __attribute__((visibility("hidden")))
 ringStruct* CLASS::FindStream(int32_t slot, int32_t endpoint, uint64_t addr, int32_t* pTrbIndexInRingQueue, bool)
 {
-	int32_t diffIdx;
+	int64_t diffIdx64;
 	ringStruct* pRing;
 
 	uint16_t lastStream = GetLastStreamForEndpoint(slot, endpoint);
@@ -530,10 +535,10 @@ ringStruct* CLASS::FindStream(int32_t slot, int32_t endpoint, uint64_t addr, int
 	for (uint16_t streamId = 1U; streamId <= lastStream; ++streamId) {
 		if (!pRing[streamId].md)
 			continue;
-		diffIdx = DiffTRBIndex(addr, pRing[streamId].physAddr);
-		if (diffIdx < 0 || diffIdx >= static_cast<int32_t>(pRing[streamId].numTRBs))
+		diffIdx64 = DiffTRBIndex(addr, pRing[streamId].physAddr);
+		if (diffIdx64 < 0 || diffIdx64 >= pRing[streamId].numTRBs - 1U)
 			continue;
-		*pTrbIndexInRingQueue = diffIdx;
+		*pTrbIndexInRingQueue = static_cast<int32_t>(diffIdx64);
 		return &pRing[streamId];
 	}
 	*pTrbIndexInRingQueue = 0;
