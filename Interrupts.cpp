@@ -8,6 +8,7 @@
 
 #include "GenericUSBXHCI.h"
 #include "Async.h"
+#include "Isoch.h"
 #include "XHCITypes.h"
 #include <IOKit/IOFilterInterruptEventSource.h>
 
@@ -589,6 +590,7 @@ bool CLASS::processTransferEvent2(TRBStruct* pTrb, int32_t interrupter)
 	int64_t diffIndex64;
 	ringStruct *pRing;
 	XHCIAsyncEndpoint* asyncEp;
+	GenericUSBXHCIIsochEP* pIsochEp;
 	XHCIAsyncTD* pTd;
 	int32_t trbIndexInRingQueue;
 	IOReturn rc;
@@ -635,18 +637,16 @@ bool CLASS::processTransferEvent2(TRBStruct* pTrb, int32_t interrupter)
 				if ((pRing->epType | CTRL_EP) != ISOC_IN_EP ||
 					!pRing->isochEndpoint)
 					return true;
-#if 0
-				XHCIIsochEndpoint* isocEp = pRing->isochEndpoint;
-				if (!isocEp->[dword ptr 0x54]) {
-					isocEp->[word ptr 0x4B8] = 129U;
-					isocEp->[word ptr 0x70] = 129U;
+				pIsochEp = pRing->isochEndpoint;
+				if (!pIsochEp->activeTDs) {
+					pIsochEp->inSlot2 = 129U;
+					pIsochEp->inSlot = 129U;
 				}
-				if (isocEp->[byte ptr 0x4C0]) {
-					isocEp->[byte ptr 0x4C0] = false;
+				if (pIsochEp->schedulingPending) {
+					pIsochEp->schedulingPending = false;
 					if (err <= XHCI_TRB_ERROR_RING_OVERRUN)
-						AddIsocFramesToSchedule(isocEp);
+						AddIsocFramesToSchedule(pIsochEp);
 				}
-#endif
 				return true;
 		}
 		if (!pRing->md)

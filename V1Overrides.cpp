@@ -229,7 +229,7 @@ IOReturn CLASS::UIMCreateInterruptTransfer(IOUSBCommand* command)
 	return CreateTransfer(command, 0U);
 }
 
-IOReturn CLASS::UIMCreateIsochTransfer(IOUSBIsocCommand *command)
+IOReturn CLASS::UIMCreateIsochTransfer(IOUSBIsocCommand* command)
 {
 	/*
 	 * TBD

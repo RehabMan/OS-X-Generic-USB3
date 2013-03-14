@@ -179,7 +179,7 @@ bool CLASS::DoCMDCompletion(TRBStruct trb)
 	uint16_t newIdx;
 	uint64_t addr = GetTRBAddr64(&trb);
 	if (!addr) {
-			IOLog("%s: Zero pointer in CCE\n", __FUNCTION__);
+		IOLog("%s: Zero pointer in CCE\n", __FUNCTION__);
 		return false;
 	}
 	idx64 = DiffTRBIndex(addr, _commandRing.physAddr);

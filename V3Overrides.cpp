@@ -206,14 +206,14 @@ IOReturn CLASS::UIMCreateSSBulkEndpoint(UInt8 functionNumber, UInt8 endpointNumb
 	}
 	if (maxStream & (maxStream + 1U))	// Note: checks if (maxStream + 1U) is a power of 2
 		return kIOReturnBadArgument;
-	return CreateBulkEndpoint(functionNumber, endpointNumber, direction, 0U, maxPacketSize, 0U, 0, maxStream, maxBurst);
+	return CreateBulkEndpoint(functionNumber, endpointNumber, direction, maxPacketSize, maxStream, maxBurst);
 }
 
 IOReturn CLASS::UIMCreateSSInterruptEndpoint(short functionAddress, short endpointNumber, UInt8 direction, short speed,
 											 UInt16 maxPacketSize, short pollingRate, UInt32 maxBurst)
 {
 	return CreateInterruptEndpoint(functionAddress, endpointNumber, direction, speed, maxPacketSize,
-								   pollingRate, 0U, 0, maxBurst);
+								   pollingRate, maxBurst);
 }
 
 IOReturn CLASS::UIMCreateSSIsochEndpoint(short functionAddress, short endpointNumber, UInt32 maxPacketSize, UInt8 direction,

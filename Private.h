@@ -48,6 +48,7 @@ UInt32 gUSBStackDebugFlags;	// defined in IOUSBFamily/Classes/IOUSBController.cp
 #pragma mark -
 
 class GenericUSBXHCI;
+class GenericUSBXHCIIsochEP;
 class IOBufferMemoryDescriptor;
 class OSObject;
 struct TRBStruct;
@@ -77,7 +78,7 @@ struct ringStruct
 	uint8_t epType; // 0x48
 	union { // 0x50 - Typed as XHCIIsochEndpoint*, but doubles as XHCIAsyncEndpoint*
 		XHCIAsyncEndpoint* asyncEndpoint;
-		OSObject* isochEndpoint;
+		GenericUSBXHCIIsochEP* isochEndpoint;
 	};
 	uint8_t slot; // 0x58
 	uint8_t endpoint; // 0x59

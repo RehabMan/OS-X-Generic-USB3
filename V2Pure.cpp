@@ -118,7 +118,7 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 IOReturn CLASS::UIMCreateBulkEndpoint(UInt8 functionNumber, UInt8 endpointNumber, UInt8 direction, UInt8 speed,
 									  UInt16 maxPacketSize, USBDeviceAddress highSpeedHub, int highSpeedPort)
 {
-	return CreateBulkEndpoint(functionNumber, endpointNumber, direction, 0U, maxPacketSize, 0U, 0, 0U, 0U);
+	return CreateBulkEndpoint(functionNumber, endpointNumber, direction, maxPacketSize, 0U, 0U);
 }
 
 IOReturn CLASS::UIMCreateInterruptEndpoint(short functionAddress, short endpointNumber,UInt8 direction,
@@ -126,5 +126,5 @@ IOReturn CLASS::UIMCreateInterruptEndpoint(short functionAddress, short endpoint
 										   USBDeviceAddress highSpeedHub, int highSpeedPort)
 {
 	return CreateInterruptEndpoint(functionAddress, endpointNumber, direction, speed,
-								   maxPacketSize, pollingRate, 0U, 0, 0U);
+								   maxPacketSize, pollingRate, 0U);
 }

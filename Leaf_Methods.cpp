@@ -629,9 +629,17 @@ void CLASS::NukeSlot(uint8_t slot)
 		uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
 		for (uint16_t streamId = 0U; streamId <= lastStream; ++streamId) {
 			DeallocRing(&pRing[streamId]);
-			if ((pRing[streamId].epType | CTRL_EP) != ISOC_IN_EP &&
-				pRing[streamId].asyncEndpoint)
-				pRing[streamId].asyncEndpoint->nuke();
+			if ((pRing[streamId].epType | CTRL_EP) == ISOC_IN_EP) {
+				/*
+				 * This is an interim solution, since there are no activeTDs.
+				 * Abort should generally be skipped.
+				 */
+				if (pRing[streamId].isochEndpoint)
+					DeleteIsochEP(pRing[streamId].isochEndpoint);
+			} else {
+				if (pRing[streamId].asyncEndpoint)
+					pRing[streamId].asyncEndpoint->nuke();
+			}
 		}
 		IOFree(pRing, (1U + static_cast<size_t>(pSlot->maxStreamForEndpoint[endpoint])) * sizeof *pRing);
 		pSlot->maxStreamForEndpoint[endpoint] = 0U;

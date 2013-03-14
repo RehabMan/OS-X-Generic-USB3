@@ -7,6 +7,7 @@
 //
 
 #include "GenericUSBXHCI.h"
+#include "Isoch.h"
 
 #define CLASS GenericUSBXHCI
 #define super IOUSBControllerV3
@@ -86,13 +87,12 @@ UInt64 CLASS::GetMicroFrameNumber(void)
 IOReturn CLASS::UIMCreateIsochEndpoint(short functionAddress, short endpointNumber, UInt32 maxPacketSize, UInt8 direction,
 									   USBDeviceAddress highSpeedHub, int highSpeedPort, UInt8 interval)
 {
-	return CreateIsochEndpoint(functionAddress, endpointNumber, maxPacketSize, direction, interval, 0);
+	return CreateIsochEndpoint(functionAddress, endpointNumber, maxPacketSize, direction, interval, 0U);
 }
 
 IOUSBControllerIsochEndpoint* CLASS::AllocateIsochEP(void)
 {
-#if 0
-	XHCIIsochEndpoint* obj = OSTypeAlloc(XHCIIsochEndpoint);
+	GenericUSBXHCIIsochEP* obj = OSTypeAlloc(GenericUSBXHCIIsochEP);
 	if (!obj)
 		return obj;
 	if (!obj->init()) {
@@ -100,10 +100,6 @@ IOUSBControllerIsochEndpoint* CLASS::AllocateIsochEP(void)
 		return 0;
 	}
 	return obj;
-#else
-	IOLog("%s\n", __FUNCTION__);
-	return super::AllocateIsochEP();
-#endif
 }
 
 IODMACommand* CLASS::GetNewDMACommand()

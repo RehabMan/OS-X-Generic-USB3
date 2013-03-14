@@ -391,7 +391,7 @@ public:
 									  short direction);
 	IOReturn UIMCreateBulkTransfer(IOUSBCommand* command);
 	IOReturn UIMCreateInterruptTransfer(IOUSBCommand* command);
-	IOReturn UIMCreateIsochTransfer(IOUSBIsocCommand *command);
+	IOReturn UIMCreateIsochTransfer(IOUSBIsocCommand* command);
 
 	/*
 	 * Virtual from IOService
@@ -503,8 +503,8 @@ public:
 	/*
 	 * Endpoints
 	 */
-	IOReturn CreateBulkEndpoint(uint8_t, uint8_t, uint8_t, uint8_t, uint16_t, uint16_t, int32_t, uint32_t, uint32_t);
-	IOReturn CreateInterruptEndpoint(int16_t, int16_t, uint8_t, int16_t, uint16_t, int16_t, uint16_t, int32_t, uint32_t);
+	IOReturn CreateBulkEndpoint(uint8_t, uint8_t, uint8_t, uint16_t, uint32_t, uint32_t);
+	IOReturn CreateInterruptEndpoint(int16_t, int16_t, uint8_t, int16_t, uint16_t, int16_t, uint32_t);
 	IOReturn CreateIsochEndpoint(int16_t, int16_t, uint32_t, uint8_t, uint8_t, uint32_t);
 	void ClearEndpoint(int32_t, int32_t);
 	IOReturn QuiesceAllEndpoints(void);
@@ -515,7 +515,8 @@ public:
 	IOReturn StopEndpoint(int32_t, int32_t, bool = false);
 	void ResetEndpoint(int32_t, int32_t, bool = false);
 	bool IsIsocEP(int32_t, int32_t);
-	void DeleteIsochEP(void /* XHCIIsochEndpoint */*);
+	IOReturn DeleteIsochEP(GenericUSBXHCIIsochEP*);
+	void AbortIsochEP(GenericUSBXHCIIsochEP*);
 	static uint8_t TranslateEndpoint(int16_t, int16_t);
 	/*
 	 * Streams
@@ -538,6 +539,7 @@ public:
 	static void CloseFragment(ringStruct*, TRBStruct*, uint32_t);
 	static IOReturn GenerateNextPhysicalSegment(TRBStruct*, uint32_t*, size_t, IODMACommand*);
 	static void PutBackTRB(ringStruct*, TRBStruct*);
+	void AddIsocFramesToSchedule(GenericUSBXHCIIsochEP*);
 	/*
 	 * Rings
 	 */
@@ -550,7 +552,8 @@ public:
 	IOReturn ReturnAllTransfersAndReinitRing(int32_t, int32_t, uint32_t);
 	IOReturn ReinitTransferRing(int32_t, int32_t, uint32_t);
 	int32_t SetTRDQPtr(int32_t, int32_t, uint32_t, int32_t);
-	static bool CanTDFragmentFit(ringStruct*, uint32_t);
+	static bool CanTDFragmentFit(ringStruct const*, uint32_t);
+	static uint32_t FreeSlotsOnRing(ringStruct const*);
 	/*
 	 * Non-standard XHCI Extensions
 	 */

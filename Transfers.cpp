@@ -191,7 +191,7 @@ IOReturn CLASS::AddDummyCommand(ringStruct* pRing, IOUSBCommand* command)
 }
 
 __attribute__((visibility("hidden")))
-bool CLASS::CanTDFragmentFit(ringStruct* pRing, uint32_t numBytes)
+bool CLASS::CanTDFragmentFit(ringStruct const* pRing, uint32_t numBytes)
 {
 	uint16_t numFit;
 	uint32_t maxNumPages = (numBytes / PAGE_SIZE) + 2U;
@@ -210,6 +210,17 @@ bool CLASS::CanTDFragmentFit(ringStruct* pRing, uint32_t numBytes)
 #endif
 	}
 	return maxNumPages <= numFit;
+}
+
+__attribute__((visibility("hidden")))
+uint32_t CLASS::FreeSlotsOnRing(ringStruct const* pRing)
+{
+	if (pRing->enqueueIndex < pRing->dequeueIndex)
+		return pRing->dequeueIndex - 1U - pRing->enqueueIndex;
+	uint32_t v = pRing->dequeueIndex + pRing->numTRBs - pRing->enqueueIndex;
+	if (v > 3U)
+		return v - 3U;
+	return 0U;
 }
 
 __attribute__((visibility("hidden")))
@@ -375,7 +386,7 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 				switch (XHCI_TRB_3_TYPE_GET(fourth)) {
 					case XHCI_TRB_TYPE_NORMAL:
 					case XHCI_TRB_TYPE_ISOCH:
-				fourth |= XHCI_TRB_3_BEI_BIT |XHCI_TRB_3_ISP_BIT;
+						fourth |= XHCI_TRB_3_BEI_BIT | XHCI_TRB_3_ISP_BIT;
 						break;
 					case XHCI_TRB_TYPE_DATA_STAGE:
 						fourth |= XHCI_TRB_3_ISP_BIT;

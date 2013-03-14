@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		E508CA0016A2030B005DEF4F /* Accessors.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E508C9FF16A2030B005DEF4F /* Accessors.cpp */; };
+		E50C5E3F16EF37FE00D655E1 /* Isoch.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E50C5E3E16EF37FE00D655E1 /* Isoch.cpp */; };
 		E52B1AC5168BA6D600860CF2 /* Leaf_Methods.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E52B1AC3168BA6D600860CF2 /* Leaf_Methods.cpp */; };
 		E52B1ACA168BA86400860CF2 /* V3Pure.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E52B1AC8168BA86400860CF2 /* V3Pure.cpp */; };
 		E5A3497216C7B79500F86B90 /* Transfers.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5A3497116C7B79500F86B90 /* Transfers.cpp */; };
@@ -29,6 +30,8 @@
 
 /* Begin PBXFileReference section */
 		E508C9FF16A2030B005DEF4F /* Accessors.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Accessors.cpp; sourceTree = "<group>"; };
+		E50C5E3E16EF37FE00D655E1 /* Isoch.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Isoch.cpp; sourceTree = "<group>"; };
+		E50C5E4016EF381600D655E1 /* Isoch.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Isoch.h; sourceTree = "<group>"; };
 		E518655A1695EFE400F068CF /* Private.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Private.h; sourceTree = "<group>"; };
 		E52B1AC3168BA6D600860CF2 /* Leaf_Methods.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Leaf_Methods.cpp; sourceTree = "<group>"; };
 		E52B1AC8168BA86400860CF2 /* V3Pure.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = V3Pure.cpp; sourceTree = "<group>"; };
@@ -115,6 +118,8 @@
 				E5D81FFE166F8ABF0075A356 /* GenericUSBXHCI.cpp */,
 				E5FA97C916BEE6920026B0FD /* GenericUSBXHCIUserClient.cpp */,
 				E5EA8C811698239100A263A2 /* Interrupts.cpp */,
+				E50C5E4016EF381600D655E1 /* Isoch.h */,
+				E50C5E3E16EF37FE00D655E1 /* Isoch.cpp */,
 				E52B1AC3168BA6D600860CF2 /* Leaf_Methods.cpp */,
 				E518655A1695EFE400F068CF /* Private.h */,
 				E5EA8C831698241A00A263A2 /* PwrMgmt.cpp */,
@@ -245,6 +250,7 @@
 				E5D588C416B563CC002E8D56 /* Command.cpp in Sources */,
 				E5FA97CB16BEE6920026B0FD /* GenericUSBXHCIUserClient.cpp in Sources */,
 				E5A3497216C7B79500F86B90 /* Transfers.cpp in Sources */,
+				E50C5E3F16EF37FE00D655E1 /* Isoch.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -255,10 +261,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
+				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				COMBINE_HIDPI_IMAGES = YES;
 				COPYRIGHT_NOTICE = "Copyright © 2012-2013 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.1.0a3;
+				CURRENT_PROJECT_VERSION = 1.2.0d1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = "$(CURRENT_PROJECT_VERSION)";
