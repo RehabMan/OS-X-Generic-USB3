@@ -12,6 +12,7 @@
 #define kGUXSlotsDump 3U
 #define kGUXEndpointsDump 4U
 #define kGUXBandwidthDump 5U
+#define kGUXOptionsDump 6U
 
 void printMsgBuffer(io_service_t service, unsigned type)
 {
@@ -45,12 +46,13 @@ void printMsgBuffer(io_service_t service, unsigned type)
 
 void usage(char const* me)
 {
-	fprintf(stderr, "Usage: %s <caps | running | slots | endpoints <slot#>>\n", me);
-	fprintf(stderr, "  caps dumps cap regs\n");
-	fprintf(stderr, "  running dumps running regs\n");
-	fprintf(stderr, "  slots dumps active device slots\n");
-	fprintf(stderr, "  endpoints <slot#> dumps active endpoints on slot\n");
-	fprintf(stderr, "  bandwidth dumps bandwidth for root hub ports\n");
+	fprintf(stderr, "Usage: %s <caps | running | slots | endpoints <slot#> | bandwidth | options>\n", me);
+	fprintf(stderr, "  caps - dumps cap regs\n");
+	fprintf(stderr, "  running - dumps running regs\n");
+	fprintf(stderr, "  slots - dumps active device slots\n");
+	fprintf(stderr, "  endpoints <slot#> - dumps active endpoints on slot\n");
+	fprintf(stderr, "  bandwidth - dumps bandwidth for root hub ports\n");
+	fprintf(stderr, "  options - dumps kernel flags supported by kext\n");
 }
 
 int main(int argc, char const* argv[])
@@ -77,6 +79,8 @@ int main(int argc, char const* argv[])
 		type = ((unsigned) (slot_num & 255) << 8) | kGUXEndpointsDump;
 	} else if (!strcmp(argv[1], "bandwidth"))
 		type = kGUXBandwidthDump;
+	else if (!strcmp(argv[1], "options"))
+		type = kGUXOptionsDump;
 	else
 		goto do_usage;
 

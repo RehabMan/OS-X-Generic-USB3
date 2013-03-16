@@ -15,6 +15,11 @@
 #define super IOUSBControllerV3
 OSDefineMetaClassAndFinalStructors(GenericUSBXHCI, IOUSBControllerV3);
 
+#ifndef kIOUSBMessageMuxFromEHCIToXHCI
+#define	kIOUSBMessageMuxFromEHCIToXHCI				iokit_usb_msg(0xe1)		// 0xe00040e1  Message from the EHCI HC for ports mux transition from EHCI to XHCI
+#define	kIOUSBMessageMuxFromXHCIToEHCI				iokit_usb_msg(0xe2)		// 0xe00040e2  Message from the EHCI HC for ports mux transition from XHCI to EHCI
+#endif
+
 static __used char const copyright[] = "Copyright 2012-2013 Zenith432";
 
 #pragma mark -
@@ -171,9 +176,25 @@ kern_return_t Startup(kmod_info_t* ki, void * d)
 		gux_options |= GUX_OPTION_DEFER_INTEL_EHC_PORTS;
 	if (PE_parse_boot_argn("-gux_no_idle", &v, sizeof v))
 		gux_options |= GUX_OPTION_NO_INTEL_IDLE;
+	if (PE_parse_boot_argn("-gux_nomsi", &v, sizeof v))
+		gux_options |= GUX_OPTION_NO_MSI;
 	if (PE_parse_boot_argn("gux_log", &v, sizeof v))
 		gux_log_level = static_cast<int>(v);
 	return KERN_SUCCESS;
+}
+
+__attribute__((visibility("hidden")))
+void ListOptions(PrintSink* pSink)
+{
+	/*
+	 * Keep this in sync with Startup
+	 */
+	pSink->print("Kernel Flags\n");
+	pSink->print("  -gux_nosleep: Disable XHCI suspend/resume method, and use reset-on-resume (forces USB Bus re-enumeration)\n");
+	pSink->print("  -gux_nomsi: Disable MSI and use pin interrupt (if available)\n");
+	pSink->print("  -gux_defer_usb2: For Intel Series 7/C210 only - Switch USB 2.0 protocol ports from xHC to EHC\n");
+	pSink->print("  -gux_no_idle: For Intel Series 7/C210 only - Disable Doze mode\n");
+	pSink->print("  gux_log=n: Set logging level to n.  Available levels 1 - normal, 2 - higher\n");
 }
 
 }

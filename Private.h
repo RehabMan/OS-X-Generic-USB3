@@ -41,6 +41,8 @@ UInt32 gUSBStackDebugFlags;	// defined in IOUSBFamily/Classes/IOUSBController.cp
 #define kErrataDisableComplianceExtension 0x10U
 #define kErrataIntelPCIRoutingExtension 0x20U
 #define kErrataParkRing 0x100U
+#define kErrataFL1100 0x200U
+#define kErrataASMedia 0x400U
 #define kErrataAllowControllerDoze (1U << 25)
 
 #pragma mark -
@@ -143,6 +145,7 @@ struct PrintSink
 #define GUX_OPTION_NO_SLEEP 1
 #define GUX_OPTION_DEFER_INTEL_EHC_PORTS 2
 #define GUX_OPTION_NO_INTEL_IDLE 4
+#define GUX_OPTION_NO_MSI 8
 
 #ifdef __cplusplus
 extern "C" {

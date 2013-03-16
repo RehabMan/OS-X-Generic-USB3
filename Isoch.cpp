@@ -90,7 +90,7 @@ IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNum
 		pIsochEp->framesPerInterval = static_cast<uint16_t>(pIsochEp->interval >> 3);
 	}
 	/*
-	 * Note: should really be MaxESITPayload instead of maxPacketSize
+	 * Note: should really use MaxESITPayload instead of maxPacketSize
 	 */
 	pIsochEp->boundOnPagesPerFrame = static_cast<uint16_t>(((maxPacketSize / static_cast<uint32_t>(PAGE_SIZE)) + 3U) * pIsochEp->intervalsPerFrame);
 	/*

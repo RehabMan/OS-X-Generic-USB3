@@ -8,6 +8,7 @@
 
 #include "GenericUSBXHCI.h"
 #include "XHCITypes.h"
+#include <IOKit/IOFilterInterruptEventSource.h>
 
 #define CLASS GenericUSBXHCI
 #define super IOUSBControllerV3
@@ -291,6 +292,12 @@ void CLASS::PrintCapRegs(PrintSink* pSink)
 	pSink->print("DBOff  %#x\n", Read32Reg(&_pXHCICapRegisters->DBOff));
 	pSink->print("RTSOff %#x\n", Read32Reg(&_pXHCICapRegisters->RTSOff));
 	pSink->print("PageSize %u\n", (Read32Reg(&_pXHCIOperationalRegisters->PageSize) & 0xFFFFU) << 12);
+	if (!_expansionData->_controllerCanSleep)
+		pSink->print("Will Reset on Resume\n");
+	if (_filterInterruptSource && !_filterInterruptSource->getAutoDisable())
+		pSink->print("Using MSI\n");
+	if ((_errataBits & (kErrataIntelPantherPoint | kErrataAllowControllerDoze)) == kErrataIntelPantherPoint)
+		pSink->print("Intel Doze Disabled\n");
 }
 
 __attribute__((visibility("hidden")))
@@ -330,6 +337,19 @@ void CLASS::PrintRuntimeRegs(PrintSink* pSink)
 	pSink->print("CRCr CRR %c\n", test_bit(v, 3));
 	pSink->print("Config %u\n", Read32Reg(&_pXHCIOperationalRegisters->Config) & XHCI_CONFIG_SLOTS_MASK);
 	pSink->print("MFIndex %u\n", Read32Reg(&_pXHCIRuntimeRegisters->MFIndex) & XHCI_MFINDEX_MASK);
+	pSink->print("Last Time Sync xHC %llu milliseconds <-> CPU %llu nanoseconds\n", _millsecondsTimers[3], _millsecondsTimers[1]);
+	pSink->print("# Configured Endpoints %u\n", _numEndpoints);
+	pSink->print("# Interrupts: Total %u, Serviced %u, Inactive %u, Offline %u\n",
+				 _interruptCounters[1],
+				 _interruptCounters[0],
+				 _interruptCounters[2],
+				 _interruptCounters[3]);
+	if (_inTestMode)
+		pSink->print("Test Mode Active\n");
+	if (m_invalid_regspace)
+		pSink->print("Disabled due to Invalid Register Access\n");
+	if (_HSEDetected)
+		pSink->print("Host System Error detected\n");
 	low3 = _v3ExpansionData->_rootHubPortsSSStartRange - 1U;
 	high3 = low3 + _v3ExpansionData->_rootHubNumPortsSS;
 	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {

@@ -37,7 +37,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	SetVendorInfo();
 	_errataBits = GetErrataBits(_vendorID, _deviceID, _revisionID);	// Note: originally |=
 #if 0
-	if (!(_errataBits & (kErrataFrescoLogic | kErrataIntelPantherPoint))) {
+	if (!(_errataBits & (kErrataASMedia | kErrataFrescoLogic | kErrataIntelPantherPoint))) {
 		OSBoolean* b = OSDynamicCast(OSBoolean, getProperty("AllowAnyXHCI"));
 		if (!(gUSBStackDebugFlags & kUSBEnableAllXHCIControllersMask) && (!b || !b->isTrue())) {
 			IOLog("%s: Unsupported xHC chipset\n", __FUNCTION__);

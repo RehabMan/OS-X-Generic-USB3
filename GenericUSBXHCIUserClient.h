@@ -18,6 +18,7 @@
 #define kGUXSlotsDump 3U
 #define kGUXEndpointsDump 4U
 #define kGUXBandwidthDump 5U
+#define kGUXOptionsDump 6U
 
 class GenericUSBXHCIUserClient : public IOUserClient
 {

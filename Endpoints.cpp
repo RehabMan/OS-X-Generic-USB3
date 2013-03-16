@@ -259,14 +259,16 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 	pEpContext->_e.dwEpCtx4 |= XHCI_EPCTX_4_AVG_TRB_LEN_SET(myMaxPacketSize);
 	/*
 	 * Note: For SS periodic endpoints, Max ESIT Payload should be taken
-	 *   from the endpoint companion descriptor, wBytesPerInterval, not
+	 *   from the SS endpoint companion descriptor, wBytesPerInterval, not
 	 *   calculated.  Unfortunately, IOUSBFamily does not pass this parameter.
-	 *   If calculated, (1U + multiple) should probably be multiplied in,
-	 *   otherwise an SS isoch endoint loses its ability to do multiple.
+	 *   The value below is the maximum allowed, which ensures the endpoint
+	 *   can operate at its max throughput, but also results in over-provisioning
+	 *   of bandwidth, which can cause the configure-endpoint command to
+	 *   be rejected with an insufficient-bandwidth error.
 	 */
 	if ((endpointType | CTRL_EP) == ISOC_IN_EP ||
 		(endpointType | CTRL_EP) == INT_IN_EP)
-		pEpContext->_e.dwEpCtx4 |= XHCI_EPCTX_4_MAX_ESIT_PAYLOAD_SET((1U + myMaxBurst) * myMaxPacketSize);
+		pEpContext->_e.dwEpCtx4 |= XHCI_EPCTX_4_MAX_ESIT_PAYLOAD_SET(myMaxPacketSize * (1U + myMaxBurst) * (1U + multiple));
 	SetTRBAddr64(&localTrb, _inputContext.physAddr);
 	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_CONFIGURE_EP, 0);

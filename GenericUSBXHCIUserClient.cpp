@@ -120,6 +120,8 @@ IOReturn GatedPrintRootHubPortBandwidth(OSObject* owner, void* pSink, void*, voi
 	return kIOReturnSuccess;
 }
 
+extern "C" void ListOptions(PrintSink* pSink);
+
 IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemoryDescriptor** memory)
 {
 	IOBufferMemoryDescriptor* md;
@@ -195,6 +197,17 @@ IOReturn CLASS::clientMemoryForType(UInt32 type, IOOptionBits* options, IOMemory
 			if (ret != kIOReturnSuccess)
 				break;
 			provider->getWorkLoop()->runAction(GatedPrintRootHubPortBandwidth, provider, &sink);
+			kernelMap->release();
+			md->complete();
+			*options = kIOMapReadOnly;
+			*memory = md;
+			ret = kIOReturnSuccess;
+			break;
+		case kGUXOptionsDump:
+			ret = MakeMemoryAndPrintSink(PAGE_SIZE, &md, &kernelMap, &sink);
+			if (ret != kIOReturnSuccess)
+				break;
+			ListOptions(&sink);
 			kernelMap->release();
 			md->complete();
 			*options = kIOMapReadOnly;
