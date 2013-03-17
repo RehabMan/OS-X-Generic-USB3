@@ -41,7 +41,7 @@ class GenericUSBXHCIIsochTD : public IOUSBControllerIsochListElement
 public:
 	IOUSBIsocCommand* _command;	// offset 0x70
 	uint32_t some_r14;	// offset 0x78
-	bool _aFlag;	// offset 0xD8
+	bool _notFirstAvailable;	// offset 0xD8
 	bool _bFlag;	// offset 0xD9
 
 	/*

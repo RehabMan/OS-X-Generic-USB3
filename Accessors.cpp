@@ -107,8 +107,10 @@ void CLASS::Write64Reg(uint64_t volatile* p, uint64_t v, bool)
 			reinterpret_cast<uint32_t volatile*>(p)[1] = static_cast<uint32_t>(v >> 32);
 		} else
 			*p = v;
-	} else
+	} else {
 		*reinterpret_cast<uint32_t volatile*>(p) = static_cast<uint32_t>(v);
+		reinterpret_cast<uint32_t volatile*>(p)[1] = 0U;
+	}
 }
 
 #pragma mark -
