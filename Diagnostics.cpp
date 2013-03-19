@@ -344,6 +344,20 @@ void CLASS::PrintRuntimeRegs(PrintSink* pSink)
 				 _interruptCounters[0],
 				 _interruptCounters[2],
 				 _interruptCounters[3]);
+	if (_diagCounters[DIAGCTR_SLEEP])
+		pSink->print("# Save Errors %u\n", _diagCounters[DIAGCTR_SLEEP]);
+	if (_diagCounters[DIAGCTR_RESUME])
+		pSink->print("# Restore Errors %u\n", _diagCounters[DIAGCTR_RESUME]);
+	if (_diagCounters[DIAGCTR_BNCEOVRFLW])
+		pSink->print("# Event Queue Overflows %u\n", _diagCounters[DIAGCTR_BNCEOVRFLW]);
+	if (_diagCounters[DIAGCTR_CMDERR])
+		pSink->print("# Spurious Command Completion Events %u\n", _diagCounters[DIAGCTR_CMDERR]);
+	if (_diagCounters[DIAGCTR_XFERERR])
+		pSink->print("# Spurious Transfer Events %u\n", _diagCounters[DIAGCTR_XFERERR]);
+	if (_diagCounters[DIAGCTR_XFERKEEPAWAY])
+		pSink->print("# Transfer Ring Keepaways %u\n", _diagCounters[DIAGCTR_XFERKEEPAWAY]);
+	if (_diagCounters[DIAGCTR_XFERLAYOUT])
+		pSink->print("# Transfer Layout Errors %u\n", _diagCounters[DIAGCTR_XFERLAYOUT]);
 	if (_inTestMode)
 		pSink->print("Test Mode Active\n");
 	if (m_invalid_regspace)

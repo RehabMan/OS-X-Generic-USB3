@@ -89,8 +89,6 @@ IOReturn CLASS::SaveControllerStateForSleep(void)
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
 	Write32Reg(&_pXHCIOperationalRegisters->USBCmd, cmd | XHCI_CMD_CSS);
-	if (m_invalid_regspace)
-		return kIOReturnNoDevice;
 	rc = WaitForUSBSts(XHCI_STS_SSS, 0U);
 	if (rc != kIOReturnSuccess)
 		return rc;
@@ -98,7 +96,22 @@ IOReturn CLASS::SaveControllerStateForSleep(void)
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
 	_isSleeping = true;
+	if (sts & XHCI_STS_HSE) {
+		/*
+		 * Clear HSE as it may cause the chip to PME
+		 */
+		Write32Reg(&_pXHCIOperationalRegisters->USBSts, XHCI_STS_HSE);
+		if (!_HSEDetected) {
+			IOLog("%s: HSE bit set\n", __FUNCTION__);
+			_HSEDetected = true;
+		}
+	}
 	if (sts & XHCI_STS_SRE) {
+		/*
+		 * Clear SRE as it may cause the chip to PME
+		 */
+		++_diagCounters[DIAGCTR_SLEEP];
+		Write32Reg(&_pXHCIOperationalRegisters->USBSts, XHCI_STS_SRE);
 		IOLog("%s: xHC Save Error\n", __FUNCTION__);
 		return kIOReturnInternalError;
 	}
@@ -170,6 +183,7 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 		if (m_invalid_regspace)
 			return kIOReturnNoDevice;
 		if (sts & XHCI_STS_SRE) {
+			++_diagCounters[DIAGCTR_RESUME];
 			Write32Reg(&_pXHCIOperationalRegisters->USBSts, XHCI_STS_SRE);
 			IOLog("%s: xHC Restore Error\n", __FUNCTION__);
 			_uimInitialized = false;
@@ -306,8 +320,6 @@ IOReturn CLASS::EnableInterruptsFromController(bool enable)
 		if (m_invalid_regspace)
 			return kIOReturnNoDevice;
 		Write32Reg(&_pXHCIOperationalRegisters->USBCmd, cmd & ~(XHCI_CMD_INTE | XHCI_CMD_EWE));
-		if (m_invalid_regspace)
-			return kIOReturnNoDevice;
 	}
 	return kIOReturnSuccess;
 }

@@ -272,7 +272,11 @@ void CLASS::RHResumePortTimer(uint32_t port)
 	IOCommandGate* commandGate = _commandGate;
 	if (!commandGate)
 		return;
-	EnsureUsability();
+	/*
+	 * Skip this if initiated from RestoreControllerStateFromSleep
+	 */
+	if (_controllerAvailable)
+		EnsureUsability();
 	commandGate->runAction(RHResumePortCompletionEntry,
 						   reinterpret_cast<void*>(static_cast<size_t>(port)));
 }

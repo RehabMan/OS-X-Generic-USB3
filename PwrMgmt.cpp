@@ -77,8 +77,6 @@ IOReturn CLASS::ResetController(void)
 	 *   from hardware reset
 	 */
 	Write32Reg(&_pXHCIOperationalRegisters->USBCmd, 0U);
-	if (m_invalid_regspace)
-		return kIOReturnNoDevice;
 	rc = WaitForUSBSts(XHCI_STS_HCH, UINT32_MAX);
 	if (rc != kIOReturnSuccess) {
 		if (rc == kIOReturnTimeout)
@@ -86,8 +84,6 @@ IOReturn CLASS::ResetController(void)
 		return rc;
 	}
 	Write32Reg(&_pXHCIOperationalRegisters->USBCmd, XHCI_CMD_HCRST);
-	if (m_invalid_regspace)
-		return kIOReturnNoDevice;
 	rc = XHCIHandshake(&_pXHCIOperationalRegisters->USBCmd, XHCI_CMD_HCRST, 0U, 1000);
 	if (rc == kIOReturnTimeout)
 		IOLog("%s: could not get chip to come out of reset within 1000 ms\n", __FUNCTION__);
@@ -105,8 +101,6 @@ IOReturn CLASS::StopUSBBus(void)
 		return kIOReturnSuccess;
 	}
 	Write32Reg(&_pXHCIOperationalRegisters->USBCmd, (cmd & ~XHCI_CMD_RS));
-	if (m_invalid_regspace)
-		return kIOReturnNoDevice;
 	IOReturn rc = WaitForUSBSts(XHCI_STS_HCH, UINT32_MAX);
 	if (rc != kIOReturnTimeout)
 		_myBusState = kUSBBusStateReset;
@@ -130,8 +124,6 @@ void CLASS::RestartUSBBus(void)
 		return;
 	cmd |= XHCI_CMD_EWE | XHCI_CMD_INTE | XHCI_CMD_RS;
 	Write32Reg(&_pXHCIOperationalRegisters->USBCmd, cmd);
-	if (m_invalid_regspace)
-		return;
 	IOReturn rc = WaitForUSBSts(XHCI_STS_HCH, 0U);
 	if (rc != kIOReturnNoDevice)
 		_myBusState = kUSBBusStateRunning;

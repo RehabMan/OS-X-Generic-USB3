@@ -147,6 +147,15 @@ struct PrintSink
 #define GUX_OPTION_NO_INTEL_IDLE 4
 #define GUX_OPTION_NO_MSI 8
 
+#define DIAGCTR_SLEEP 0
+#define DIAGCTR_RESUME 1
+#define DIAGCTR_BNCEOVRFLW 2
+#define DIAGCTR_CMDERR 3
+#define DIAGCTR_XFERERR 4
+#define DIAGCTR_XFERKEEPAWAY 5
+#define DIAGCTR_XFERLAYOUT 6
+#define NUM_DIAGCTRS 7
+
 #ifdef __cplusplus
 extern "C" {
 #endif

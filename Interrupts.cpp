@@ -55,16 +55,24 @@ bool CLASS::PrimaryInterruptFilter(OSObject* owner, IOFilterInterruptEventSource
 	 * Interrupt Context
 	 */
 	CLASS* controller = static_cast<CLASS*>(owner);
-	if (!controller || !source)
+	if (!controller)
 		return false;
 	static_cast<void>(__sync_fetch_and_add(&controller->_interruptCounters[1], 1));
 	if (controller->isInactive()) {
 		static_cast<void>(__sync_fetch_and_add(&controller->_interruptCounters[2], 1));
 		return false;
 	}
-	if (controller->m_invalid_regspace || !controller->_controllerAvailable) {
+	if (!source || !controller->_controllerAvailable) {
+		/*
+		 * When sleeping and using pin interrupt, may get one that
+		 *   belongs to another device.
+		 */
 		static_cast<void>(__sync_fetch_and_add(&controller->_interruptCounters[3], 1));
-		source->disable();
+		return false;
+	}
+	if (controller->m_invalid_regspace) {
+		static_cast<void>(__sync_fetch_and_add(&controller->_interruptCounters[3], 1));
+		source->disable();	// Note: For MSI this is a no-op
 		return false;
 	}
 	// Process this interrupt
@@ -91,7 +99,7 @@ void CLASS::FilterInterrupt(IOFilterInterruptEventSource* source)
 	if (!interrupter) {
 		uint32_t sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 		if (m_invalid_regspace) {
-			source->disable();
+			source->disable();	// Note: For MSI this is a no-op
 			return;
 		}
 #if 0
@@ -107,7 +115,7 @@ void CLASS::FilterInterrupt(IOFilterInterruptEventSource* source)
 		postFilterEventRing(interrupter);
 	}
 	if (m_invalid_regspace) {
-		source->disable();
+		source->disable();	// Note: For MSI this is a no-op
 		return;
 	}
 	if (invokeContinuation)
@@ -240,9 +248,11 @@ bool CLASS::PollEventRing2(int32_t interrupter)
 		_HSEDetected = true;
 	}
 	value = __sync_lock_test_and_set(&ePtr->numBounceQueueOverflows, 0);
-	if (value > 0)
+	if (value > 0) {
+		_diagCounters[DIAGCTR_BNCEOVRFLW] += value;
 		IOLog("%s: Secondary event queue %d overflowed: %d\n", __FUNCTION__,
 			  interrupter, value);
+	}
 #if 0
 	value = __sync_lock_test_and_set(&_debugflags, 0);
 	if (value > 0)
@@ -257,7 +267,7 @@ bool CLASS::PollEventRing2(int32_t interrupter)
 #if 0
 	for (XHCIIsochEndpoint* iter = static_cast<XHCIIsochEndpoint*>(_isochEPList); iter; iter = iter->nextEP)
 		if (iter->[dword ptr 0x498] != iter->[dword ptr 0x49C])
-			ScavengeIsocTransactions(iter, true);
+			RetireIsocTransactions(iter, true);
 #endif
 	if (ePtr->bounceDequeueIndex == ePtr->bounceEnqueueIndex)
 		goto done;
@@ -272,7 +282,8 @@ bool CLASS::PollEventRing2(int32_t interrupter)
 			if (!(_errataBits & kErrataRenesas))
 				break;
 		case XHCI_TRB_EVENT_CMD_COMPLETE:
-			DoCMDCompletion(localTrb);
+			if (!DoCMDCompletion(localTrb))
+				++_diagCounters[DIAGCTR_CMDERR];
 			break;
 		case XHCI_TRB_EVENT_TRANSFER:
 			/*
@@ -286,7 +297,8 @@ bool CLASS::PollEventRing2(int32_t interrupter)
 			 *   TransferEvent TRBs (see XHCI_SPURIOUS_SUCCESS),
 			 *   so we want to ignore those too.
 			 */
-			processTransferEvent2(&localTrb, interrupter);
+			if (!processTransferEvent2(&localTrb, interrupter))
+				++_diagCounters[DIAGCTR_XFERERR];
 			break;
 #if 0
 		case XHCI_TRB_EVENT_PORT_STS_CHANGE:
@@ -359,7 +371,8 @@ void CLASS::PollForCMDCompletions(int32_t interrupter)
 #if 0
 				PrintEventTRB(&localTrb, interrupter, false, 0);
 #endif
-				DoStopCompletion(&localTrb);
+				if (!DoStopCompletion(&localTrb))
+					++_diagCounters[DIAGCTR_XFERERR];
 				break;
 			case TRB_RENESAS_CMD_COMP:
 				if (!(_errataBits & kErrataRenesas))
@@ -369,7 +382,8 @@ void CLASS::PollForCMDCompletions(int32_t interrupter)
 #if 0
 				PrintEventTRB(&localTrb, 0, false, 0);
 #endif
-				DoCMDCompletion(localTrb);
+				if (!DoCMDCompletion(localTrb))
+					++_diagCounters[DIAGCTR_CMDERR];
 				break;
 		}
 		++index;

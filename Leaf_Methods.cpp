@@ -212,8 +212,14 @@ void CLASS::TakeOwnershipFromBios(void)
 		rc = XHCIHandshake(_pUSBLegSup, 1U << 16, 0U, 100);
 		if (rc == kIOReturnNoDevice)
 			return;
-		if (rc == kIOReturnTimeout)
+		if (rc == kIOReturnTimeout) {
 			IOLog("%s: Unable to take ownership of xHC from BIOS within 100 ms\n", __FUNCTION__);
+			/*
+			 * Break bios hold by disabling SMI events
+			 */
+			Write32Reg(_pUSBLegSup + 1, 7U << 29);
+			return;
+		}
 	}
 	v = Read32Reg(_pUSBLegSup + 1);
 	if (m_invalid_regspace)

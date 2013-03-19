@@ -104,6 +104,7 @@ private:
 									// offset 0x7C0
 	int32_t _debugflags;			// offset 0x980
 	int32_t _errorCounters[4];		// offset 0x984
+	int32_t _diagCounters[NUM_DIAGCTRS];	// Added
 
 	/*
 	 * Device Contexts
@@ -280,6 +281,7 @@ public:
 	/*
 	 * Overrides
 	 */
+	void ControllerSleep(void);
 	IOReturn GetRootHubBOSDescriptor(OSData* desc);
 	IOReturn GetRootHub3Descriptor(IOUSB3HubDescriptor* desc);
 	IOReturn UIMDeviceToBeReset(short functionAddress);

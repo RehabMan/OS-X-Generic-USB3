@@ -29,7 +29,8 @@ uint8_t CLASS::Read8Reg(uint8_t volatile const* p)
 	v = *p;
 	if (v != UINT8_MAX)
 		return v;
-	m_invalid_regspace = true;
+	if (_v3ExpansionData->_onThunderbolt)
+		m_invalid_regspace = true;
 	return UINT8_MAX;
 }
 
@@ -42,7 +43,8 @@ uint16_t CLASS::Read16Reg(uint16_t volatile const* p)
 	v = *p;
 	if (v != UINT16_MAX)
 		return v;
-	m_invalid_regspace = true;
+	if (_v3ExpansionData->_onThunderbolt)
+		m_invalid_regspace = true;
 	return UINT16_MAX;
 }
 
@@ -55,7 +57,8 @@ uint32_t CLASS::Read32Reg(uint32_t volatile const* p)
 	v = *p;
 	if (v != UINT32_MAX)
 		return v;
-	m_invalid_regspace = true;
+	if (_v3ExpansionData->_onThunderbolt)
+		m_invalid_regspace = true;
 	return UINT32_MAX;
 }
 
@@ -84,7 +87,8 @@ uint64_t CLASS::Read64Reg(uint64_t volatile const* p)
 		if (lowv != UINT32_MAX)
 			return lowv;
 	}
-	m_invalid_regspace = true;
+	if (_v3ExpansionData->_onThunderbolt)
+		m_invalid_regspace = true;
 	return UINT64_MAX;
 }
 

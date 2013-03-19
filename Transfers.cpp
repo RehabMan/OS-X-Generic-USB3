@@ -753,8 +753,11 @@ void XHCIAsyncEndpoint::ScheduleTDs(void)
 		return;
 	}
 	do {
-		if (!(provider->CanTDFragmentFit(pRing, maxTDBytes)))
+		if (!(provider->CanTDFragmentFit(pRing, maxTDBytes))) {
+			if (gux_log_level >= 2 && provider)
+				++provider->_diagCounters[DIAGCTR_XFERKEEPAWAY];
 			break;
+		}
 		pTd = GetTD(&queuedHead, &queuedTail, &numTDsQueued);
 		if (!pTd)
 			continue;
@@ -770,6 +773,8 @@ void XHCIAsyncEndpoint::ScheduleTDs(void)
 									   false,
 									   &pTd->lastTrbIndex);
 		if (rc != kIOReturnSuccess) {
+			if (provider)
+				++provider->_diagCounters[DIAGCTR_XFERLAYOUT];
 			if (queuedHead) {
 				pTd->next = queuedHead;
 				queuedHead = pTd;

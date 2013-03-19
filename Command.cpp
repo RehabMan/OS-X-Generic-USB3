@@ -51,8 +51,6 @@ IOReturn CLASS::RestoreCRCr(void)
 		newCRCr |= XHCI_CRCR_LO_RCS;
 
 	Write64Reg(&_pXHCIOperationalRegisters->CRCr, newCRCr, false);
-	if (m_invalid_regspace)
-		return kIOReturnNoDevice;
 	return kIOReturnSuccess;
 }
 

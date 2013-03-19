@@ -16,6 +16,26 @@
 #pragma mark IOUSBControllerV3 Overrides
 #pragma mark -
 
+void CLASS::ControllerSleep(void)
+{
+	if (_myPowerState == kUSBPowerStateLowPower)
+		WakeControllerFromDoze();
+#if 0
+	/*
+	 * The actual (and correct) order of events is:
+	 *   AppleUSBHub down the power tree
+	 *   calls UIMEnableAddressEndpoints(,false) to stop endpoints.
+	 *   Then it puts enabled ports in U3 state.
+	 *   Then arrive here.
+	 */
+	QuiesceAllEndpoints();
+#endif
+	CommandStop();
+	EnableInterruptsFromController(false);
+	IOSleep(1U);	// drain primary interrupts
+	SaveControllerStateForSleep();
+}
+
 IOReturn CLASS::GetRootHubBOSDescriptor(OSData* desc)
 {
 	static
