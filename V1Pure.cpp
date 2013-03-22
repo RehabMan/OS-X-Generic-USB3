@@ -491,7 +491,7 @@ void CLASS::UIMRootHubStatusChange(void)
 	statusChangedBitmap |= _rhPortStatusChangeBitmapGated;
 	_rhPortStatusChangeBitmapGated = statusChangedBitmap;
 	if (!_controllerAvailable || _wakingFromHibernation)
-		return;
+		statusChangedBitmap = 0U;
 #endif
 	_rootHubStatusChangedBitmap = statusChangedBitmap;
 }

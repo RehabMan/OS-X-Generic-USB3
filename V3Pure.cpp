@@ -23,6 +23,15 @@ IOReturn CLASS::ResetControllerState(void)
 	IOReturn rc = StopUSBBus();
 	EnableInterruptsFromController(false);
 	IOSleep(1U);	// drain primary interrupts
+	if (_expansionData &&
+		_expansionData->_controllerCanSleep &&
+		_device) {
+		/*
+		 * On the ASM1042, shutting down with PME enabled
+		 *   causes spontaneous reboot, so disable it.
+		 */
+		_device->enablePCIPowerManagement(kPCIPMCSPowerStateD0);
+	}
 	if (rc == kIOReturnSuccess)
 		_uimInitialized = false;
 	return rc;
