@@ -46,10 +46,8 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		}
 	}
 #endif
-#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1072
 	if (!_v3ExpansionData->_onThunderbolt)
 		_expansionData->_isochMaxBusStall = 25000U;
-#endif
 	_pXHCICapRegisters = reinterpret_cast<struct XHCICapRegisters volatile*>(_deviceBase->getVirtualAddress());
 	// enable the card registers
 	_device->configWrite16(kIOPCIConfigCommand, kIOPCICommandMemorySpace);

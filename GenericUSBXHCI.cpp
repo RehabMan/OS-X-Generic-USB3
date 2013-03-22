@@ -129,6 +129,12 @@ bool CLASS::init(OSDictionary* dictionary)
 		IOLog("%s: super::init failed\n", __FUNCTION__);
 		return false;
 	}
+    // do not load if prior to OS X 10.7.5
+    if (GetKernelVersion() < MakeKernelVersion(11,4,2)) {
+        IOLog("%s: Only 10.7.5 or greater is supported.\n", __FUNCTION__);
+        return false;
+    }
+    
 	_controllerSpeed = kUSBDeviceSpeedSuper;
 	_wdhLock = IOSimpleLockAlloc();
 	if (!_wdhLock) {
