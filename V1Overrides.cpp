@@ -8,6 +8,7 @@
 
 #include "GenericUSBXHCI.h"
 #include "Async.h"
+#include "Isoch.h"
 #include "XHCITypes.h"
 #include <IOKit/IOTimerEventSource.h>
 
@@ -58,6 +59,8 @@ void CLASS::UIMCheckForTimeouts(void)
 	uint32_t frameNumber, sts, mfIndex;
 	uint8_t slot;
 
+	if (!_controllerAvailable || _wakingFromHibernation)
+		return;
 	frameNumber = GetFrameNumber32();
 	sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace) {
@@ -77,7 +80,7 @@ void CLASS::UIMCheckForTimeouts(void)
 	for (slot = 1U; slot <= _numSlots; ++slot)
 		if (!IsStillConnectedAndEnabled(slot))
 			CheckSlotForTimeouts(slot, frameNumber);
-	if (_powerStateChangingTo != -1 && _powerStateChangingTo <= kUSBPowerStateLowPower)
+	if (_powerStateChangingTo != kUSBPowerStateStable && _powerStateChangingTo <= kUSBPowerStateLowPower)
 		return;
 	mfIndex = Read32Reg(&_pXHCIRuntimeRegisters->MFIndex);
 	if (m_invalid_regspace)
@@ -234,9 +237,114 @@ IOReturn CLASS::UIMCreateInterruptTransfer(IOUSBCommand* command)
 
 IOReturn CLASS::UIMCreateIsochTransfer(IOUSBIsocCommand* command)
 {
+	uint64_t curFrameNumber, frameNumberStart;
+	IODMACommand* dmac;
+	GenericUSBXHCIIsochEP* pIsochEp;
+	GenericUSBXHCIIsochTD* pIsochTd;
+	IOUSBIsocFrame* pFrames;
+	IOUSBLowLatencyIsocFrame* pLLFrames;
+	size_t transferOffset;
+	uint32_t transferCount, updateFrequency, epInterval, transfersPerTD, frameNumberIncrease, updateFrameNumber;
+	bool lowLatency, startsChain;
+
 	/*
-	 * TBD
+	 * See UIMCreateIsochTransfer, CreateHSIsochTransfer in
+	 *   AppleUSBEHCI_UIM.cpp for some reference
 	 */
-	IOLog("%s\n", __FUNCTION__);
-	return super::UIMCreateIsochTransfer(command);
+	if (!command)
+		return kIOReturnBadArgument;
+	curFrameNumber = GetFrameNumber();
+	transferCount = command->GetNumFrames();
+	if (!transferCount || transferCount > 1000U)
+		return kIOReturnBadArgument;
+	frameNumberStart = command->GetStartFrame();
+	lowLatency = command->GetLowLatency();
+	pFrames = command->GetFrameList();
+	pLLFrames = reinterpret_cast<IOUSBLowLatencyIsocFrame*>(pFrames);
+	updateFrequency = command->GetUpdateFrequency();
+	pIsochEp = OSDynamicCast(GenericUSBXHCIIsochEP,
+							 FindIsochronousEndpoint(command->GetAddress(),
+													 command->GetEndpoint(),
+													 command->GetDirection(),
+													 0));
+	if (!pIsochEp)
+		return kIOUSBEndpointNotFound;
+	if (pIsochEp->aborting)
+		return kIOReturnNotPermitted;
+	if (pIsochEp->pRing->isInactive())
+		return kIOReturnBadArgument;
+	if (pIsochEp->pRing->deleteInProgress)
+		return kIOReturnNoDevice;
+	dmac = command->GetDMACommand();
+	if (!dmac || !dmac->getMemoryDescriptor()) {
+		IOLog("%s: no DMA Command or missing memory descriptor\n", __FUNCTION__);
+		return kIOReturnBadArgument;
+	}
+	epInterval = pIsochEp->interval;
+	if (epInterval >= 8U) {
+		transfersPerTD = 1U;
+		frameNumberIncrease = epInterval / 8U;
+	} else {
+		transfersPerTD = 8U / epInterval;
+		frameNumberIncrease = 1U;
+	}
+	if (frameNumberStart < pIsochEp->firstAvailableFrame)
+		return kIOReturnIsoTooOld;
+	startsChain = (frameNumberStart != pIsochEp->firstAvailableFrame);
+	if (startsChain && frameNumberIncrease > 1U) {
+		if (frameNumberStart % frameNumberIncrease)
+			return kIOReturnBadArgument;
+	}
+	pIsochEp->firstAvailableFrame = frameNumberStart;
+	if (static_cast<int64_t>(frameNumberStart - curFrameNumber) < -1024)
+		return kIOReturnIsoTooOld;
+	else if (static_cast<int64_t>(frameNumberStart - curFrameNumber) > 1024)
+		return kIOReturnIsoTooNew;
+	if (transferCount % transfersPerTD)
+		return kIOReturnBadArgument;
+	if (!updateFrequency || updateFrequency > 8U || !lowLatency)
+		updateFrequency = 8U;
+	updateFrameNumber = 0U;
+	transferOffset = 0U;
+	pIsochTd = 0;
+	for (uint32_t baseTransferIndex = 0U; baseTransferIndex < transferCount; baseTransferIndex += transfersPerTD) {
+		pIsochTd = GenericUSBXHCIIsochTD::ForEndpoint(pIsochEp);
+		if (!pIsochTd)
+			return kIOReturnNoMemory;
+		pIsochTd->_lowLatency = lowLatency;
+		pIsochTd->_framesInTD = 0U;
+		pIsochTd->_startsChain = startsChain;
+		pIsochTd->_wantCompletion = false;
+		if (updateFrameNumber > updateFrequency) {
+			pIsochTd->_wantCompletion = true;
+			updateFrameNumber -= updateFrequency;
+		}
+		pIsochEp->firstAvailableFrame += frameNumberIncrease;
+		pIsochTd->_transferOffset = transferOffset;
+		if (frameNumberIncrease == 1U)
+			startsChain = false;
+		for (uint32_t transfer = 0U; transfer != transfersPerTD; ++transfer) {
+			if (lowLatency) {
+				pLLFrames[baseTransferIndex + transfer].frStatus = kUSBLowLatencyIsochTransferKey;
+				transferOffset += pLLFrames[baseTransferIndex + transfer].frReqCount;
+			} else
+				transferOffset += pFrames[baseTransferIndex + transfer].frReqCount;
+		}
+		pIsochTd->_framesInTD = static_cast<uint8_t>(transfersPerTD);
+		pIsochTd->_pFrames = pFrames;
+		pIsochTd->_frameNumber = frameNumberStart;
+		pIsochTd->_frameIndex = baseTransferIndex;
+		pIsochTd->_completion.action = 0;
+		pIsochTd->_pEndpoint = pIsochEp;
+		pIsochTd->_command = command;
+		PutTDonToDoList(pIsochEp, pIsochTd);
+		updateFrameNumber += frameNumberIncrease;
+		frameNumberStart += frameNumberIncrease;
+	}
+	if (!pIsochTd)
+		return kIOReturnInternalError;
+	pIsochTd->_completion = command->GetUSLCompletion();
+	pIsochTd->_wantCompletion = true;
+	AddIsocFramesToSchedule(pIsochEp);
+	return kIOReturnSuccess;
 }

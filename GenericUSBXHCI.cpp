@@ -130,8 +130,8 @@ bool CLASS::init(OSDictionary* dictionary)
 		return false;
 	}
 	_controllerSpeed = kUSBDeviceSpeedSuper;
-	_wdhLock = IOSimpleLockAlloc();
-	if (!_wdhLock) {
+	_isochScheduleLock = IOSimpleLockAlloc();
+	if (!_isochScheduleLock) {
 		IOLog("%s: Unable to allocate SimpleLock\n", __FUNCTION__);
 		return false;
 	}
@@ -145,9 +145,9 @@ void CLASS::free(void)
 	/*
 	 * Note: _wdhLock is not freed in original code
 	 */
-	if (_wdhLock) {
-		IOSimpleLockFree(_wdhLock);
-		_wdhLock = 0;
+	if (_isochScheduleLock) {
+		IOSimpleLockFree(_isochScheduleLock);
+		_isochScheduleLock = 0;
 	}
 	super::free();
 }

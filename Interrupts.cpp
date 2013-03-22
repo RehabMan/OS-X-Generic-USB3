@@ -264,11 +264,11 @@ bool CLASS::PollEventRing2(int32_t interrupter)
 	value = __sync_lock_test_and_set(&_errorCounters[3], 0);
 	if (value > 0)
 		IOLog("%s: Isoc problems: %d\n", __FUNCTION__, value);
-#if 0
-	for (XHCIIsochEndpoint* iter = static_cast<XHCIIsochEndpoint*>(_isochEPList); iter; iter = iter->nextEP)
-		if (iter->[dword ptr 0x498] != iter->[dword ptr 0x49C])
+	for (GenericUSBXHCIIsochEP* iter = static_cast<GenericUSBXHCIIsochEP*>(_isochEPList);
+		 iter;
+		 iter = static_cast<GenericUSBXHCIIsochEP*>(iter->nextEP))
+		if (iter->_uk4 != iter->_uk5)
 			RetireIsocTransactions(iter, true);
-#endif
 	if (ePtr->bounceDequeueIndex == ePtr->bounceEnqueueIndex)
 		goto done;
 	localTrb = ePtr->bounceQueuePtr[ePtr->bounceDequeueIndex];
@@ -290,12 +290,9 @@ bool CLASS::PollEventRing2(int32_t interrupter)
 			 * Note: processTransferEvent2 returns false
 			 *   if the TransferEvent had invalid data
 			 *   in it (slot #, endpoint#, TRB pointer.)
-			 *   Linux driver says this means the xHC
-			 *   is "hosed" and should be reset.
-			 *   We ignore it.
-			 *   Additionally, Intel xHC returns spurious
-			 *   TransferEvent TRBs (see XHCI_SPURIOUS_SUCCESS),
-			 *   so we want to ignore those too.
+			 *   A faulty TransferEvent is ignored, except
+			 *   for counting them for diagnostic purposes.
+			     Some xHC may return spurious TransferEvents.
 			 */
 			if (!processTransferEvent2(&localTrb, interrupter))
 				++_diagCounters[DIAGCTR_XFERERR];
@@ -554,7 +551,9 @@ __attribute__((visibility("hidden")))
 void CLASS::processTransferEvent(TRBStruct* pTrb)
 {
 	ringStruct* pRing;
+	GenericUSBXHCIIsochEP* pIsochEp;
 	int32_t slot, endpoint;
+	uint16_t inSlot, inSlot2;
 
 	/*
 	 * Interrupt Context
@@ -570,32 +569,24 @@ void CLASS::processTransferEvent(TRBStruct* pTrb)
 		static_cast<void>(__sync_fetch_and_add(&_errorCounters[3], 1));
 		return;
 	}
-#if 0
-	void* isochEndpoint;
-	uint32_t err;
-	uint16_t r12, w70;
-	isochEndpoint = pRing->isochEndpoint;
-	err = XHCI_TRB_2_ERROR_GET(pTrb->c);
-	switch (err) {
+	pIsochEp = pRing->isochEndpoint;
+	switch (XHCI_TRB_2_ERROR_GET(pTrb->c)) {
 		case XHCI_TRB_ERROR_SUCCESS:
 		case XHCI_TRB_ERROR_XACT:
 		case XHCI_TRB_ERROR_SHORT_PKT:
-			r12 = isochEndpoint->[word ptr 0x4B8];
-			if (r12 > 127U)
+			inSlot2 = pIsochEp->inSlot2;
+			if (inSlot2 > 127U)
 				break;
-			w70 = isochEndpoint->[word ptr 0x70] & 127U;
+			inSlot = pIsochEp->inSlot & 127U;
 			// TBD: 3E97 - 403A
-			if (r12 == w70) {
+			if (inSlot2 == inSlot) {
 				// 4026
 			}
 			break;
 		default:
-#if 0
-			isochEndpoint->[byte ptr 0x4C1] = false;
-#endif
+			pIsochEp->_tdsScheduled = false;
 			break;
 	}
-#endif
 }
 
 __attribute__((visibility("hidden")))
@@ -656,8 +647,8 @@ bool CLASS::processTransferEvent2(TRBStruct* pTrb, int32_t interrupter)
 					pIsochEp->inSlot2 = 129U;
 					pIsochEp->inSlot = 129U;
 				}
-				if (pIsochEp->schedulingPending) {
-					pIsochEp->schedulingPending = false;
+				if (pIsochEp->schedulingDelayed) {
+					pIsochEp->schedulingDelayed = false;
 					if (err <= XHCI_TRB_ERROR_RING_OVERRUN)
 						AddIsocFramesToSchedule(pIsochEp);
 				}

@@ -93,11 +93,9 @@ IOReturn CLASS::UIMCreateIsochEndpoint(short functionAddress, short endpointNumb
 IOUSBControllerIsochEndpoint* CLASS::AllocateIsochEP(void)
 {
 	GenericUSBXHCIIsochEP* obj = OSTypeAlloc(GenericUSBXHCIIsochEP);
-	if (!obj)
-		return obj;
-	if (!obj->init()) {
+	if (obj && !obj->init()) {
 		obj->release();
-		return 0;
+		obj = 0;
 	}
 	return obj;
 }

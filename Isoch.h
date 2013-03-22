@@ -16,19 +16,24 @@ class GenericUSBXHCIIsochEP : public IOUSBControllerIsochEndpoint
 	OSDeclareFinalStructors(GenericUSBXHCIIsochEP);
 
 public:
-	// offset 0x88
+	class GenericUSBXHCIIsochTD* _slotArray[128];	// 0x88
 	struct ringStruct* pRing;	// 0x488
+	uint64_t _uk3;	// 0x490
+	uint32_t _uk4;	// 0x498
+	uint32_t _uk5;	// 0x49C
 	IOSimpleLock* _lock;	// 0x4A0
+	uint64_t _scheduledFrameNumber;	// 0x4A8
 	uint16_t oneMPS;	// 0x4B0
 	uint16_t multiple;	// 0x4B2
 	uint32_t numPagesInRingQueue;	// 0x4B4
 	uint16_t inSlot2;	// 0x4B8
 	uint16_t boundOnPagesPerFrame;	// 0x4BA
-	uint8_t intervalsPerFrame;	// 0x4BC
-	uint16_t framesPerInterval;	// 0x4BD - originally uint8_t, but can be up to 4096!
+	uint8_t transfersPerTD;	// 0x4BC
+	uint16_t frameNumberIncrease;	// 0x4BD - originally uint8_t, but can be up to 4096!
 	uint8_t intervalExponent;	// 0x4BE
 	uint8_t speed;	// 0x4BF
-	bool schedulingPending;	// 0x4C0
+	bool schedulingDelayed;	// 0x4C0
+	bool _tdsScheduled;	// 0x4C1
 
 	bool init(void);
 	void free(void);
@@ -40,9 +45,13 @@ class GenericUSBXHCIIsochTD : public IOUSBControllerIsochListElement
 
 public:
 	IOUSBIsocCommand* _command;	// offset 0x70
-	uint32_t some_r14;	// offset 0x78
-	bool _notFirstAvailable;	// offset 0xD8
-	bool _bFlag;	// offset 0xD9
+	size_t _transferOffset;	// offset 0x78
+	int32_t _firstTrbIndex[8];	// offset 0x80
+	uint32_t _trbCount[8];	// offset 0xA0
+	uint8_t _bytes[8];	// offset 0xC0
+	uint32_t _arr[4];	// offset 0xC8
+	bool _startsChain;	// offset 0xD8
+	bool _wantCompletion;	// offset 0xD9
 
 	/*
 	 * Pure Virtual from IOUSBControllerIsochListElement
@@ -57,7 +66,7 @@ public:
 	 * Self
 	 */
 	static GenericUSBXHCIIsochTD* ForEndpoint(GenericUSBXHCIIsochEP*);
-	static IOReturn TranslateXHCIStatus(uint32_t, uint16_t*, uint32_t, uint8_t);
+	static IOReturn TranslateXHCIStatus(uint32_t);
 	uint32_t FrameForEventIndex(uint32_t);
 };
 

@@ -245,7 +245,7 @@ private:
 #if 0
 	uint8_t volatile* _unknown3;	// offset 0x23AE8
 #endif
-	IOSimpleLock* _wdhLock;			// offset 0x23AF0
+	IOSimpleLock* _isochScheduleLock; // offset 0x23AF0
 	uint64_t _millsecondsTimers[4];	// offset 0x23AF8
 									// offset 0x23B18 moved
 	bool volatile m_invalid_regspace;
@@ -542,6 +542,7 @@ public:
 	static IOReturn GenerateNextPhysicalSegment(TRBStruct*, uint32_t*, size_t, IODMACommand*);
 	static void PutBackTRB(ringStruct*, TRBStruct*);
 	void AddIsocFramesToSchedule(GenericUSBXHCIIsochEP*);
+	void RetireIsocTransactions(GenericUSBXHCIIsochEP*, bool);
 	/*
 	 * Rings
 	 */

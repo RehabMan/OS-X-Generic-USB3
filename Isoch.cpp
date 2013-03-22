@@ -83,16 +83,16 @@ IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNum
 	pIsochEp->interval = 1U << intervalExponent;	// in microframes
 	pIsochEp->intervalExponent = intervalExponent;
 	if (intervalExponent < 3U) {
-		pIsochEp->intervalsPerFrame = 8U >> intervalExponent;
-		pIsochEp->framesPerInterval = 1U;
+		pIsochEp->transfersPerTD = 8U >> intervalExponent;
+		pIsochEp->frameNumberIncrease = 1U;
 	} else {
-		pIsochEp->intervalsPerFrame = 1U;
-		pIsochEp->framesPerInterval = static_cast<uint16_t>(pIsochEp->interval >> 3);
+		pIsochEp->transfersPerTD = 1U;
+		pIsochEp->frameNumberIncrease = static_cast<uint16_t>(pIsochEp->interval / 8U);
 	}
 	/*
 	 * Note: should really use MaxESITPayload instead of maxPacketSize
 	 */
-	pIsochEp->boundOnPagesPerFrame = static_cast<uint16_t>(((maxPacketSize / static_cast<uint32_t>(PAGE_SIZE)) + 3U) * pIsochEp->intervalsPerFrame);
+	pIsochEp->boundOnPagesPerFrame = static_cast<uint16_t>(((maxPacketSize / static_cast<uint32_t>(PAGE_SIZE)) + 3U) * pIsochEp->transfersPerTD);
 	/*
 	 * This division by 256 is to translate TRBs -> Pages, but the multiplication by 100
 	 *   seems arbitrary.
@@ -143,6 +143,14 @@ void CLASS::AbortIsochEP(class GenericUSBXHCIIsochEP* pIsochEp)
 
 __attribute__((visibility("hidden")))
 void CLASS::AddIsocFramesToSchedule(GenericUSBXHCIIsochEP*)
+{
+	/*
+	 * TBD
+	 */
+}
+
+__attribute__((visibility("hidden")))
+void CLASS::RetireIsocTransactions(GenericUSBXHCIIsochEP*, bool)
 {
 	/*
 	 * TBD
@@ -200,28 +208,47 @@ IOReturn GenericUSBXHCIIsochTD::Deallocate(IOUSBControllerV2*)
 }
 
 __attribute__((visibility("hidden")))
-GenericUSBXHCIIsochTD* GenericUSBXHCIIsochTD::ForEndpoint(GenericUSBXHCIIsochEP*)
+GenericUSBXHCIIsochTD* GenericUSBXHCIIsochTD::ForEndpoint(GenericUSBXHCIIsochEP* provider)
 {
-	/*
-	 * TBD
-	 */
-	return 0;
+	GenericUSBXHCIIsochTD* obj = OSTypeAlloc(GenericUSBXHCIIsochTD);;
+	if (obj) {
+		if (obj->init()) {
+			obj->_pEndpoint = provider;
+			obj->_startsChain = false;
+		} else {
+			obj->release();
+			obj = 0;
+		}
+	}
+	return obj;
 }
 
 __attribute__((visibility("hidden")))
-IOReturn GenericUSBXHCIIsochTD::TranslateXHCIStatus(uint32_t, uint16_t*, uint32_t, uint8_t)
+IOReturn GenericUSBXHCIIsochTD::TranslateXHCIStatus(uint32_t xhci_err)
 {
-	/*
-	 * TBD
-	 */
-	return kIOReturnSuccess;
+	switch (xhci_err) {
+		case XHCI_TRB_ERROR_SUCCESS:
+			return kIOReturnSuccess;
+		case XHCI_TRB_ERROR_XACT:
+			return kIOUSBNotSent1Err;
+		case XHCI_TRB_ERROR_STALL:
+			return kIOUSBPipeStalled;
+		case XHCI_TRB_ERROR_SHORT_PKT:
+			return kIOReturnUnderrun;
+	}
+	return kIOReturnInternalError;
 }
 
 __attribute__((visibility("hidden")))
-uint32_t GenericUSBXHCIIsochTD::FrameForEventIndex(uint32_t)
+uint32_t GenericUSBXHCIIsochTD::FrameForEventIndex(uint32_t trbIndex)
 {
-	/*
-	 * TBD
-	 */
-	return 0U;
+	uint32_t firstTrbIndex;
+	uint8_t transfersInTD = _framesInTD;
+
+	for (uint8_t transfer = 0U; transfer < transfersInTD; ++transfer) {
+		firstTrbIndex = static_cast<uint32_t>(_firstTrbIndex[transfer]);
+		if (trbIndex >= firstTrbIndex && trbIndex < firstTrbIndex + _trbCount[transfer])
+			return transfer;
+	}
+	return UINT32_MAX;
 }
