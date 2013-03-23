@@ -10,6 +10,7 @@
 #include "GenericUSBXHCI.h"
 #include "GenericUSBXHCIUserClient.h"
 #include <IOKit/IOTimerEventSource.h>
+#include <libkern/version.h>
 
 #define CLASS GenericUSBXHCI
 #define super IOUSBControllerV3
@@ -21,6 +22,10 @@ OSDefineMetaClassAndFinalStructors(GenericUSBXHCI, IOUSBControllerV3);
 #endif
 
 static __used char const copyright[] = "Copyright 2012-2013 Zenith432";
+
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1075
+#error Target OS version must be 10.7.5 or above
+#endif
 
 #pragma mark -
 #pragma mark IOService
@@ -129,12 +134,6 @@ bool CLASS::init(OSDictionary* dictionary)
 		IOLog("%s: super::init failed\n", __FUNCTION__);
 		return false;
 	}
-    // do not load if prior to OS X 10.7.5
-    if (GetKernelVersion() < MakeKernelVersion(11,4,2)) {
-        IOLog("%s: Only 10.7.5 or greater is supported.\n", __FUNCTION__);
-        return false;
-    }
-    
 	_controllerSpeed = kUSBDeviceSpeedSuper;
 	_isochScheduleLock = IOSimpleLockAlloc();
 	if (!_isochScheduleLock) {
@@ -176,6 +175,10 @@ kern_return_t Startup(kmod_info_t* ki, void * d)
 {
 	uint32_t v;
 
+    if (GetKernelVersion() < MakeKernelVersion(11,4,2)) {
+		IOLog("Darwin 11.4.2 (OS X 10.7.5) or later required for GenericUSBXHCI\n");
+		return KERN_FAILURE;
+    }
 	if (PE_parse_boot_argn("-gux_nosleep", &v, sizeof v))
 		gux_options |= GUX_OPTION_NO_SLEEP;
 	if (PE_parse_boot_argn("-gux_defer_usb2", &v, sizeof v))
