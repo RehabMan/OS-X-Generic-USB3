@@ -8,6 +8,7 @@
 
 #include "GenericUSBXHCI.h"
 #include "Async.h"
+#include "Isoch.h"
 #include "XHCITypes.h"
 
 #define CLASS GenericUSBXHCI
@@ -58,14 +59,12 @@ IOReturn CLASS::ReturnAllTransfersAndReinitRing(int32_t slot, int32_t endpoint, 
 	if (!pRing->ptr)
 		return kIOReturnNoMemory;
 	if (IsIsocEP(slot, endpoint)) {
-#if 0
 		if (pRing->isochEndpoint) {
-			for (int32_t count = 0; pRing->isochEndpoint->[byte ptr 0x4C1] && count < 120; ++count)
+			for (int32_t count = 0; pRing->isochEndpoint->_tdsScheduled && count < 120; ++count)
 				IOSleep(1U);
-			pRing->isochEndpoint->[byte ptr 0x4C1] = false;
+			pRing->isochEndpoint->_tdsScheduled = false;
 			AbortIsochEP(pRing->isochEndpoint);
 		}
-#endif
 		return kIOReturnSuccess;
 	}
 	if (pRing->dequeueIndex != pRing->enqueueIndex) {
@@ -243,14 +242,9 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 	bytesLeftInTD = bytesToTransfer;
 	pFirstTrbInFragment = 0;
 	if (isIsochTransfer) {
-#if 0
-		XHCIIsochTD* pITd = static_cast<XHCIIsochTD*>(pTd);
-		pRing = static_cast<XHCIIsochEndpoint*>(pITd->_endpoint)->[qword ptr 0x488];
-		command = pITd->[qword ptr 0x70]->[qword ptr 0x68]->[qword ptr 0x18];
-#else
-		pRing = 0;
-		command = 0;
-#endif
+		GenericUSBXHCIIsochTD* pIsochTd = static_cast<GenericUSBXHCIIsochTD*>(pTd);
+		pRing = static_cast<GenericUSBXHCIIsochEP*>(pIsochTd->_pEndpoint)->pRing;
+		command = pIsochTd->_command->GetDMACommand();
 		isNoopOrStatus = false;
 		bytesFollowingThisTD = 0U;
 		bytesPreceedingThisTD = 0U;

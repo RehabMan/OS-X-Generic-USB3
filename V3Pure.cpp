@@ -21,6 +21,17 @@ IOReturn CLASS::ResetControllerState(void)
 	if (m_invalid_regspace)
 		return kIOReturnNotResponding;
 	IOReturn rc = StopUSBBus();
+	EnableInterruptsFromController(false);
+	IOSleep(1U);	// drain primary interrupts
+	if (_expansionData &&
+		_expansionData->_controllerCanSleep &&
+		_device) {
+		/*
+		 * On the ASM1042, shutting down with PME enabled
+		 *   causes spontaneous reboot, so disable it.
+		 */
+		_device->enablePCIPowerManagement(kPCIPMCSPowerStateD0);
+	}
 	if (rc == kIOReturnSuccess)
 		_uimInitialized = false;
 	return rc;
@@ -96,22 +107,15 @@ IOReturn CLASS::SaveControllerStateForSleep(void)
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
 	_isSleeping = true;
-	if (sts & XHCI_STS_HSE) {
-		/*
-		 * Clear HSE as it may cause the chip to PME
-		 */
-		Write32Reg(&_pXHCIOperationalRegisters->USBSts, XHCI_STS_HSE);
-		if (!_HSEDetected) {
-			IOLog("%s: HSE bit set\n", __FUNCTION__);
-			_HSEDetected = true;
-		}
-	}
 	if (sts & XHCI_STS_SRE) {
-		/*
-		 * Clear SRE as it may cause the chip to PME
-		 */
 		++_diagCounters[DIAGCTR_SLEEP];
 		Write32Reg(&_pXHCIOperationalRegisters->USBSts, XHCI_STS_SRE);
+		/*
+		 * Disable PME, on ASM1042 it causes system to wake
+		 *   up instantly.
+		 */
+		if (_device)
+			_device->enablePCIPowerManagement(kPCIPMCSPowerStateD0);
 		IOLog("%s: xHC Save Error\n", __FUNCTION__);
 		return kIOReturnInternalError;
 	}

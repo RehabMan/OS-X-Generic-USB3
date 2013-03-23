@@ -15,11 +15,13 @@ endif
 all:
 	xcodebuild build $(OPTIONS) -configuration Release
 	xcodebuild build $(OPTIONS) -configuration Debug
+	make -f xhcdump.mak
 
 .PHONY: clean
 clean:
 	xcodebuild clean $(OPTIONS) -configuration Release
 	xcodebuild clean $(OPTIONS) -configuration Debug
+	rm ./xhcdump
 
 .PHONY: update_kernelcache
 update_kernelcache:
@@ -42,6 +44,7 @@ distribute:
 	mkdir ./Distribute
 	#cp -R ./Build/Debug ./Distribute
 	cp -R ./Build/Release ./Distribute
+	cp ./xhcdump ./Distribute
 	find ./Distribute -path *.DS_Store -delete
 	find ./Distribute -path *.dSYM -exec echo rm -r {} \; >/tmp/org.voodoo.rm.dsym.sh
 	chmod +x /tmp/org.voodoo.rm.dsym.sh

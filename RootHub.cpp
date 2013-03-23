@@ -32,14 +32,6 @@ IOReturn CLASS::XHCIRootHubPowerPort(uint16_t port, bool state)
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
 	pPortSC = &_pXHCIOperationalRegisters->prs[port - 1U].PortSC;
-	if (!XHCI_HCC_PPC(_HCCLow)) {
-		if (state)
-			portSC |= XHCI_PS_WOE | XHCI_PS_WDE | XHCI_PS_WCE;
-		else
-			portSC |= XHCI_PS_CHANGEBITS;
-		Write32Reg(pPortSC, portSC);
-		return kIOReturnSuccess;
-	}
 	if (state)
 		portSC |= XHCI_PS_PP | XHCI_PS_WOE | XHCI_PS_WDE | XHCI_PS_WCE;
 	else {
@@ -122,20 +114,26 @@ __attribute__((visibility("hidden")))
 IOReturn CLASS::XHCIRootHubResetPort(uint8_t protocol, uint16_t port)
 {
 	IOReturn rc;
+#if 0
 	uint32_t recCount;
+#endif
 	uint16_t _port;
 
 	_port = port - 1U;
 	if (_rhPortBeingReset[_port])
 		return kIOReturnSuccess;
 	_rhPortBeingReset[_port] = true;
+#if 0
 	for (recCount = 0U; _workLoop->inGate();) {
 		++recCount;
 		_workLoop->OpenGate();
 	}
+#endif
 	rc = RHResetPort(protocol, port);
+#if 0
 	while (recCount--)
 		_workLoop->CloseGate();
+#endif
 	_rhPortBeingReset[_port] = false;
 	return rc;
 }
@@ -180,9 +178,14 @@ IOReturn CLASS::XHCIRootHubSuspendPort(uint8_t protocol, uint16_t port, bool sta
 	 * Clear any stray PLC when changing state
 	 */
 	Write32Reg(pPortSC, portSC | XHCI_PS_PLC);
-	if (state)
+	if (state) {
+#if 0
+		/*
+		 * Not necessary, since AppleUSBHubPort::Suspend waits 10 msec
+		 */
 		CheckedSleep(1U);	// To ensure port transitions to U3 before call to ControllerSleep
-	else {
+#endif
+	} else {
 		_rhPortBeingResumed[_port] = true;
 		if (protocol != kUSBDeviceSpeedSuper &&
 			_rhResumePortTimerThread[_port]) {

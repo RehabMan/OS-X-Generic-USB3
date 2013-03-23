@@ -372,18 +372,19 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 		WaitForCMD(&localTrb, XHCI_TRB_TYPE_CONFIGURE_EP, 0);
 		ReleaseInputContext();
 		DeleteStreams(slot, endpoint);
-		if (pRing && pRing->isochEndpoint) {
-			if ((pRing->epType | CTRL_EP) == ISOC_IN_EP)
-				DeleteIsochEP(pRing->isochEndpoint);
-			else {
-				XHCIAsyncEndpoint* pEp = pRing->asyncEndpoint;
-				if (pEp) {
-					pEp->Abort();
-					pEp->release();
+		if (pRing) {
+			if ((pRing->epType | CTRL_EP) == ISOC_IN_EP) {
+				if (pRing->isochEndpoint)
+					DeleteIsochEP(pRing->isochEndpoint);
+				pRing->isochEndpoint = 0;
+			} else {
+				if (pRing->asyncEndpoint) {
+					pRing->asyncEndpoint->Abort();
+					pRing->asyncEndpoint->release();
 				}
+				pRing->asyncEndpoint = 0;
 			}
 			static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
-			pRing->isochEndpoint = 0;
 		}
 	}
 	if (pRing) {
@@ -487,6 +488,8 @@ void CLASS::UIMRootHubStatusChange(void)
 		IOLog("%s: statusChangedBitmap == %#x\n", __FUNCTION__, statusChangedBitmap);
 	statusChangedBitmap |= _rhPortStatusChangeBitmapGated;
 	_rhPortStatusChangeBitmapGated = statusChangedBitmap;
+	if (!_controllerAvailable || _wakingFromHibernation)
+		statusChangedBitmap = 0U;
 #endif
 	_rootHubStatusChangedBitmap = statusChangedBitmap;
 }
@@ -680,7 +683,7 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 			statusFlags |= kHubPortHighSpeed;
 		else if (speed == XDEV_LS)
 			statusFlags |= kHubPortLowSpeed;
-		if (!XHCI_HCC_PPC(_HCCLow) || (portSC & XHCI_PS_PP))
+		if (portSC & XHCI_PS_PP)
 			statusFlags |= kHubPortPower;
 		/*
 		 * Note: kHubPortTestMode may be set by reading PortPMSC
@@ -696,7 +699,7 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 			changeFlags |= kHubPortSuspend;
 	} else {
 		statusFlags |= ((linkState << kSSHubPortStatusLinkStateShift) & kSSHubPortStatusLinkStateMask);
-		if (!XHCI_HCC_PPC(_HCCLow) || (portSC & XHCI_PS_PP))
+		if (portSC & XHCI_PS_PP)
 			statusFlags |= kSSHubPortStatusPowerMask;
 #if 0
 		/*
