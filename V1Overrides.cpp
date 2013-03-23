@@ -41,12 +41,10 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 			revisionID >= entryPtr->revisionLo &&
 			revisionID <= entryPtr->revisionHi)
 			errata |= entryPtr->errata;
-#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1072
 	if (getProperty("IOPCITunnelled", gIOServicePlane) == kOSBooleanTrue) {
 		_v3ExpansionData->_onThunderbolt = true;
 		requireMaxBusStall(25000U);
 	}
-#endif
 	if (gux_options & GUX_OPTION_NO_INTEL_IDLE)
 		errata &= ~kErrataAllowControllerDoze;
 	if (gux_options & GUX_OPTION_NO_MSI)
