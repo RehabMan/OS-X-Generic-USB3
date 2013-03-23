@@ -18,10 +18,6 @@
 #include "XHCIRegs.h"
 #include "Private.h"
 
-#define MakeKernelVersion(maj,min,rev) (maj<<16|min<<8|rev)
-#include <libkern/version.h>
-#define GetKernelVersion() MakeKernelVersion(version_major,version_minor,version_revision)
-
 class IOInterruptEventSource;
 class IOFilterInterruptEventSource;
 
