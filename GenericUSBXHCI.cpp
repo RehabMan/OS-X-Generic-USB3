@@ -170,13 +170,18 @@ int gux_log_level = 1;
 __attribute__((visibility("hidden")))
 int gux_options = 0;
 
+/*
+ * Courtesy RehabMan
+ */
+#define MakeKernelVersion(maj,min,rev) (static_cast<uint32_t>((maj)<<16)|static_cast<uint16_t>((min)<<8)|static_cast<uint8_t>(rev))
+
 __attribute__((visibility("hidden")))
 kern_return_t Startup(kmod_info_t* ki, void * d)
 {
 	uint32_t v;
 
-	if (version_major < 11 || (version_major == 11 && version_minor < 5)) {
-		IOLog("Darwin 11.5 or later required for GenericUSBXHCI\n");
+	if (MakeKernelVersion(version_major, version_minor, version_revision) < MakeKernelVersion(11, 4, 2)) {
+		IOLog("OS 10.7.5 or later required for GenericUSBXHCI\n");
 		return KERN_FAILURE;
 	}
 	if (PE_parse_boot_argn("-gux_nosleep", &v, sizeof v))
