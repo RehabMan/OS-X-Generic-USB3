@@ -22,7 +22,26 @@ No other build environment is supported.
 
 ### 32-bit Builds
 
-This project does not support 32-bit builds.  It is coded for 64-bit only.
+Currently, builds are provided only for 64-bit systems.  32-bit/64-bit FAT binaries are not provided.  But you can build your own should you need them.  I do not test 32-bit, and there may be times when the repo is broken with respect to 32-bit builds, but I do check on major releases to see if the build still works for 32-bit.
+
+Here's how to build 32-bit (universal):
+
+- xcode 4.61
+- open GenericUSBXHCI.xcodeproj (do not change the SDK!)
+- click on GenericUSBXHCI at the top of the project tree
+- change Architectures to 'Standard (32/64-bit Intel)'
+
+probably not necessary, but a good idea to check that the target doesn't have overrides:
+- check/change Architectures to 'Standard (32/64-bit Intel)'
+- build (either w/ menu or with make)
+
+Or, if you have the command line tools installed, just run:
+
+- For FAT binary (32-bit and 64-bit in one binary)
+make BITS=3264
+
+- For 32-bit only
+make BITS=32
 
 
 ### Source Code:
