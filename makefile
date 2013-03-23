@@ -1,7 +1,7 @@
 # really just some handy scripts...
 
 KEXT=GenericUSBXHCI.kext
-DIST=RehabMan-GenericUSB3
+DIST=RehabMan-Generic-USB3
 
 ifeq ($(findstring 32,$(BITS)),32)
 OPTIONS:=$(OPTIONS) -arch i386
