@@ -110,16 +110,9 @@ IOReturn CLASS::StopUSBBus(void)
 __attribute__((visibility("hidden")))
 void CLASS::RestartUSBBus(void)
 {
-	uint32_t sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
-	if (m_invalid_regspace)
-		return;
 	uint32_t cmd = Read32Reg(&_pXHCIOperationalRegisters->USBCmd);
 	if (m_invalid_regspace)
 		return;
-	if (!(sts & XHCI_STS_HCH) && !(cmd & XHCI_CMD_RS)) {
-		IOLog("%s: attempt to restart controller while still halting\n", __FUNCTION__);
-		return;
-	}
 	cmd |= XHCI_CMD_EWE | XHCI_CMD_INTE | XHCI_CMD_RS;
 	Write32Reg(&_pXHCIOperationalRegisters->USBCmd, cmd);
 	IOReturn rc = WaitForUSBSts(XHCI_STS_HCH, 0U);
