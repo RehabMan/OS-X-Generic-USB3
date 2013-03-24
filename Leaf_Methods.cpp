@@ -896,6 +896,7 @@ IOReturn CLASS::PlacePortInMode(uint32_t port, uint32_t mode)
 		return kIOReturnNoDevice;
 	cmd |= XHCI_CMD_RS;
 	Write32Reg(&_pXHCIOperationalRegisters->USBCmd, cmd);
+	WaitForUSBSts(XHCI_STS_HCH, 0U);
 	return kIOReturnSuccess;
 }
 
