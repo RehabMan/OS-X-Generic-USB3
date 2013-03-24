@@ -178,14 +178,9 @@ IOReturn CLASS::XHCIRootHubSuspendPort(uint8_t protocol, uint16_t port, bool sta
 	 * Clear any stray PLC when changing state
 	 */
 	Write32Reg(pPortSC, portSC | XHCI_PS_PLC);
-	if (state) {
-#if 0
-		/*
-		 * Not necessary, since AppleUSBHubPort::Suspend waits 10 msec
-		 */
-		CheckedSleep(1U);	// To ensure port transitions to U3 before call to ControllerSleep
-#endif
-	} else {
+	if (state)
+		CheckedSleep(1U);	// xHC may need up to 1 frame to being suspend, AppleUSBHubPort::Suspend waits another 10msec for suspension to complete
+	else {
 		_rhPortBeingResumed[_port] = true;
 		if (protocol != kUSBDeviceSpeedSuper &&
 			_rhResumePortTimerThread[_port]) {
