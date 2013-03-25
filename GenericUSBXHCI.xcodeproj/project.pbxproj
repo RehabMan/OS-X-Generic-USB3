@@ -262,7 +262,6 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
-				COMBINE_HIDPI_IMAGES = YES;
 				COPYRIGHT_NOTICE = "Copyright © 2012-2013 Zenith432. All rights reserved.";
 				CURRENT_PROJECT_VERSION = 1.2.0d7;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
@@ -276,12 +275,13 @@
 				GCC_WARN_SIGN_COMPARE = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				LLVM_LTO = YES;
+				LLVM_LTO = NO;
+				"LLVM_LTO[arch=x86_64]" = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.7.5;
 				OTHER_CFLAGS = "-fno-stack-protector";
+				"OTHER_LDFLAGS[arch=x86_64]" = "-dead_strip";
 				SDKROOT = macosx10.8;
 				STRIPFLAGS = "-no_uuid";
-				VALID_ARCHS = "i386 x86_64";
 			};
 			name = Release;
 		};
@@ -289,8 +289,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				INFOPLIST_FILE = Info.plist;
-				"LLVM_LTO[arch=i386]" = NO;
-				"LLVM_LTO[arch=x86_64]" = YES;
 				MODULE_NAME = net.osx86.kexts.GenericUSBXHCI;
 				MODULE_START = Startup;
 				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
