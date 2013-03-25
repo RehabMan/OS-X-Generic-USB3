@@ -306,7 +306,7 @@ IOReturn CLASS::RHResumePortCompletion(uint32_t port)
 	portSC = GetPortSCForWriting(port);
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
-	Write32Reg(&_pXHCIOperationalRegisters->prs[_port].PortSC, portSC | XHCI_PS_LWS | XDEV_U0 | XHCI_PS_PLC);
+	Write32Reg(&_pXHCIOperationalRegisters->prs[_port].PortSC, portSC | XHCI_PS_LWS | XHCI_PS_PLS_SET(XDEV_U0) | XHCI_PS_PLC);
 	return kIOReturnSuccess;
 }
 
@@ -326,7 +326,7 @@ IOReturn CLASS::RHCompleteResumeOnAllPorts(void)
 		if (!_rhPortBeingResumed[port])
 			continue;
 		Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC,
-				   GetPortSCForWriting(port + 1U) | XHCI_PS_LWS | XDEV_U0 | XHCI_PS_PLC);
+				   GetPortSCForWriting(port + 1U) | XHCI_PS_LWS | XHCI_PS_PLS_SET(XDEV_U0) | XHCI_PS_PLC);
 		wait_val = 2U;
 	}
 	if (wait_val)
@@ -368,7 +368,7 @@ bool CLASS::RHCheckForPortResume(uint16_t port, uint8_t protocol, uint32_t haveP
 	_rhPortBeingResumed[port] = true;
 	if (protocol == kUSBDeviceSpeedSuper) {
 		Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC,
-				   (portSC & XHCI_PS_WRITEBACK_MASK) | XHCI_PS_LWS | XDEV_U0 | XHCI_PS_PLC);
+				   (portSC & XHCI_PS_WRITEBACK_MASK) | XHCI_PS_LWS | XHCI_PS_PLS_SET(XDEV_U0) | XHCI_PS_PLC);
 		return true;
 	}
 	Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, (portSC & XHCI_PS_WRITEBACK_MASK) | XHCI_PS_PLC);
