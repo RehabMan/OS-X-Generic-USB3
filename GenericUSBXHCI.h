@@ -18,10 +18,12 @@
 #include "XHCIRegs.h"
 #include "Private.h"
 
+#define EXPORT __attribute__((visibility("default")))
+
 class IOInterruptEventSource;
 class IOFilterInterruptEventSource;
 
-class GenericUSBXHCI : public IOUSBControllerV3
+class EXPORT GenericUSBXHCI : public IOUSBControllerV3
 {
 	OSDeclareFinalStructors(GenericUSBXHCI);
 

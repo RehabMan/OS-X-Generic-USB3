@@ -11,6 +11,8 @@
 
 #include <IOKit/IOUserClient.h>
 
+#define EXPORT __attribute__((visibility("default")))
+
 #define kGUXUCType 1U
 
 #define kGUXCapRegsDump 1U
@@ -20,7 +22,7 @@
 #define kGUXBandwidthDump 5U
 #define kGUXOptionsDump 6U
 
-class GenericUSBXHCIUserClient : public IOUserClient
+class EXPORT GenericUSBXHCIUserClient : public IOUserClient
 {
 	OSDeclareFinalStructors(GenericUSBXHCIUserClient);
 
