@@ -5,6 +5,12 @@
 
 Install GenericUSBXHCI.kext using Kext Wizard or your favorite kext installer.
 
+If you were previously using PXHCD.kext, you should probably remove it.
+
+```
+rm -rf /System/Library/Extensions/PXHCD.kext
+````
+
 
 ### Downloads:
 
