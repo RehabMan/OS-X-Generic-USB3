@@ -182,8 +182,8 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 		static_cast<void>(__sync_fetch_and_add(&_numEndpoints, 1));
 	}
 	pRing->epType = static_cast<uint8_t>(endpointType);
-	pRing->u2 = 0ULL;
-	pRing->endpointUnusable = false;
+	pRing->nextIsocFrame = 0ULL;
+	pRing->returnInProgress = false;
 	pRing->deleteInProgress = false;
 	pRing->schedulingPending = false;
 	GetInputContext();
@@ -310,7 +310,7 @@ IOReturn CLASS::StopEndpoint(int32_t slot, int32_t endpoint, bool suspend)
 		localTrb.d |= XHCI_TRB_3_SUSP_EP_BIT;
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_STOP_EP, 0);
 	if ((_errataBits & kErrataIntelPantherPoint) && retFromCMD == 196)
-		SetIntelFlag(slot, true);
+		SetNeedsReset(slot, true);
 	return kIOReturnSuccess;
 }
 
@@ -364,11 +364,11 @@ bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId
 	if (!pRing)
 		return false;
 	isDisconnected = true;
-	if (!GetIntelFlag(slot))
+	if (!GetNeedsReset(slot))
 		isDisconnected = !IsStillConnectedAndEnabled(slot);
 	dq = pRing->dequeueIndex;
-	if (!isDisconnected && (pRing->timeOutWatermark != dq || pRing->enqueueIndex == dq)) {
-		pRing->timeOutWatermark = dq;
+	if (!isDisconnected && (pRing->lastSeenDequeueIndex != dq || pRing->enqueueIndex == dq)) {
+		pRing->lastSeenDequeueIndex = dq;
 		return false;
 	}
 	/*
@@ -506,8 +506,8 @@ IOReturn CLASS::CreateStream(int32_t slot, int32_t endpoint, uint32_t streamId)
 		streamId > GetLastStreamForEndpoint(slot, endpoint))
 		return kIOReturnBadArgument;
 	ringStruct* pStreamRing = &pRing[streamId];
-	pStreamRing->u2 = 0ULL;
-	pStreamRing->endpointUnusable = false;
+	pStreamRing->nextIsocFrame = 0ULL;
+	pStreamRing->returnInProgress = false;
 	pStreamRing->deleteInProgress = false;
 	pStreamRing->schedulingPending = false;
 	if (pStreamRing->md)

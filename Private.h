@@ -38,7 +38,7 @@ UInt32 gUSBStackDebugFlags;	// defined in IOUSBFamily/Classes/IOUSBController.cp
 #define kErrataRenesas 8U
 #define kErrataDisableMSI 2U
 #define kErrataIntelPantherPoint 4U
-#define kErrataDisableComplianceExtension 0x10U
+#define kErrataEnableAutoCompliance 0x10U
 #define kErrataIntelPCIRoutingExtension 0x20U
 #define kErrataParkRing 0x100U
 #define kErrataFL1100 0x200U
@@ -58,7 +58,7 @@ struct EventRingSegmentTable;
 struct XHCIAsyncEndpoint;
 union ContextStruct;
 
-typedef void (*TRBCallback)(GenericUSBXHCI*, TRBStruct*, void*);
+typedef void (*TRBCallback)(GenericUSBXHCI*, TRBStruct*, int32_t*);
 
 struct ringStruct
 {
@@ -70,13 +70,13 @@ struct ringStruct
 	uint64_t physAddr;	// 0x10
 	uint16_t numTRBs; // 0x18
 	uint16_t numPages; // 0x1A
-	uint8_t cycleState; // 0x1C
-	uint16_t enqueueIndex; // 0x20
-	uint16_t dequeueIndex; // 0x22
-	uint16_t timeOutWatermark; // 0x24
-	uint32_t u1; // 0x28
+	uint8_t cycleState; // 0x1C - originally uint32_t
+	uint16_t volatile enqueueIndex; // 0x20
+	uint16_t volatile dequeueIndex; // 0x22
+	uint16_t lastSeenDequeueIndex; // 0x24
+	uint32_t lastSeenFrame; // 0x28
 	TRBStruct stopTrb; // 0x2C
-	uint64_t u2; // 0x40
+	uint64_t nextIsocFrame; // 0x40
 	uint8_t epType; // 0x48
 	union { // 0x50 - Typed as XHCIIsochEndpoint*, but doubles as XHCIAsyncEndpoint*
 		XHCIAsyncEndpoint* asyncEndpoint;
@@ -84,7 +84,7 @@ struct ringStruct
 	};
 	uint8_t slot; // 0x58
 	uint8_t endpoint; // 0x59
-	bool endpointUnusable; // 0x5A
+	bool returnInProgress; // 0x5A
 	bool deleteInProgress; // 0x5B
 	bool schedulingPending; // 0x5C
 
@@ -97,22 +97,19 @@ struct EventRingStruct
 	 * Total Size 64
 	 */
 	uint16_t xHCDequeueIndex; // 0x0
-	uint16_t bounceDequeueIndex;// 0x2
-	uint16_t bounceEnqueueIndex;// 0x4
+	uint16_t volatile bounceDequeueIndex;// 0x2
+	uint16_t volatile bounceEnqueueIndex;// 0x4
 	uint8_t cycleState; // 0x6
 	bool foundSome; 	// 0x7
 	uint16_t numxHCEntries;	// 0x8
 	uint16_t numBounceEntries;	// 0xA
-	int32_t numBounceQueueOverflows;	// 0xC
+	int32_t volatile numBounceQueueOverflows;	// 0xC
 	EventRingSegmentTable* erstPtr; // 0x10 - Note: doubles as TRBs
 	TRBStruct* bounceQueuePtr; // 0x18
 	uint64_t erdp;		// 0x20
 	uint64_t erstba;	// 0x28
 	IOBufferMemoryDescriptor* md;	// 0x30
-#if 0
-	uint64_t Rsvd;		// 0x38
-#endif
-};
+} __attribute__((aligned(64)));
 
 struct SlotStruct
 {
@@ -122,10 +119,10 @@ struct SlotStruct
 	IOBufferMemoryDescriptor* md;	// 0
 	ContextStruct* ctx; // Originally 8, 16
 	uint64_t physAddr; // 24
-	uint16_t maxStreamForEndpoint[kUSBMaxPipes];	// 32
-	uint16_t lastStreamForEndpoint[kUSBMaxPipes]; // 160
+	uint16_t maxStreamForEndpoint[kUSBMaxPipes];	// 32 - originally uint32_t[]
+	uint16_t lastStreamForEndpoint[kUSBMaxPipes]; // 160 - originally uint32_t[]
 	ringStruct* ringArrayForEndpoint[kUSBMaxPipes]; // 288
-	bool _intelFlag;	// 544
+	bool deviceNeedsReset;	// 544
 
 	__attribute__((always_inline)) bool isInactive(void) { return !this->md; }
 };
@@ -133,7 +130,7 @@ struct SlotStruct
 struct TRBCallbackEntry
 {
 	TRBCallback func;
-	void* param;
+	int32_t* param;	// originally int32_t
 };
 
 struct PrintSink
@@ -163,9 +160,9 @@ extern "C" {
 extern int gux_log_level, gux_options;
 
 #if 0
-struct RHPortData
+struct XHCIRootHubResetParams
 {
-	uint32_t retCode;
+	IOReturn status;
 	uint8_t protocol;
 	uint16_t port;
 };

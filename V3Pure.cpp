@@ -69,8 +69,8 @@ IOReturn CLASS::RestartControllerFromReset(void)
 		InitEventRing(interrupter, true);
 	if (_scratchpadBuffers.max)
 		SetDCBAAAddr64(_dcbaa.ptr, _scratchpadBuffers.physAddr);
-	bzero(&_errorCounters[0], sizeof _errorCounters);
-	_inputContext.refCount = 0U;
+	bzero(const_cast<int32_t*>(&_errorCounters[0]), sizeof _errorCounters);
+	_inputContext.refCount = 0;
 	_numEndpoints = 0U;
 	_deviceZero.isBeingAddressed = false;
 	_inTestMode = false;

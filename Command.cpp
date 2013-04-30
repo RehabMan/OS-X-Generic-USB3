@@ -133,7 +133,7 @@ int32_t CLASS::WaitForCMD(TRBStruct* trb, int32_t trbType, TRBCallback callback)
 }
 
 __attribute__((visibility("hidden")))
-IOReturn CLASS::EnqueCMD(TRBStruct* trb, int32_t trbType, TRBCallback callback, void* param)
+IOReturn CLASS::EnqueCMD(TRBStruct* trb, int32_t trbType, TRBCallback callback, int32_t* param)
 {
 	TRBStruct* target;
 	uint32_t fourth;
@@ -206,20 +206,20 @@ bool CLASS::DoCMDCompletion(TRBStruct trb)
 #pragma mark -
 
 __attribute__((visibility("hidden")))
-void CLASS::_CompleteSlotCommand(GenericUSBXHCI* owner, TRBStruct* pTrb, void* param)
+void CLASS::_CompleteSlotCommand(GenericUSBXHCI* owner, TRBStruct* pTrb, int32_t* param)
 {
 	owner->CompleteSlotCommand(pTrb, param);
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::CompleteSlotCommand(TRBStruct* pTrb, void* param)
+void CLASS::CompleteSlotCommand(TRBStruct* pTrb, int32_t* param)
 {
 	int32_t ret, err = static_cast<int32_t>(XHCI_TRB_2_ERROR_GET(pTrb->c));
 	if (err == XHCI_TRB_ERROR_SUCCESS)
 		ret = static_cast<int32_t>(XHCI_TRB_3_SLOT_GET(pTrb->d));
 	else
 		ret = -1000 - err;
-	*static_cast<int32_t*>(param) = ret;
+	*param = ret;
 #if 0
 	/*
 	 * Called from either of
@@ -246,14 +246,14 @@ void CLASS::CompleteSlotCommand(TRBStruct* pTrb, void* param)
  *   each field 8 bits.
  */
 __attribute__((visibility("hidden")))
-void CLASS::CompleteRenesasVendorCommand(TRBStruct* pTrb, void* param)
+void CLASS::CompleteRenesasVendorCommand(TRBStruct* pTrb, int32_t* param)
 {
 	int32_t ret, err = static_cast<int32_t>(XHCI_TRB_2_ERROR_GET(pTrb->c));
 	if (err == XHCI_TRB_ERROR_SUCCESS)
 		ret = static_cast<int32_t>(pTrb->c & UINT16_MAX);
 	else
 		ret = -1000 - err;
-	*static_cast<int32_t*>(param) = err;
+	*param = err;
 	GetCommandGate()->commandWakeup(param);
 }
 #endif

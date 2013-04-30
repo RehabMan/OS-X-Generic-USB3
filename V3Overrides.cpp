@@ -126,7 +126,7 @@ IOReturn CLASS::UIMDeviceToBeReset(short functionAddress)
 	if (!slot)
 		return kIOReturnBadArgument;
 	if (_errataBits & kErrataIntelPantherPoint)
-		SetIntelFlag(slot, false);
+		SetNeedsReset(slot, false);
 	return kIOReturnSuccess;
 }
 

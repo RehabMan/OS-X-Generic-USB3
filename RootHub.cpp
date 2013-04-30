@@ -201,7 +201,7 @@ IOReturn CLASS::XHCIRootHubClearPortConnectionChange(uint16_t port)
 		_rhPortEmulateCSC[port] = false;
 #if 0
 	_rhPortDebouncing[port] = false;
-	_rhPortDebounceTarget[port] = false;
+	_rhPortDebounceADisconnect[port] = false;
 #endif
 	return rc;
 }
@@ -530,32 +530,32 @@ void CLASS::HandlePortDebouncing(uint16_t* pStatusFlags, uint16_t* pChangeFlags,
 			*pChangeFlags &= ~kHubPortConnection;
 		}
 		XHCIRootHubClearPortChangeBit(1U + port, XHCI_PS_PRC | XHCI_PS_WRC);
-		SetIntelFlag(slot, true);
+		SetNeedsReset(slot, true);
 		_rhPortBeingWarmReset[port] = false;
 		absolutetime_to_nanoseconds(mach_absolute_time(), &c_stamp);
-		_rhStamps[port] = c_stamp - 100 * kMillisecondScale;
+		_rhDebounceNanoSeconds[port] = c_stamp - 100 * kMillisecondScale;
 		_rhPortDebouncing[port] = true;
-		_rhPortDebounceTarget[port] = !(*pStatusFlags & kHubPortConnection);
+		_rhPortDebounceADisconnect[port] = !(*pStatusFlags & kHubPortConnection);
 	} else if ((*pChangeFlags & (0xFF00U | CHECK2)) == kHubPortConnection && !(*pStatusFlags & kHubPortBeingReset)) {
 		uint64_t stamp = mach_absolute_time();
 		if (_rhPortDebouncing[port]) {
 			absolutetime_to_nanoseconds(stamp, &c_stamp);
-			if (c_stamp - _rhStamps[port] < 100 * kMillisecondScale)
+			if (c_stamp - _rhDebounceNanoSeconds[port] < 100 * kMillisecondScale)
 				*pChangeFlags &= ~kHubPortConnection;
-			else if (_rhPortDebounceTarget[port] ==
+			else if (_rhPortDebounceADisconnect[port] ==
 					 ((*pStatusFlags & kHubPortConnection) != 0U)) {
 				XHCIRootHubClearPortConnectionChange(1U + port);
 				*pChangeFlags &= ~kHubPortConnection;
 			}
 		} else {
-			absolutetime_to_nanoseconds(stamp, &_rhStamps[port]);
+			absolutetime_to_nanoseconds(stamp, &_rhDebounceNanoSeconds[port]);
 			_rhPortDebouncing[port] = true;
-			_rhPortDebounceTarget[port] = !(*pStatusFlags & kHubPortConnection);
+			_rhPortDebounceADisconnect[port] = !(*pStatusFlags & kHubPortConnection);
 			*pChangeFlags &= ~kHubPortConnection;
 		}
 	} else {
 		_rhPortDebouncing[port] = false;
-		_rhPortDebounceTarget[port] = false;
+		_rhPortDebounceADisconnect[port] = false;
 	}
 	if (_rhPortDebouncing[port] ||
 		(*pChangeFlags & (0xFF00U | kHubPortOverCurrent)) ||

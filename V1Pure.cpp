@@ -136,7 +136,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	else
 		_maxPSASize = 0U;
 	_HCCLow = static_cast<uint8_t>(hcc & 255U);
-	_inputContext.refCount = 0U;
+	_inputContext.refCount = 0;
 	rc = ResetController();
 	if (m_invalid_regspace) {
 		IOLog("%s: Invalid regspace (7)\n", __FUNCTION__);
@@ -221,7 +221,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 			return rc;
 		}
 	}
-	bzero(&_errorCounters[0], sizeof _errorCounters);
+	bzero(const_cast<int32_t*>(&_errorCounters[0]), sizeof _errorCounters);
 	rc = MakeBuffer(kIOMemoryPhysicallyContiguous | kIODirectionInOut,
 					GetInputContextSize(),
 					-PAGE_SIZE,
@@ -252,9 +252,9 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	_millsecondCounter = 0ULL;
 	bzero(&_interruptCounters, sizeof _interruptCounters);
 	_HSEDetected = false;
-	_unknown2 = 0U;
-	_unknown1 = 0U;
-	_magic = 0xDEADBEEFU;
+	_RenesasControllerVersion = 0U;
+	_debugCtr = 0U;
+	_debugPattern = 0xDEADBEEFU;
 	rc = AllocRHThreadCalls();
 	if (rc != kIOReturnSuccess) {
 		IOLog("%s: AllocRHThreadCalls failed, rc == %#x\n", __FUNCTION__, rc);
@@ -408,7 +408,7 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 	pSlot->md->release();
 	pSlot->md = 0;
 	pSlot->physAddr = 0U;
-	pSlot->_intelFlag = false;
+	pSlot->deviceNeedsReset = false;
 	_addressMapper.HubAddress[functionNumber] = 0U;
 	_addressMapper.PortOnHub[functionNumber] = 0U;
 	_addressMapper.Slot[functionNumber] = 0U;
@@ -431,7 +431,7 @@ IOReturn CLASS::UIMClearEndpointStall(short functionNumber, short endpointNumber
 	pRing = GetRing(slot, endpoint, 0U);
 	if (pRing->isInactive())
 		return kIOReturnBadArgument;
-	if (pRing->endpointUnusable)
+	if (pRing->returnInProgress)
 		return kIOUSBClearPipeStallNotRecursive;
 	pContext = GetSlotContext(slot, endpoint);
 	if (XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0) != EP_STATE_HALTED)
