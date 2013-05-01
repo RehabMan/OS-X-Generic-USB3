@@ -113,7 +113,7 @@ void CLASS::EnableComplianceMode(void)
 #endif
 
 __attribute__((visibility("hidden")))
-IOReturn CLASS::HCSelect(uint8_t arg, uint8_t flag)
+IOReturn CLASS::HCSelect(uint8_t port, uint8_t controllerType)
 {
 	static char const xHCMuxedPorts[80] = "XHCA\0XHCB\0XHCC\0XHCD";
 	char const* method;
@@ -122,12 +122,12 @@ IOReturn CLASS::HCSelect(uint8_t arg, uint8_t flag)
 		DiscoverMuxedPorts();
 	if (!_providerACPIDevice ||
 		!_muxedPortsExist ||
-		arg > 14U)
+		port > 14U)
 		return kIOReturnNoMemory;
-	if (flag == 1U)
-		method = &xHCMuxedPorts[arg * 5U];
-	else if (!flag)
-		method = &_muxName[arg * 5U];
+	if (controllerType == 1U)
+		method = &xHCMuxedPorts[port * 5U];
+	else if (!controllerType)
+		method = &_muxName[port * 5U];
 	else
 		return kIOReturnNoMemory;
 	return HCSelectWithMethod(method);

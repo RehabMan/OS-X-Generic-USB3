@@ -22,10 +22,11 @@ OSDefineMetaClassAndFinalStructors(GenericUSBXHCIIsochTD, IOUSBControllerIsochLi
 
 __attribute__((visibility("hidden")))
 IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNumber, uint32_t maxPacketSize,
-									uint8_t direction, uint8_t interval, uint32_t maxBurst)
+									uint8_t direction, uint8_t interval, uint32_t maxBurst, uint8_t multiple)
 {
 	GenericUSBXHCIIsochEP* pIsochEp;
 	IOReturn rc;
+	uint32_t oneMPS;
 	uint8_t slot, endpoint, epType, speed, intervalExponent;
 
 	slot = GetSlotID(functionAddress);
@@ -54,6 +55,7 @@ IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNum
 				intervalExponent = interval - 1U;
 			break;
 	}
+	oneMPS = maxPacketSize * (maxBurst + 1U) * (multiple + 1U);
 	pIsochEp = OSDynamicCast(GenericUSBXHCIIsochEP,
 							 FindIsochronousEndpoint(functionAddress, endpointNumber, direction, 0));
 	if (pIsochEp) {
@@ -61,7 +63,7 @@ IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNum
 			IOLog("%s: Found an orphaned IsochEP (ringless) on the IsochEP list\n", __FUNCTION__);
 			return kIOReturnInternalError;
 		}
-		if (maxPacketSize == pIsochEp->maxPacketSize)
+		if (oneMPS == pIsochEp->maxPacketSize * pIsochEp->maxBurst * pIsochEp->multiple)
 			return kIOReturnSuccess;
 		if (XHCI_EPCTX_0_EPSTATE_GET(GetSlotContext(slot, endpoint)->_e.dwEpCtx0) == EP_STATE_RUNNING)
 			StopEndpoint(slot, endpoint);
@@ -73,13 +75,9 @@ IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNum
 		static_cast<void>(__sync_fetch_and_add(&_numEndpoints, 1));
 		pIsochEp->speed = speed;
 	}
-	if (maxPacketSize <= 1024U) {
-		pIsochEp->multiple = 1U;
-		pIsochEp->oneMPS = static_cast<uint16_t>(maxPacketSize);
-	} else {
-		pIsochEp->multiple = static_cast<uint16_t>(((maxPacketSize - 1U) / 1024U) + 1U);
-		pIsochEp->oneMPS = static_cast<uint16_t>((maxPacketSize + pIsochEp->multiple - 1U) / pIsochEp->multiple);
-	}
+	pIsochEp->maxBurst = static_cast<uint8_t>(maxBurst + 1U);
+	pIsochEp->multiple = multiple + 1U;
+	pIsochEp->maxPacketSize = maxPacketSize;
 	pIsochEp->interval = 1U << intervalExponent;	// in microframes
 	pIsochEp->intervalExponent = intervalExponent;
 	if (intervalExponent < 3U) {
@@ -89,19 +87,15 @@ IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNum
 		pIsochEp->transfersPerTD = 1U;
 		pIsochEp->frameNumberIncrease = static_cast<uint16_t>(pIsochEp->interval / 8U);
 	}
+	pIsochEp->boundOnPagesPerFrame = static_cast<uint16_t>((oneMPS / static_cast<uint32_t>(PAGE_SIZE) + 3U) * pIsochEp->transfersPerTD);
 	/*
-	 * Note: should really use MaxESITPayload instead of maxPacketSize
-	 */
-	pIsochEp->boundOnPagesPerFrame = static_cast<uint16_t>(((maxPacketSize / static_cast<uint32_t>(PAGE_SIZE)) + 3U) * pIsochEp->transfersPerTD);
-	/*
-	 * This division by 256 is to translate TRBs -> Pages, but the multiplication by 100
-	 *   seems arbitrary.
+	 * kIsocRingSizeinMS = 100
+	 * This division by 256 is to translate TRBs -> Pages
 	 */
 	pIsochEp->numPagesInRingQueue = (static_cast<uint32_t>(pIsochEp->boundOnPagesPerFrame) * 100U + 255U) / 256U;
-	pIsochEp->maxPacketSize = maxPacketSize;
 	pIsochEp->inSlot = 129U;
 	rc = CreateEndpoint(slot, endpoint, static_cast<uint16_t>(maxPacketSize),
-						0, epType, 0U, maxBurst, pIsochEp);
+						intervalExponent, epType, 0U, maxBurst, multiple, pIsochEp);
 	if (rc != kIOReturnSuccess && !pIsochEp->pRing) {
 		static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
 		DeleteIsochEP(pIsochEp);
@@ -134,11 +128,12 @@ IOReturn CLASS::DeleteIsochEP(GenericUSBXHCIIsochEP* pIsochEp)
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::AbortIsochEP(class GenericUSBXHCIIsochEP* pIsochEp)
+IOReturn CLASS::AbortIsochEP(class GenericUSBXHCIIsochEP* pIsochEp)
 {
 	/*
 	 * TBD
 	 */
+	return kIOReturnUnsupported;
 }
 
 __attribute__((visibility("hidden")))
@@ -150,11 +145,12 @@ void CLASS::AddIsocFramesToSchedule(GenericUSBXHCIIsochEP*)
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::RetireIsocTransactions(GenericUSBXHCIIsochEP*, bool)
+IOReturn CLASS::RetireIsocTransactions(GenericUSBXHCIIsochEP*, bool)
 {
 	/*
 	 * TBD
 	 */
+	return kIOReturnUnsupported;
 }
 
 #pragma mark -
@@ -246,7 +242,7 @@ int32_t GenericUSBXHCIIsochTD::FrameForEventIndex(uint32_t trbIndex)
 	uint8_t transfersInTD = _framesInTD;
 
 	for (uint8_t transfer = 0U; transfer < transfersInTD; ++transfer) {
-		firstTrbIndex = static_cast<uint32_t>(this->firstTrbIndex[transfer]);
+		firstTrbIndex = this->firstTrbIndex[transfer];
 		if (trbIndex >= firstTrbIndex && trbIndex < firstTrbIndex + trbCount[transfer])
 			return transfer;
 	}

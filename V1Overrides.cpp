@@ -63,7 +63,7 @@ void CLASS::UIMCheckForTimeouts(void)
 	sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace) {
 		for (slot = 1U; slot <= _numSlots; ++slot)
-			CheckSlotForTimeouts(slot, frameNumber);
+			CheckSlotForTimeouts(slot, 0U);
 		if (_expansionData) {
 			_watchdogTimerActive = false;
 			if (_watchdogUSBTimer)
@@ -78,7 +78,7 @@ void CLASS::UIMCheckForTimeouts(void)
 	for (slot = 1U; slot <= _numSlots; ++slot)
 		if (!IsStillConnectedAndEnabled(slot))
 			CheckSlotForTimeouts(slot, frameNumber);
-	if (_powerStateChangingTo != kUSBPowerStateStable && _powerStateChangingTo <= kUSBPowerStateLowPower)
+	if (_powerStateChangingTo != kUSBPowerStateStable && _powerStateChangingTo < kUSBPowerStateOn)
 		return;
 	mfIndex = Read32Reg(&_pXHCIRuntimeRegisters->MFIndex);
 	if (m_invalid_regspace)

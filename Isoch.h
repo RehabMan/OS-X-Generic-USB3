@@ -28,8 +28,8 @@ public:
 	uint32_t volatile consumerCount;	// 0x49C
 	IOSimpleLock* wdhLock;	// 0x4A0
 	uint64_t scheduledFrameNumber;	// 0x4A8
-	uint16_t oneMPS;	// 0x4B0 - originally uint8_t
-	uint16_t multiple;	// 0x4B2 - originally uint8_t
+	uint8_t maxBurst;	// 0x4B0
+	uint8_t multiple;	// 0x4B1
 	uint32_t numPagesInRingQueue;	// 0x4B4
 	uint16_t outSlot;	// 0x4B8
 	uint16_t boundOnPagesPerFrame;	// 0x4BA

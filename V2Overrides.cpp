@@ -87,7 +87,17 @@ UInt64 CLASS::GetMicroFrameNumber(void)
 IOReturn CLASS::UIMCreateIsochEndpoint(short functionAddress, short endpointNumber, UInt32 maxPacketSize, UInt8 direction,
 									   USBDeviceAddress highSpeedHub, int highSpeedPort, UInt8 interval)
 {
-	return CreateIsochEndpoint(functionAddress, endpointNumber, maxPacketSize, direction, interval, 0U);
+	uint32_t maxBurst = 0U;
+
+	/*
+	 * Preprocessing code added OS 10.8.3
+	 */
+	if (maxPacketSize > kUSB_EPDesc_MaxMPS) {
+		maxBurst = ((maxPacketSize + kUSB_EPDesc_MaxMPS - 1U) / kUSB_EPDesc_MaxMPS);
+		maxPacketSize = (maxPacketSize + maxBurst - 1U) / maxBurst;
+		--maxBurst;
+	}
+	return CreateIsochEndpoint(functionAddress, endpointNumber, maxPacketSize, direction, interval, maxBurst, 0U);
 }
 
 IOUSBControllerIsochEndpoint* CLASS::AllocateIsochEP(void)
@@ -100,7 +110,7 @@ IOUSBControllerIsochEndpoint* CLASS::AllocateIsochEP(void)
 	return obj;
 }
 
-IODMACommand* CLASS::GetNewDMACommand()
+IODMACommand* CLASS::GetNewDMACommand(void)
 {
 	return IODMACommand::withSpecification(IODMACommand::OutputHost64,
 										   XHCI_HCC_AC64(_HCCLow) ? 64U : 32U,

@@ -672,7 +672,7 @@ IOReturn CLASS::GatedGetFrameNumberWithTime(OSObject* owner, void* frameNumber, 
 }
 
 __attribute__((visibility("hidden")))
-int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uint32_t* pTransferLength, bool updateDequeueIndex)
+int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uint32_t* pShortFall, bool updateDequeueIndex)
 {
 	int32_t next;
 	uint32_t trbType;
@@ -688,7 +688,7 @@ int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uin
 		pTrb = &pRing->ptr[trbIndexInRingQueue];
 		trbType = XHCI_TRB_3_TYPE_GET(pTrb->d);
 		if (trbType == XHCI_TRB_TYPE_NORMAL) {
-			*pTransferLength += XHCI_TRB_2_BYTES_GET(pTrb->c);
+			*pShortFall += XHCI_TRB_2_BYTES_GET(pTrb->c);
 			continue;
 		}
 		if (trbType == XHCI_TRB_TYPE_EVENT_DATA)

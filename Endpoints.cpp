@@ -31,7 +31,7 @@ IOReturn CLASS::CreateBulkEndpoint(uint8_t functionNumber, uint8_t endpointNumbe
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)
 		return kIOReturnBadArgument;
 	return CreateEndpoint(slot, endpoint, maxPacketSize, 0,
-						  (direction == kUSBIn) ? BULK_IN_EP : BULK_OUT_EP, maxStream, maxBurst, 0);
+						  (direction == kUSBIn) ? BULK_IN_EP : BULK_OUT_EP, maxStream, maxBurst, 0U, 0);
 }
 
 __attribute__((visibility("hidden")))
@@ -68,58 +68,41 @@ IOReturn CLASS::CreateInterruptEndpoint(int16_t functionAddress, int16_t endpoin
 		} while (pollingRate && intervalExponent < 11);
 	}
 	return CreateEndpoint(slot, endpoint, maxPacketSize, intervalExponent,
-						  (direction == kUSBIn) ? INT_IN_EP : INT_OUT_EP, 0U, maxBurst, 0);
+						  (direction == kUSBIn) ? INT_IN_EP : INT_OUT_EP, 0U, maxBurst, 0U, 0);
 }
 
+/*
+ * Allowed ranges are
+ *   slot: 1 - _numSlots (max 255)
+ *   endpoint: 2 - 31
+ *   maxPacketSize: 1 - 1024
+ *   intervalExplonent: 0 - 15 (the interval is 2 ^ intervalExponent microframes)
+ *   endpointType: 1 - 7 (see XHCITypes.h)
+ *   maxStream: 0 - (_maxPSASize - 1) or (MaxStreamsAllowed - 1)
+ *   maxBurst: 0 - 15
+ *   multiple: 0 - 2
+ */
 __attribute__((visibility("hidden")))
 IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacketSize, int16_t intervalExponent,
-							   int32_t endpointType, uint32_t maxStream, uint32_t maxBurst, void* pIsochEndpoint)
+							   int32_t endpointType, uint32_t maxStream, uint32_t maxBurst,
+							   uint8_t multiple, void* pIsochEndpoint)
 {
 	ContextStruct *pContext, *pEpContext;
 	ringStruct* pRing;
 	GenericUSBXHCIIsochEP* _pIsochEndpoint;
-	uint32_t myMaxPacketSize, myMaxBurst, multiple, numPagesInRingQueue, mask, mps;
+	uint32_t numPagesInRingQueue, mask, mps;
 	int32_t retFromCMD;
 	IOReturn rc;
-	int16_t myIntervalExponent;
 	uint8_t epState;
-	bool myIsochEndpointValid;
 	TRBStruct localTrb = { 0 };
 
-	myMaxBurst = maxBurst;
-	if ((endpointType | CTRL_EP) == ISOC_IN_EP && pIsochEndpoint) {
-		_pIsochEndpoint = static_cast<GenericUSBXHCIIsochEP*>(pIsochEndpoint);
-		numPagesInRingQueue = _pIsochEndpoint->numPagesInRingQueue;
-		myMaxPacketSize = _pIsochEndpoint->oneMPS;
-		myIntervalExponent = _pIsochEndpoint->intervalExponent;
-		multiple = _pIsochEndpoint->multiple;
-		myIsochEndpointValid = true;
-	} else {
-		if (maxPacketSize > 1024U) {
-			multiple = ((maxPacketSize - 1U) / 1024U) + 1U;
-			myMaxPacketSize	= (maxPacketSize + (multiple - 1U)) / multiple;
-		} else {
-			multiple = 1U;
-			myMaxPacketSize = maxPacketSize;
-		}
-		myIntervalExponent = intervalExponent;
-		numPagesInRingQueue = 1U;
-		myIsochEndpointValid = false;
-	}
-	switch (XHCI_SCTX_0_SPEED_GET(GetSlotContext(slot)->_s.dwSctx0)) {
-		case XDEV_FS:
-		case XDEV_LS:
-			multiple = 0U;
-			myMaxBurst = 0U;
-			break;
-		case XDEV_HS:
-			myMaxBurst = multiple - 1U;
-			multiple = 0U;
-			break;
-		default: // XDEV_SS
-			--multiple;
-			break;
-	}
+	/*
+	 * TBD: TestConfiguredEpCount eliminated here, because
+	 *   of inconsistent codepaths for allocation of
+	 *   asyncEndpoint/isochEndpoint.
+	 */
+	_pIsochEndpoint = (endpointType | CTRL_EP) == ISOC_IN_EP ? static_cast<GenericUSBXHCIIsochEP*>(pIsochEndpoint) : 0;
+	numPagesInRingQueue = _pIsochEndpoint ? _pIsochEndpoint->numPagesInRingQueue : 1U;
 	pEpContext = GetSlotContext(slot, endpoint);
 	epState = static_cast<uint8_t>(XHCI_EPCTX_0_EPSTATE_GET(pEpContext->_e.dwEpCtx0));
 	pRing = (epState != EP_STATE_DISABLED) ? GetRing(slot, endpoint, maxStream) : 0;
@@ -152,14 +135,15 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 	 *   later shows up as errors during transfers.
 	 */
 	if (epState == EP_STATE_DISABLED ||
-		XHCI_EPCTX_1_MAXP_SIZE_GET(pEpContext->_e.dwEpCtx1) < myMaxPacketSize) {
+		XHCI_EPCTX_1_MAXP_SIZE_GET(pEpContext->_e.dwEpCtx1) < maxPacketSize) {
 		rc = CheckPeriodicBandwidth(slot,
 									endpoint,
-									myMaxPacketSize,
-									myIntervalExponent,
+									maxPacketSize,
+									intervalExponent,
 									endpointType,
 									maxStream,
-									myMaxBurst);
+									maxBurst,
+									multiple);
 		if (rc != kIOReturnSuccess)
 			return rc;
 	}
@@ -169,14 +153,14 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 		if (!pRing)
 			return kIOReturnNoMemory; /* originally kIOReturnBadArgument */
 	}
-	if (myIsochEndpointValid) {
+	if (_pIsochEndpoint) {
 		if (pRing->isochEndpoint) {
 			if (pRing->isochEndpoint != _pIsochEndpoint)
 				return kIOReturnInternalError;
 		} else
 			pRing->isochEndpoint = _pIsochEndpoint;
 	} else {
-		pRing->asyncEndpoint = XHCIAsyncEndpoint::withParameters(this, pRing, myMaxPacketSize, myMaxBurst, multiple);
+		pRing->asyncEndpoint = XHCIAsyncEndpoint::withParameters(this, pRing, maxPacketSize, maxBurst, multiple);
 		if (!pRing->asyncEndpoint)
 			return kIOReturnNoMemory;
 		static_cast<void>(__sync_fetch_and_add(&_numEndpoints, 1));
@@ -212,13 +196,13 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 	pContext->_s.dwSctx3 = 0U;
 	bzero(&pContext->_s.pad, sizeof pContext->_s.pad);
 	pEpContext = GetInputContextPtr(1 + endpoint);
-	pEpContext->_e.dwEpCtx0 |= XHCI_EPCTX_0_IVAL_SET(myIntervalExponent);
+	pEpContext->_e.dwEpCtx0 |= XHCI_EPCTX_0_IVAL_SET(static_cast<uint32_t>(intervalExponent));
 	if ((endpointType | CTRL_EP) != ISOC_IN_EP)
 		pEpContext->_e.dwEpCtx1 |= XHCI_EPCTX_1_CERR_SET(3U);
 	pEpContext->_e.dwEpCtx1 |= XHCI_EPCTX_1_EPTYPE_SET(endpointType);
-	pEpContext->_e.dwEpCtx0 |= XHCI_EPCTX_0_MULT_SET(multiple);
-	pEpContext->_e.dwEpCtx1 |= XHCI_EPCTX_1_MAXB_SET(myMaxBurst);
-	pEpContext->_e.dwEpCtx1 |= XHCI_EPCTX_1_MAXP_SIZE_SET(myMaxPacketSize);
+	pEpContext->_e.dwEpCtx0 |= XHCI_EPCTX_0_MULT_SET(static_cast<uint32_t>(multiple));
+	pEpContext->_e.dwEpCtx1 |= XHCI_EPCTX_1_MAXB_SET(maxBurst);
+	pEpContext->_e.dwEpCtx1 |= XHCI_EPCTX_1_MAXP_SIZE_SET(static_cast<uint32_t>(maxPacketSize));
 	if (pRing->md) {
 		if (maxStream > 1U) {
 			ReleaseInputContext();
@@ -232,11 +216,11 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 			rc = AllocRing(pRing, numPagesInRingQueue);
 		if (rc != kIOReturnSuccess) {
 			ReleaseInputContext();
-			if (myIsochEndpointValid)
+			if (_pIsochEndpoint)
 				pRing->isochEndpoint = 0;
 			return kIOReturnNoMemory;
 		}
-		if (myIsochEndpointValid)
+		if (_pIsochEndpoint)
 			_pIsochEndpoint->pRing = pRing;
 	}
 	pEpContext->_e.qwEpCtx2 = (pRing->physAddr + pRing->dequeueIndex * sizeof *pRing->ptr) & XHCI_EPCTX_2_TR_DQ_PTR_MASK;
@@ -256,7 +240,7 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 		else
 			pEpContext->_e.qwEpCtx2 &= ~1ULL;
 	}
-	pEpContext->_e.dwEpCtx4 |= XHCI_EPCTX_4_AVG_TRB_LEN_SET(myMaxPacketSize);
+	pEpContext->_e.dwEpCtx4 |= XHCI_EPCTX_4_AVG_TRB_LEN_SET(static_cast<uint32_t>(maxPacketSize));
 	/*
 	 * Note: For SS periodic endpoints, Max ESIT Payload should be taken
 	 *   from the SS endpoint companion descriptor, wBytesPerInterval, not
@@ -268,7 +252,7 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 	 */
 	if ((endpointType | CTRL_EP) == ISOC_IN_EP ||
 		(endpointType | CTRL_EP) == INT_IN_EP)
-		pEpContext->_e.dwEpCtx4 |= XHCI_EPCTX_4_MAX_ESIT_PAYLOAD_SET(myMaxPacketSize * (1U + myMaxBurst) * (1U + multiple));
+		pEpContext->_e.dwEpCtx4 |= XHCI_EPCTX_4_MAX_ESIT_PAYLOAD_SET(maxPacketSize * (1U + maxBurst) * (1U + multiple));
 	SetTRBAddr64(&localTrb, _inputContext.physAddr);
 	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_CONFIGURE_EP, 0);
@@ -298,7 +282,7 @@ IOReturn CLASS::StartEndpoint(int32_t slot, int32_t endpoint, uint16_t streamId)
 }
 
 __attribute__((visibility("hidden")))
-IOReturn CLASS::StopEndpoint(int32_t slot, int32_t endpoint, bool suspend)
+void CLASS::StopEndpoint(int32_t slot, int32_t endpoint, bool suspend)
 {
 	TRBStruct localTrb = { 0 };
 	int32_t retFromCMD;
@@ -311,7 +295,6 @@ IOReturn CLASS::StopEndpoint(int32_t slot, int32_t endpoint, bool suspend)
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_STOP_EP, 0);
 	if ((_errataBits & kErrataIntelPantherPoint) && retFromCMD == 196)
 		SetNeedsReset(slot, true);
-	return kIOReturnSuccess;
 }
 
 __attribute__((visibility("hidden")))
