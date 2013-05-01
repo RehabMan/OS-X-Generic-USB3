@@ -28,7 +28,7 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 		{ 0x8086U, 0x1E31U, 0U, UINT16_MAX,
 			kErrataAllowControllerDoze |
 			kErrataParkRing | kErrataIntelPCIRoutingExtension |
-			kErrataDisableComplianceExtension | kErrataIntelPantherPoint},	// Intel Series 7/C210
+			kErrataEnableAutoCompliance | kErrataIntelPantherPoint},	// Intel Series 7/C210
 		{ 0x1B21U, 0U, 0U, UINT16_MAX, kErrataASMedia },	// Any ASMedia
 		{ 0x1B73U, 0U, 0U, UINT16_MAX, kErrataFrescoLogic },	// Any Fresco Logic (FL1000, FL1009, FL1100)
 		{ 0x1B73U, 0x1100U, 0U, 0x10U, kErrataFL1100 }	// Fresco Logic FL1100
@@ -41,7 +41,7 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 			revisionID >= entryPtr->revisionLo &&
 			revisionID <= entryPtr->revisionHi)
 			errata |= entryPtr->errata;
-	if (getProperty("IOPCITunnelled", gIOServicePlane) == kOSBooleanTrue) {
+	if (getProperty(kIOPCITunnelledKey, gIOServicePlane) == kOSBooleanTrue) {
 		_v3ExpansionData->_onThunderbolt = true;
 		requireMaxBusStall(25000U);
 	}
@@ -110,14 +110,14 @@ IOReturn CLASS::UIMCreateControlTransfer(short functionNumber, short endpointNum
 	pRing = GetRing(slot, 1, 0U);
 	if (pRing->isInactive())
 		return kIOReturnBadArgument;
-	if (GetIntelFlag(slot))
+	if (GetNeedsReset(slot))
 		return AddDummyCommand(pRing, command);
 	if (pRing->deleteInProgress)
 		return kIOReturnNoDevice;
 	XHCIAsyncEndpoint* pEp = pRing->asyncEndpoint;
 	if (!pEp)
 		return kIOUSBEndpointNotFound;
-	if (pEp->unusable)
+	if (pEp->aborting)
 		return kIOReturnNotPermitted;
 	if (CBP && bufferSize) {
 		IODMACommand* dmac = command->GetDMACommand();
@@ -311,14 +311,14 @@ IOReturn CLASS::UIMCreateIsochTransfer(IOUSBIsocCommand* command)
 			return kIOReturnNoMemory;
 		pIsochTd->_lowLatency = lowLatency;
 		pIsochTd->_framesInTD = 0U;
-		pIsochTd->_startsChain = startsChain;
-		pIsochTd->_wantCompletion = false;
+		pIsochTd->newFrame = startsChain;
+		pIsochTd->interruptThisTD = false;
 		if (updateFrameNumber > updateFrequency) {
-			pIsochTd->_wantCompletion = true;
+			pIsochTd->interruptThisTD = true;
 			updateFrameNumber -= updateFrequency;
 		}
 		pIsochEp->firstAvailableFrame += frameNumberIncrease;
-		pIsochTd->_transferOffset = transferOffset;
+		pIsochTd->transferOffset = transferOffset;
 		if (frameNumberIncrease == 1U)
 			startsChain = false;
 		for (uint32_t transfer = 0U; transfer != transfersPerTD; ++transfer) {
@@ -334,7 +334,7 @@ IOReturn CLASS::UIMCreateIsochTransfer(IOUSBIsocCommand* command)
 		pIsochTd->_frameIndex = baseTransferIndex;
 		pIsochTd->_completion.action = 0;
 		pIsochTd->_pEndpoint = pIsochEp;
-		pIsochTd->_command = command;
+		pIsochTd->command = command;
 		PutTDonToDoList(pIsochEp, pIsochTd);
 		updateFrameNumber += frameNumberIncrease;
 		frameNumberStart += frameNumberIncrease;
@@ -342,7 +342,7 @@ IOReturn CLASS::UIMCreateIsochTransfer(IOUSBIsocCommand* command)
 	if (!pIsochTd)
 		return kIOReturnInternalError;
 	pIsochTd->_completion = command->GetUSLCompletion();
-	pIsochTd->_wantCompletion = true;
+	pIsochTd->interruptThisTD = true;
 	AddIsocFramesToSchedule(pIsochEp);
 	return kIOReturnSuccess;
 }

@@ -30,14 +30,14 @@ IOReturn CLASS::CreateTransfer(IOUSBCommand* command, uint32_t streamId)
 	ringStruct* pRing = GetRing(slot, endpoint, streamId);
 	if (pRing->isInactive())
 		return kIOReturnBadArgument;
-	if (GetIntelFlag(slot))
+	if (GetNeedsReset(slot))
 		return AddDummyCommand(pRing, command);
 	if (pRing->deleteInProgress)
 		return kIOReturnNoDevice;
 	XHCIAsyncEndpoint* pEp = pRing->asyncEndpoint;
 	if (!pEp)
 		return kIOUSBEndpointNotFound;
-	if (pEp->unusable)
+	if (pEp->aborting)
 		return kIOReturnNotPermitted;
 	ContextStruct* pContext = GetSlotContext(slot, endpoint);
 	switch (XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0)) {
@@ -60,9 +60,9 @@ IOReturn CLASS::ReturnAllTransfersAndReinitRing(int32_t slot, int32_t endpoint, 
 		return kIOReturnNoMemory;
 	if (IsIsocEP(slot, endpoint)) {
 		if (pRing->isochEndpoint) {
-			for (int32_t count = 0; pRing->isochEndpoint->_tdsScheduled && count < 120; ++count)
+			for (int32_t count = 0; pRing->isochEndpoint->tdsScheduled && count < 120; ++count)
 				IOSleep(1U);
-			pRing->isochEndpoint->_tdsScheduled = false;
+			pRing->isochEndpoint->tdsScheduled = false;
 			AbortIsochEP(pRing->isochEndpoint);
 		}
 		return kIOReturnSuccess;
@@ -182,7 +182,7 @@ IOReturn CLASS::AddDummyCommand(ringStruct* pRing, IOUSBCommand* command)
 	XHCIAsyncEndpoint* pEp = pRing->asyncEndpoint;
 	if (!pEp)
 		return kIOUSBEndpointNotFound;
-	if (pEp->unusable)
+	if (pEp->aborting)
 		return kIOReturnNotPermitted;
 	rc = pEp->CreateTDs(command, 0U, XHCI_TRB_3_TYPE_SET(XHCI_TRB_TYPE_NOOP) | XHCI_TRB_3_IOC_BIT, 0U, 0);
 	pEp->ScheduleTDs();
@@ -224,8 +224,8 @@ uint32_t CLASS::FreeSlotsOnRing(ringStruct const* pRing)
 
 __attribute__((visibility("hidden")))
 IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesToTransfer, uint32_t mystery,
-								size_t startingOffsetInBuffer, bool onMaxBoundary, bool multiTDTransaction,
-								int32_t* pFirstTrbIndex, uint32_t* pTrbCount, bool, int16_t* pLastTrbIndex)
+								size_t startingOffsetInBuffer, bool interruptNeeded, bool multiTDTransaction,
+								uint32_t* pFirstTrbIndex, uint32_t* pTrbCount, int16_t* pLastTrbIndex)
 {
 	IODMACommand* command;
 	ringStruct* pRing;
@@ -244,7 +244,7 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 	if (isIsochTransfer) {
 		GenericUSBXHCIIsochTD* pIsochTd = static_cast<GenericUSBXHCIIsochTD*>(pTd);
 		pRing = static_cast<GenericUSBXHCIIsochEP*>(pIsochTd->_pEndpoint)->pRing;
-		command = pIsochTd->_command->GetDMACommand();
+		command = pIsochTd->command->GetDMACommand();
 		isNoopOrStatus = false;
 		bytesFollowingThisTD = 0U;
 		bytesPreceedingThisTD = 0U;
@@ -367,7 +367,7 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 
 	if (TrbCountInTD == 1) {
 		if (GetRing(slot, endpoint, 0U)) {
-			if (onMaxBoundary) {
+			if (interruptNeeded) {
 				fourth |= XHCI_TRB_3_IOC_BIT;
 				switch (XHCI_TRB_3_TYPE_GET(fourth)) {
 					case XHCI_TRB_TYPE_NORMAL:
@@ -413,7 +413,7 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 			fourth |= XHCI_TRB_3_CHAIN_BIT;
 		++TrbCountInFragment;
 		++TrbCountInTD;
-		if (onMaxBoundary)
+		if (interruptNeeded)
 			fourth |= XHCI_TRB_3_IOC_BIT;
 		else if (endpoint & 1U) /* in/ctrl endpoint */
 			fourth |= XHCI_TRB_3_BEI_BIT | XHCI_TRB_3_IOC_BIT;
@@ -423,7 +423,7 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 	if (TrbCountInFragment)
 		CloseFragment(pRing, pFirstTrbInFragment, fourth);
 	if (pFirstTrbIndex)
-		*pFirstTrbIndex = pFirstTrbInFragment ? static_cast<int32_t>(pFirstTrbInFragment - pRing->ptr) : -1;
+		*pFirstTrbIndex = pFirstTrbInFragment ? static_cast<uint32_t>(pFirstTrbInFragment - pRing->ptr) : UINT32_MAX;
 	if (pLastTrbIndex)
 		*pLastTrbIndex = static_cast<int16_t>(lastTrbIndex);
 	if (pTrbCount)
@@ -617,8 +617,8 @@ void XHCIAsyncEndpoint::release(void)
 {
 	XHCIAsyncTD* pTd;
 
-	unusable = true;
-	pRing->endpointUnusable = true;
+	aborting = true;
+	pRing->returnInProgress = true;
 	MoveAllTDsFromReadyQToDoneQ();
 	if (numTDsDone)
 		Complete(kIOReturnAborted);
@@ -627,8 +627,8 @@ void XHCIAsyncEndpoint::release(void)
 		if (pTd)
 			pTd->release();
 	}
-	unusable = false;
-	pRing->endpointUnusable = false;
+	aborting = false;
+	pRing->returnInProgress = false;
 	IOFree(this, sizeof *this);
 }
 
@@ -664,7 +664,7 @@ IOReturn XHCIAsyncEndpoint::CreateTDs(IOUSBCommand* command, uint16_t streamId, 
 	bool haveImmediateData;
 	bool usingMultipleTDs;
 
-	if (unusable)
+	if (aborting)
 		return kIOReturnNotPermitted;
 	transferRequestBytes = command->GetReqCount();
 	if (transferRequestBytes) {
@@ -699,14 +699,14 @@ IOReturn XHCIAsyncEndpoint::CreateTDs(IOUSBCommand* command, uint16_t streamId, 
 		if (!pTd)
 			return kIOReturnNoMemory;
 		pTd->command = command;
-		pTd->onMaxTDBytesBoundary = !(bytesDone % maxTDBytes);
+		pTd->interruptThisTD = !(bytesDone % maxTDBytes);
 		pTd->multiTDTransaction = usingMultipleTDs;
 		pTd->bytesPreceedingThisTD = bytesDone;
 		pTd->bytesThisTD = currentTDBytes;
 		pTd->mystery = mystery;
 		pTd->maxNumPagesInTD = static_cast<uint16_t>((currentTDBytes / PAGE_SIZE) + 2U);
 		pTd->streamId = streamId;
-		pTd->bytesThisTDCompleted = currentTDBytes;
+		pTd->shortfall = currentTDBytes;
 		if (haveImmediateData) {
 			pTd->haveImmediateData = haveImmediateData;
 			if (immediateDataSize)
@@ -727,7 +727,7 @@ IOReturn XHCIAsyncEndpoint::CreateTDs(IOUSBCommand* command, uint16_t streamId, 
 		currentTDBytes = (numBytesLeft < maxBytesPerTD) ? static_cast<uint32_t>(numBytesLeft) : maxBytesPerTD;
 	} while (true);
 	pTd->numTDsThisTransaction = tdIndex;
-	pTd->onMaxTDBytesBoundary = true;
+	pTd->interruptThisTD = true;
 	pTd->finalTDInTransaction = true;
 	pTd->bytesFollowingThisTD = 0U;
 	return kIOReturnSuccess;
@@ -741,8 +741,8 @@ void XHCIAsyncEndpoint::ScheduleTDs(void)
 
 	if (!queuedHead)
 		return;
-	if (unusable) {
-		if (pRing->endpointUnusable)
+	if (aborting) {
+		if (pRing->returnInProgress)
 			pRing->schedulingPending = true;
 		return;
 	}
@@ -760,11 +760,10 @@ void XHCIAsyncEndpoint::ScheduleTDs(void)
 									   pTd->bytesThisTD,
 									   pTd->mystery,
 									   pTd->bytesPreceedingThisTD,
-									   pTd->onMaxTDBytesBoundary,
+									   pTd->interruptThisTD,
 									   pTd->multiTDTransaction,
 									   &pTd->firstTrbIndex,
 									   &pTd->TrbCount,
-									   false,
 									   &pTd->lastTrbIndex);
 		if (rc != kIOReturnSuccess) {
 			if (provider)
@@ -785,7 +784,7 @@ void XHCIAsyncEndpoint::ScheduleTDs(void)
 			scheduledHead = pTd;
 		scheduledTail = pTd;
 		++numTDsScheduled;
-		if (pRing->endpointUnusable)
+		if (pRing->returnInProgress)
 			pRing->schedulingPending = true;
 		else
 			provider->StartEndpoint(pRing->slot, pRing->endpoint, pTd->streamId);
@@ -793,24 +792,25 @@ void XHCIAsyncEndpoint::ScheduleTDs(void)
 }
 
 __attribute__((visibility("hidden")))
-void XHCIAsyncEndpoint::Abort(void)
+IOReturn XHCIAsyncEndpoint::Abort(void)
 {
-	unusable = true;
-	pRing->endpointUnusable = true;
+	aborting = true;
+	pRing->returnInProgress = true;
 	while (scheduledHead) {
 		IOUSBCommand* command = scheduledHead->command;
 		FlushTDsWithStatus(command);
 		MoveTDsFromReadyQToDoneQ(command);
 	}
-	pRing->endpointUnusable = false;
-	unusable = false;
+	pRing->returnInProgress = false;
+	aborting = false;
 #if 0
 	if (numTDsDone)
-		Complete(provider->GetIntelFlag(pRing->slot) ? kIOReturnNotResponding : kIOReturnAborted);
+		Complete(provider->GetNeedsReset(pRing->slot) ? kIOReturnNotResponding : kIOReturnAborted);
 #else
 	if (numTDsDone)
 		Complete(kIOReturnAborted);
 #endif
+	return kIOReturnSuccess;
 }
 
 __attribute__((visibility("hidden")))
@@ -980,17 +980,17 @@ void XHCIAsyncEndpoint::Complete(IOReturn passthruReturnCode)
 		if (!pTd)
 			continue;
 		command = pTd->command;
-		command->SetUIMScratch(9U, command->GetUIMScratch(9U) + pTd->bytesThisTDCompleted);
-		if (pTd->onMaxTDBytesBoundary &&
+		command->SetUIMScratch(9U, command->GetUIMScratch(9U) + pTd->shortfall);
+		if (pTd->interruptThisTD &&
 			pTd->finalTDInTransaction) {
 			comp = command->GetUSLCompletion();
 			if (comp.action) {
 				provider->Complete(comp,
 								   passthruReturnCode,
 								   command->GetUIMScratch(9U));
-				pTd->bytesThisTDCompleted = 0U;
+				pTd->shortfall = 0U;
 			}
-			pTd->onMaxTDBytesBoundary = false;
+			pTd->interruptThisTD = false;
 		}
 		if (freeHead)
 			freeTail->next = pTd;
@@ -1056,7 +1056,7 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool isRHPortDisconnected, uint32_t frame
 		}
 		screwed = false;
 		if (cto && frameNumber - uims5 > cto) {
-			pTd->bytesThisTDCompleted = pTd->bytesThisTD - transferLength;
+			pTd->shortfall = pTd->bytesThisTD - transferLength;
 			screwed = true;
 		}
 		if (ndto) {
@@ -1069,7 +1069,7 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool isRHPortDisconnected, uint32_t frame
 				command->SetUIMScratch(4U, transferLength);
 				command->SetUIMScratch(6U, frameNumber);
 			} else if (frameNumber - uims6 > ndto) {
-				pTd->bytesThisTDCompleted = pTd->bytesThisTD - uims4;
+				pTd->shortfall = pTd->bytesThisTD - uims4;
 				screwed = true;
 			}
 		}
@@ -1077,13 +1077,13 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool isRHPortDisconnected, uint32_t frame
 			return;
 		passthruReturnCode = kIOUSBTransactionTimeout;
 	} else {
-		pTd->bytesThisTDCompleted = pTd->bytesThisTD - transferLength;
+		pTd->shortfall = pTd->bytesThisTD - transferLength;
 		passthruReturnCode = kIOReturnNotResponding;
 	}
 	next = pTd->lastTrbIndex + 1;
 	if (next >= static_cast<int32_t>(pRing->numTRBs) - 1)
 		next = 0;
-	if (provider->GetIntelFlag(pRing->slot))
+	if (provider->GetNeedsReset(pRing->slot))
 		passthruReturnCode = kIOReturnNotResponding;
 	if (!isEndpointOk)
 		provider->QuiesceEndpoint(pRing->slot, pRing->endpoint);

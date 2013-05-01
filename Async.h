@@ -26,7 +26,7 @@ struct XHCIAsyncEndpoint
 	uint32_t numTDsScheduled;	// 0x5C
 	uint32_t numTDsDone;	// 0x60
 	uint32_t numTDsFree;	// 0x64
-	bool unusable;	// 0x68
+	bool aborting;	// 0x68
 	uint32_t maxPacketSize;	// 0x6C
 	uint32_t maxBurst;	// 0x70
 	uint32_t multiple;	// 0x74
@@ -36,8 +36,8 @@ struct XHCIAsyncEndpoint
 
 	IOReturn CreateTDs(IOUSBCommand*, uint16_t, uint32_t, uint8_t, uint8_t*);
 	void ScheduleTDs(void);
-	void Abort(void);
-	XHCIAsyncTD* GetTDFromActiveQueueWithIndex(uint16_t indexInQueue);
+	IOReturn Abort(void);
+	XHCIAsyncTD* GetTDFromActiveQueueWithIndex(uint16_t);
 	void RetireTDs(XHCIAsyncTD*, IOReturn, bool, bool);
 	XHCIAsyncTD* GetTDFromFreeQueue(bool);
 	void PutTDonDoneQueue(XHCIAsyncTD*);
@@ -59,22 +59,22 @@ struct XHCIAsyncTD
 	uint32_t bytesThisTD;	// 0x18
 	size_t bytesFollowingThisTD;	// 0x1C - original uint32_t
 	size_t bytesPreceedingThisTD;	// 0x20
-	int32_t firstTrbIndex;	// 0x28
+	uint32_t firstTrbIndex;	// 0x28
 	uint32_t TrbCount;	// 0x2C
-	bool onMaxTDBytesBoundary;	// 0x30
+	bool interruptThisTD;	// 0x30
 	bool multiTDTransaction;	// 0x31
 	uint16_t numTDsThisTransaction;	// 0x32
 	uint32_t mystery;	// 0x34
-	uint32_t bytesThisTDCompleted;	// 0x38
+	uint32_t shortfall;	// 0x38
 	uint16_t maxNumPagesInTD;	// 0x3C
 	bool haveImmediateData;	// 0x3E
 	bool finalTDInTransaction;	// 0x3F
 	uint8_t immediateData[8];	// 0x40
 	uint16_t streamId;	// 0x48
 	int16_t lastTrbIndex;	// 0x4A
-	bool pos_4C;	// 0x4C
-	bool pos_4D;	// 0x4D
-	bool pos_4E;	// 0x4E
+	bool flushed;	// 0x4C
+	bool lastFlushedTD;	// 0x4D
+	bool lastInRing;	// 0x4E
 	XHCIAsyncEndpoint* provider;	// 0x50
 	XHCIAsyncTD* next;	// 0x58
 						// sizeof 0x60

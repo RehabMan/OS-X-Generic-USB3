@@ -95,9 +95,9 @@ __attribute__((noinline, visibility("hidden")))
 void CLASS::DisableComplianceMode(void)
 {
 	if ((_errataBits & (kErrataFrescoLogic | kErrataIntelPantherPoint)) &&
-		!(_errataBits & kErrataDisableComplianceExtension)) {
-		_unknown3 = reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80EC;
-		*_unknown3 |= 1U;
+		!(_errataBits & kErrataEnableAutoCompliance)) {
+		_pXHCIPPTChickenBits = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80EC);
+		*_pXHCIPPTChickenBits |= 1U;
 	}
 }
 
@@ -105,9 +105,9 @@ __attribute__((noinline, visibility("hidden")))
 void CLASS::EnableComplianceMode(void)
 {
 	if ((_errataBits & (kErrataFrescoLogic | kErrataIntelPantherPoint)) &&
-		!(_errataBits & kErrataDisableComplianceExtension)) {
-		_unknown3 = reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80EC;
-		*_unknown3 &= ~1U;
+		!(_errataBits & kErrataEnableAutoCompliance)) {
+		_pXHCIPPTChickenBits = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80EC);
+		*_pXHCIPPTChickenBits &= ~1U;
 	}
 }
 #endif

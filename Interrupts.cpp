@@ -254,7 +254,7 @@ bool CLASS::PollEventRing2(int32_t interrupter)
 			  interrupter, value);
 	}
 #if 0
-	value = __sync_lock_test_and_set(&_debugflags, 0);
+	value = __sync_lock_test_and_set(&_debugFlag, 0);
 	if (value > 0)
 		IOLog("%s: DebugFlags: %d\n", __FUNCTION__, value);
 	value = __sync_lock_test_and_set(&_errorCounters[2], 0);
@@ -267,7 +267,7 @@ bool CLASS::PollEventRing2(int32_t interrupter)
 	for (GenericUSBXHCIIsochEP* iter = static_cast<GenericUSBXHCIIsochEP*>(_isochEPList);
 		 iter;
 		 iter = static_cast<GenericUSBXHCIIsochEP*>(iter->nextEP))
-		if (iter->_uk4 != iter->_uk5)
+		if (iter->producerCount != iter->consumerCount)
 			RetireIsocTransactions(iter, true);
 	if (ePtr->bounceDequeueIndex == ePtr->bounceEnqueueIndex)
 		goto done;
@@ -562,7 +562,7 @@ void CLASS::processTransferEvent(TRBStruct* pTrb)
 	if (slot <= 0 || slot > _numSlots || SlotPtr(slot)->isInactive())
 		return;
 	endpoint = static_cast<int32_t>(XHCI_TRB_3_EP_GET(pTrb->d));
-	if (!endpoint || !IsIsocEP(slot, endpoint))
+	if (endpoint < 2 || !IsIsocEP(slot, endpoint))
 		return;
 	pRing = GetRing(slot, endpoint, 0U);
 	if (pRing->isInactive()) {
@@ -570,11 +570,13 @@ void CLASS::processTransferEvent(TRBStruct* pTrb)
 		return;
 	}
 	pIsochEp = pRing->isochEndpoint;
+	if (!pIsochEp)
+		return;		// Added
 	switch (XHCI_TRB_2_ERROR_GET(pTrb->c)) {
 		case XHCI_TRB_ERROR_SUCCESS:
 		case XHCI_TRB_ERROR_XACT:
 		case XHCI_TRB_ERROR_SHORT_PKT:
-			inSlot2 = pIsochEp->inSlot2;
+			inSlot2 = pIsochEp->outSlot;
 			if (inSlot2 > 127U)
 				break;
 			inSlot = pIsochEp->inSlot & 127U;
@@ -584,7 +586,7 @@ void CLASS::processTransferEvent(TRBStruct* pTrb)
 			}
 			break;
 		default:
-			pIsochEp->_tdsScheduled = false;
+			pIsochEp->tdsScheduled = false;
 			break;
 	}
 }
@@ -644,7 +646,7 @@ bool CLASS::processTransferEvent2(TRBStruct* pTrb, int32_t interrupter)
 					return true;
 				pIsochEp = pRing->isochEndpoint;
 				if (!pIsochEp->activeTDs) {
-					pIsochEp->inSlot2 = 129U;
+					pIsochEp->outSlot = 129U;
 					pIsochEp->inSlot = 129U;
 				}
 				if (pIsochEp->schedulingDelayed) {
@@ -696,13 +698,13 @@ bool CLASS::processTransferEvent2(TRBStruct* pTrb, int32_t interrupter)
 		resetEndpoint = pTd->multiTDTransaction;
 		rc = TranslateXHCIStatus(err, (endpoint & 1) != 0, GetSlCtxSpeed(GetSlotContext(slot)), false);
 	} else {
-		callCompletion = pTd->onMaxTDBytesBoundary;
+		callCompletion = pTd->interruptThisTD;
 		resetEndpoint = false;
 		rc = kIOReturnSuccess;
 	}
-	pTd->bytesThisTDCompleted = transferLength;
+	pTd->shortfall = transferLength;
 	asyncEp->RetireTDs(pTd,
-					   GetIntelFlag(slot) ? kIOReturnNotResponding : rc,
+					   GetNeedsReset(slot) ? kIOReturnNotResponding : rc,
 					   callCompletion,
 					   resetEndpoint);
 	return true;

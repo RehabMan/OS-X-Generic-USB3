@@ -170,21 +170,21 @@ bool GenericUSBXHCIIsochEP::init(void)
 	 *   allow for reinitialization w/o leak, because init
 	 *   is called from IOUSBControllerV2::CreateIsochronousEndpoint.
 	 */
-	if (!_lock) {
-		_lock = IOSimpleLockAlloc();
-		if (!_lock)
+	if (!wdhLock) {
+		wdhLock = IOSimpleLockAlloc();
+		if (!wdhLock)
 			return false;
 	}
 	inSlot = 129U;
-	inSlot2 = 129U;
+	outSlot = 129U;
 	return true;
 }
 
 void GenericUSBXHCIIsochEP::free(void)
 {
-	if (_lock) {
-		IOSimpleLockFree(_lock);
-		_lock = 0;
+	if (wdhLock) {
+		IOSimpleLockFree(wdhLock);
+		wdhLock = 0;
 	}
 	IOUSBControllerIsochEndpoint::free();
 }
@@ -214,7 +214,7 @@ GenericUSBXHCIIsochTD* GenericUSBXHCIIsochTD::ForEndpoint(GenericUSBXHCIIsochEP*
 	if (obj) {
 		if (obj->init()) {
 			obj->_pEndpoint = provider;
-			obj->_startsChain = false;
+			obj->newFrame = false;
 		} else {
 			obj->release();
 			obj = 0;
@@ -240,15 +240,15 @@ IOReturn GenericUSBXHCIIsochTD::TranslateXHCIStatus(uint32_t xhci_err)
 }
 
 __attribute__((visibility("hidden")))
-uint32_t GenericUSBXHCIIsochTD::FrameForEventIndex(uint32_t trbIndex)
+int32_t GenericUSBXHCIIsochTD::FrameForEventIndex(uint32_t trbIndex)
 {
 	uint32_t firstTrbIndex;
 	uint8_t transfersInTD = _framesInTD;
 
 	for (uint8_t transfer = 0U; transfer < transfersInTD; ++transfer) {
-		firstTrbIndex = static_cast<uint32_t>(_firstTrbIndex[transfer]);
-		if (trbIndex >= firstTrbIndex && trbIndex < firstTrbIndex + _trbCount[transfer])
+		firstTrbIndex = static_cast<uint32_t>(this->firstTrbIndex[transfer]);
+		if (trbIndex >= firstTrbIndex && trbIndex < firstTrbIndex + trbCount[transfer])
 			return transfer;
 	}
-	return UINT32_MAX;
+	return -1;
 }

@@ -64,7 +64,7 @@ private:
 	USBDeviceAddress _hub2Address;	// offset 0x2EE
 	IOFilterInterruptEventSource* _filterInterruptSource;
 									// offset 0x2F0
-	uint8_t _numSlots;				// offset 0x2F8
+	uint8_t _numSlots;				// offset 0x2F8 - originally uint16_t
 	int32_t _baseInterruptIndex;	// Added
 
 	/*
@@ -87,7 +87,7 @@ private:
 		uint16_t enqueueIndex;		// offset 0x338
 		uint16_t dequeueIndex;		// offset 0x33A
 		uint16_t numTRBs;			// offset 0x318 - reordered
-		uint8_t cycleState;			// offset ox33C
+		uint8_t cycleState;			// offset ox33C - originally uint32_t
 		bool volatile stopPending;	// offset 0x23B18 - reordered
 		TRBCallbackEntry* callbacks;// offset 0x340
 	} _commandRing;
@@ -104,26 +104,34 @@ private:
 	XHCIInterruptRegisterSet _interruptBackup[kMaxActiveInterrupters];
 									// offset 0x780
 									// offset 0x7C0
-	int32_t _debugflags;			// offset 0x980
-	int32_t _errorCounters[4];		// offset 0x984
+	int32_t volatile _debugFlag;	// offset 0x980
+	/*
+	 * _CCEPhysZero
+	 * _CCEBadIndex
+	 * _EventChanged
+	 * _IsocProblem
+	 */
+	int32_t volatile _errorCounters[4];// offset 0x984
 	int32_t _diagCounters[NUM_DIAGCTRS];	// Added
 
 	/*
 	 * Device Contexts
 	 */
-									// align 4-byte
 	struct {
+#if 0
+		uint32_t lock;
+#endif
 		IOBufferMemoryDescriptor*md;// offset 0x998
 		ContextStruct* ptr;			// offset 0x9A0, 0x9A8
 		uint64_t physAddr;			// offset 0x9B0
-		uint16_t refCount;			// offset 0x23AD0 - reordered
+		int16_t refCount;			// offset 0x23AD0 - reordered
 	} _inputContext;
 
 	/*
 	 * ScratchPad
 	 */
 	struct {
-		uint8_t max;				// offset 0x9B8
+		uint8_t max;				// offset 0x9B8 - originally uint16_t
 									// align 7-byte
 		IOBufferMemoryDescriptor*md;// offset 0x9C0
 		uint64_t* ptr;				// offset 0x9C8
@@ -160,17 +168,23 @@ private:
 		bool isBeingAddressed;		// offset 0x233E4
 	} _deviceZero;
 									// align 1-byte
-	int16_t _numEndpoints;			// offset 0x233E6
+	int16_t volatile _numEndpoints;	// offset 0x233E6
 	int16_t _maxNumEndpoints;		// offset 0x233E8
 	bool _uimInitialized;			// offset 0x233EA
 #if 0
-	bool _filterInterruptActive;	// offset 0x233EB
+	bool volatile _filterInterruptActive;// offset 0x233EB
 #endif
 									// align 4-byte
 	uint64_t volatile _millsecondCounter;
 									// offset 0x233F0
 	uint8_t _istKeepAwayFrames;		// offset 0x233F8
 									// align 3-byte
+	/*
+	 * _numInterrupts
+	 * _numPrimaryInterrupts
+	 * _numInactiveInterrupts
+	 * _numUnavailableInterrupts
+	 */
 	uint32_t _interruptCounters[4];	// offset 0x233FC
 
 	/*
@@ -214,28 +228,30 @@ private:
 #if 0
 	thread_call_t _rhResetPortThread[kMaxPorts];
 									// offset 0x238E8
-	RHPortData _rhPortArea[kMaxPorts];
+	XHCIRootHubResetParams _rhResetParams[kMaxPorts];
 									// offset 0x23960
 	bool _rhPortDebouncing[kMaxPorts];
 									// offset 0x239D8
-	bool _rhPortDebounceTarget[kMaxPorts];
+	bool _rhPortDebounceADisconnect[kMaxPorts];
 									// offset 0x239E7
 									// align 2-byte
-	uint64_t _rhStamps[kMaxPorts];	// offset 0x239F8
+	uint64_t _rhDebounceNanoSeconds[kMaxPorts];// offset 0x239F8
 	bool _rhPortBeingWarmReset[kMaxPorts];
 									// offset 0x23A70
 	bool _hasPCIPwrMgmt;			// offset 0x23A7F
+	uint32_t _ExpressCardPort;		// offset 0x23A80
+	bool _badExpressCardAttached;	// offset 0x23A84
+									// align 3-byte
 #endif
-									// offset 0x23A80
-	uint32_t _unknown1;				// offset 0x23A88
-	uint32_t _magic;				// offset 0x23A8C
+	uint32_t volatile _debugCtr;	// offset 0x23A88
+	uint32_t volatile _debugPattern;// offset 0x23A8C
 #if 0
 	uint16_t _rhPrevStatus[1U + kMaxPorts];
 									// offset 0x23A90
 	uint16_t _rhChangeBits[1U + kMaxPorts];
 									// offset 0x23AB0
 #endif
-	uint16_t _unknown2;				// offset 0x23AD2
+	uint16_t _RenesasControllerVersion;// offset 0x23AD2
 	uint8_t _HCCLow;				// replaces _is64bit, _csz in 0x23AD4 - 0x23AD5
 									// align 2-byte
 	IOACPIPlatformDevice* _providerACPIDevice;
@@ -245,9 +261,15 @@ private:
 	bool _inTestMode;				// offset 0x23AE2
 									// align 5-byte
 #if 0
-	uint8_t volatile* _unknown3;	// offset 0x23AE8
+	uint32_t volatile* _pXHCIPPTChickenBits;// offset 0x23AE8
 #endif
 	IOSimpleLock* _isochScheduleLock; // offset 0x23AF0
+	/*
+	 * _tempAnchorTime
+	 * _anchorTime
+	 * _tempAnchorFrame
+	 * _anchorFrame
+	 */
 	uint64_t _millsecondsTimers[4];	// offset 0x23AF8
 									// offset 0x23B18 moved
 	bool volatile m_invalid_regspace;
@@ -258,7 +280,7 @@ private:
 	struct {
 		IOBufferMemoryDescriptor*md;// offset 0x23B20
 		uint64_t physAddr;			// offset 0x23B28
-		uint8_t cycleState;			// offset 0x23B30
+		uint8_t cycleState;			// offset 0x23B30 - originally uint32_t
 	} _spareRing;
 #endif
 	char _muxName[kMaxPorts * 5U];	// offset 0x23B34
@@ -537,8 +559,8 @@ public:
 	IOReturn CreateTransfer(IOUSBCommand*, uint32_t);
 	void ClearStopTDs(int32_t, int32_t);
 	static IOReturn AddDummyCommand(ringStruct*, IOUSBCommand*);
-	IOReturn _createTransfer(void*, bool, uint32_t, uint32_t, size_t, bool, bool, int32_t*,
-							 uint32_t*, bool, int16_t*);
+	IOReturn _createTransfer(void*, bool, uint32_t, uint32_t, size_t, bool, bool, uint32_t*,
+							 uint32_t*, int16_t*);
 	static TRBStruct* GetNextTRB(ringStruct*, void*, TRBStruct**, bool);
 	static void CloseFragment(ringStruct*, TRBStruct*, uint32_t);
 	static IOReturn GenerateNextPhysicalSegment(TRBStruct*, uint32_t*, size_t, IODMACommand*);
@@ -568,8 +590,8 @@ public:
 	bool DiscoverMuxedPorts(void);
 	IOReturn HCSelect(uint8_t, uint8_t);
 	IOReturn HCSelectWithMethod(char const*);
-	bool GetIntelFlag(uint8_t slot) { return SlotPtr(slot)->_intelFlag; }
-	void SetIntelFlag(uint8_t slot, bool value) { SlotPtr(slot)->_intelFlag = value; }
+	bool GetNeedsReset(uint8_t slot) { return SlotPtr(slot)->deviceNeedsReset; }
+	void SetNeedsReset(uint8_t slot, bool value) { SlotPtr(slot)->deviceNeedsReset = value; }
 	/*
 	 * XHCI Normatives
 	 */
@@ -594,10 +616,10 @@ public:
 	IOReturn CommandStop(void);
 	IOReturn CommandAbort(void);
 	int32_t WaitForCMD(TRBStruct*, int32_t, TRBCallback);
-	IOReturn EnqueCMD(TRBStruct*, int32_t, TRBCallback, void*);
+	IOReturn EnqueCMD(TRBStruct*, int32_t, TRBCallback, int32_t*);
 	bool DoCMDCompletion(TRBStruct);
-	static void _CompleteSlotCommand(GenericUSBXHCI*, TRBStruct*, void*);
-	static void CompleteSlotCommand(TRBStruct*, void*);
+	static void _CompleteSlotCommand(GenericUSBXHCI*, TRBStruct*, int32_t*);
+	static void CompleteSlotCommand(TRBStruct*, int32_t*);
 #if 0
 	static void CompleteRenesasVendorCommand(TRBStruct*, void*);
 #endif
