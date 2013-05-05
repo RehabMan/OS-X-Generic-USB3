@@ -63,7 +63,7 @@ IOReturn CLASS::ResetController(void)
 	/*
 	 * Wait for Controller Ready in case we're starting from hardware reset
 	 */
-	Read32Reg(&_pXHCIOperationalRegisters->USBSts);		// CNR may be asserted on 1st read
+	Read32Reg(&_pXHCIOperationalRegisters->USBSts);		// Note: CNR may be asserted on 1st read
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
 	rc = XHCIHandshake(&_pXHCIOperationalRegisters->USBSts, XHCI_STS_CNR, 0U, 1000);
@@ -126,7 +126,7 @@ void CLASS::NotifyRootHubsOfPowerLoss(void)
 	IOUSBHubPolicyMaker *pm2, *pm3;
 
 	/*
-	 * Couldn't find a decent way to notify up-stack
+	 * TBD: Couldn't find a decent way to notify up-stack
 	 *   drivers of controller power-loss and need
 	 *   for re-enumeration.
 	 */

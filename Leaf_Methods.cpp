@@ -376,7 +376,7 @@ void CLASS::ParkRing(ringStruct* pRing)
 	 *   to park the ring. (see InitEventRing)
 	 */
 	SetTRBAddr64(&localTrb, _eventRing[0].erstba + sizeof localTrb);
-	localTrb.a |= XHCI_TRB_3_CYCLE_BIT;	// set DCS to 1 so it doesn't move
+	localTrb.a |= XHCI_TRB_3_CYCLE_BIT;	// Note: set DCS to 1 so it doesn't move
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_SET_TR_DEQUEUE, 0);
 	if (retFromCMD != -1 && retFromCMD > -1000)
 		return;
@@ -504,7 +504,7 @@ IOReturn CLASS::AddressDevice(uint32_t deviceSlot, uint16_t maxPacketSize, bool 
 			goto skip_low_full;
 	}
 	/*
-	 * Only for Low or Full Speed devices
+	 * Note: Only for Low or Full Speed devices
 	 */
 	if (highSpeedSlot) {
 		pContext->_s.dwSctx2 |= XHCI_SCTX_2_TT_PORT_NUM_SET(highSpeedPort);
@@ -636,12 +636,8 @@ void CLASS::NukeSlot(uint8_t slot)
 		for (uint16_t streamId = 0U; streamId <= lastStream; ++streamId) {
 			DeallocRing(&pRing[streamId]);
 			if ((pRing[streamId].epType | CTRL_EP) == ISOC_IN_EP) {
-				/*
-				 * This is an interim solution, since there are no activeTDs.
-				 * Abort should generally be skipped.
-				 */
 				if (pRing[streamId].isochEndpoint)
-					DeleteIsochEP(pRing[streamId].isochEndpoint);
+					NukeIsochEP(pRing[streamId].isochEndpoint);
 			} else {
 				if (pRing[streamId].asyncEndpoint)
 					pRing[streamId].asyncEndpoint->nuke();
@@ -658,7 +654,7 @@ void CLASS::NukeSlot(uint8_t slot)
 	pSlot->md = 0;
 	pSlot->physAddr = 0ULL;
 	/*
-	 * TBD: pSlot->_intelFlag = false; ???
+	 * TBD: pSlot->deviceNeedsReset = false; ???
 	 */
 }
 

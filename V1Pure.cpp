@@ -211,7 +211,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		UIMFinalize();
 		return kIOReturnNoDevice;
 	}
-	_istKeepAwayFrames = (hcp2 & 8U) ? (hcp2 & 7U) : 1U;	// minimum of 1 frame
+	_istKeepAwayFrames = (hcp2 & 8U) ? (hcp2 & 7U) : 1U;	// Note: minimum of 1 frame
 	setProperty("ISTKeepAway", _istKeepAwayFrames, 8U);
 	_erstMax = 1U << XHCI_HCS2_ERST_MAX(hcp2);
 	for (int32_t interrupter = 0; interrupter < kMaxActiveInterrupters; ++interrupter) {
@@ -461,7 +461,7 @@ void CLASS::UIMRootHubStatusChange(void)
 		_rootHubStatusChangedBitmap = statusChangedBitmap;
 		return;
 	}
-	if (hubStatus.statusFlags & (kHubLocalPowerStatus | kHubOverCurrentIndicator))
+	if (USBToHostWord(hubStatus.statusFlags) & (kHubLocalPowerStatus | kHubOverCurrentIndicator))
 		statusChangedBitmap |= statusBit;
 	statusBit <<= 1;
 	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port, statusBit <<= 1) {
@@ -474,11 +474,13 @@ void CLASS::UIMRootHubStatusChange(void)
 			continue;
 		if (GetRootHubPortStatus(&portStatus, portToCheck) != kIOReturnSuccess)
 			continue;
+		portStatus.changeFlags = USBToHostWord(portStatus.changeFlags);
+		portStatus.statusFlags = USBToHostWord(portStatus.statusFlags);
 		if ((portStatus.statusFlags & kHubPortConnection) &&
 			!(portStatus.changeFlags & kHubPortConnection) &&
 			_rhPortEmulateCSC[port])
 			portStatus.changeFlags |= kHubPortConnection;
-		if (!(portStatus.changeFlags & ~kSSHubPortChangeBHResetMask))
+		if (!(portStatus.changeFlags & kHubPortSuperSpeedStateChangeMask))
 			continue;
 		portStatus.changeFlags |= kHubPortConnection;
 		statusChangedBitmap |= statusBit;
@@ -657,7 +659,7 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 	 *   which is either kUSBDeviceSpeedHigh (2) or kUSBDeviceSpeedSuper (3).
 	 *   See IOUSBRootHubDevice::DeviceRequestWorker
 	 */
-	protocol = static_cast<uint8_t>(pStatus->statusFlags & kUSBSpeed_Mask);
+	protocol = static_cast<uint8_t>((pStatus->statusFlags & kUSBSpeed_Mask) >> kUSBSpeed_Shift);
 	_port = PortNumberProtocolToCanonical(port, protocol);
 	if (_port >= _rootHubNumPorts)
 		return kIOReturnBadArgument;
@@ -672,7 +674,7 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 	 */
 	statusFlags = static_cast<uint16_t>(portSC & (XHCI_PS_PR | XHCI_PS_OCA | XHCI_PS_PED | XHCI_PS_CCS));
 	linkState = static_cast<uint16_t>(XHCI_PS_PLS_GET(portSC));
-	if (protocol != 3U) {
+	if (protocol != kUSBDeviceSpeedSuper) {
 		if (linkState == XDEV_U3 || linkState == XDEV_RESUME)
 			statusFlags |= kHubPortSuspend;
 		speed = static_cast<uint8_t>(XHCI_PS_SPEED_GET(portSC));

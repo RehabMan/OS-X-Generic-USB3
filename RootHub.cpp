@@ -74,7 +74,7 @@ IOReturn CLASS::XHCIRootHubSetLinkStatePort(uint8_t linkState, uint16_t port)
 	uint32_t portSC;
 
 	/*
-	 * This method only called on SuperSpeed ports
+	 * Note: This method only called on SuperSpeed ports
 	 *   (see SetRootHubPortFeature)
 	 */
 	switch (linkState) {
@@ -179,7 +179,7 @@ IOReturn CLASS::XHCIRootHubSuspendPort(uint8_t protocol, uint16_t port, bool sta
 	 */
 	Write32Reg(pPortSC, portSC | XHCI_PS_PLC);
 	if (state)
-		CheckedSleep(1U);	// xHC may need up to 1 frame to being suspend, AppleUSBHubPort::Suspend waits another 10msec for suspension to complete
+		CheckedSleep(1U);	// Note: xHC may need up to 1 frame to being suspend, AppleUSBHubPort::Suspend waits another 10msec for suspension to complete
 	else {
 		_rhPortBeingResumed[_port] = true;
 		if (protocol != kUSBDeviceSpeedSuper &&
@@ -245,7 +245,7 @@ IOReturn CLASS::RHResetPort(uint8_t protocol, uint16_t port)
 		if (portSC & XHCI_PS_PRC)
 			break;
 	}
-	if (XHCI_PS_SPEED_GET(portSC) == XDEV_SS)	// superspeed
+	if (XHCI_PS_SPEED_GET(portSC) == XDEV_SS)
 		return kIOReturnSuccess;
 	IOSleep(500U - count * 32U);
 	/*

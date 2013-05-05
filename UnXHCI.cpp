@@ -88,8 +88,8 @@ done:
 
 #if 0
 /*
- * Does this really work?
- * It's not documented anywhere
+ * TBD: Does this really work?
+ *   It's not documented anywhere
  */
 __attribute__((noinline, visibility("hidden")))
 void CLASS::DisableComplianceMode(void)

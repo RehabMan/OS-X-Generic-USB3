@@ -41,7 +41,7 @@ IOReturn CLASS::RestoreCRCr(void)
 
 	newCRCr = _commandRing.physAddr + _commandRing.dequeueIndex * sizeof *_commandRing.ptr;
 #if 0
-	newCRCr &= ~XHCI_CRCR_LO_MASK;	// This is a XHCI design flaw, as dequeueIndex may not be a multiple of 4
+	newCRCr &= ~XHCI_CRCR_LO_MASK;	// Note: This is a XHCI design flaw, as dequeueIndex may not be a multiple of 4
 #endif
 	if (_commandRing.enqueueIndex >= _commandRing.dequeueIndex)
 		newCycleState = _commandRing.cycleState;
@@ -222,7 +222,7 @@ void CLASS::CompleteSlotCommand(TRBStruct* pTrb, int32_t* param)
 	*param = ret;
 #if 0
 	/*
-	 * Called from either of
+	 * Note: Called from either of
 	 *   PollEventRing2 - on thread, on gate
 	 *     Signalling param could be useful, but never
 	 *     used, since EnqueCMD is not used standalone
@@ -240,7 +240,7 @@ void CLASS::CompleteSlotCommand(TRBStruct* pTrb, int32_t* param)
 
 #if 0
 /*
- * Unused
+ * Note: Unused
  *   This is used to handle TRB_RENESAS_GET_FW command
  *   Lower 16 bits of pTrb->c are FWVersionMajor:FWVersionMinor
  *   each field 8 bits.

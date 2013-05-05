@@ -28,7 +28,7 @@ extern
 #ifdef __cplusplus
 "C"
 #endif
-UInt32 gUSBStackDebugFlags;	// defined in IOUSBFamily/Classes/IOUSBController.cpp
+UInt32 gUSBStackDebugFlags;	// Note: defined in IOUSBFamily/Classes/IOUSBController.cpp
 
 #pragma mark -
 #pragma mark Errata
@@ -78,7 +78,7 @@ struct ringStruct
 	TRBStruct stopTrb; // 0x2C
 	uint64_t nextIsocFrame; // 0x40
 	uint8_t epType; // 0x48
-	union { // 0x50 - Typed as XHCIIsochEndpoint*, but doubles as XHCIAsyncEndpoint*
+	union { // 0x50 - Note: Typed as XHCIIsochEndpoint*, but doubles as XHCIAsyncEndpoint*
 		XHCIAsyncEndpoint* asyncEndpoint;
 		GenericUSBXHCIIsochEP* isochEndpoint;
 	};
@@ -88,7 +88,7 @@ struct ringStruct
 	bool deleteInProgress; // 0x5B
 	bool schedulingPending; // 0x5C
 
-	__attribute__((always_inline)) bool isInactive(void) { return !this || !this->md; }
+	__attribute__((always_inline)) bool isInactive(void) const { return !this || !this->md; }
 };
 
 struct EventRingStruct
@@ -124,7 +124,7 @@ struct SlotStruct
 	ringStruct* ringArrayForEndpoint[kUSBMaxPipes]; // 288
 	bool deviceNeedsReset;	// 544
 
-	__attribute__((always_inline)) bool isInactive(void) { return !this->md; }
+	__attribute__((always_inline)) bool isInactive(void) const { return !this->md; }
 };
 
 struct TRBCallbackEntry

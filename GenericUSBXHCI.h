@@ -461,8 +461,8 @@ public:
 	void PrintSlots(PrintSink* = 0);
 	void PrintEndpoints(uint8_t, PrintSink* = 0);
 	void PrintRootHubPortBandwidth(PrintSink* = 0);
-	static void PrintContext(ContextStruct*) {}
-	static void PrintEventTRB(TRBStruct*, int32_t, bool, ringStruct*) {}
+	static void PrintContext(ContextStruct const*) {}
+	static void PrintEventTRB(TRBStruct const*, int32_t, bool, ringStruct const*) {}
 	/*
 	 * Root Hub
 	 */
@@ -508,6 +508,7 @@ public:
 	IOReturn AllocStreamsContextArray(ringStruct*, uint32_t);
 	IOReturn configureHub(uint32_t, uint32_t);
 	SlotStruct* SlotPtr(uint8_t slot) { return &_slotArray[slot - 1U]; }
+	SlotStruct const* ConstSlotPtr(uint8_t slot) const { return &_slotArray[slot - 1U]; }
 	IOReturn ResetDevice(int32_t);
 	int32_t NegotiateBandwidth(int32_t);
 	int32_t SetLTV(uint32_t);
@@ -543,14 +544,15 @@ public:
 	void StopEndpoint(int32_t, int32_t, bool = false);
 	void ResetEndpoint(int32_t, int32_t, bool = false);
 	bool IsIsocEP(int32_t, int32_t);
+	IOReturn NukeIsochEP(GenericUSBXHCIIsochEP*);
 	IOReturn DeleteIsochEP(GenericUSBXHCIIsochEP*);
 	IOReturn AbortIsochEP(GenericUSBXHCIIsochEP*);
 	static uint8_t TranslateEndpoint(int16_t, int16_t);
 	/*
 	 * Streams
 	 */
-	bool IsStreamsEndpoint(int32_t slot, int32_t endpoint) { return SlotPtr(slot)->maxStreamForEndpoint[endpoint] > 1U; }
-	uint16_t GetLastStreamForEndpoint(int32_t slot, int32_t endpoint) { return SlotPtr(slot)->lastStreamForEndpoint[endpoint]; }
+	bool IsStreamsEndpoint(int32_t slot, int32_t endpoint) const { return ConstSlotPtr(slot)->maxStreamForEndpoint[endpoint] > 1U; }
+	uint16_t GetLastStreamForEndpoint(int32_t slot, int32_t endpoint) const { return ConstSlotPtr(slot)->lastStreamForEndpoint[endpoint]; }
 	void RestartStreams(int32_t, int32_t, uint32_t);
 	IOReturn CreateStream(int32_t, int32_t, uint32_t);
 	ringStruct* FindStream(int32_t, int32_t, uint64_t, int32_t*, bool);
@@ -568,6 +570,7 @@ public:
 	static IOReturn GenerateNextPhysicalSegment(TRBStruct*, uint32_t*, size_t, IODMACommand*);
 	static void PutBackTRB(ringStruct*, TRBStruct*);
 	void AddIsocFramesToSchedule(GenericUSBXHCIIsochEP*);
+	void AddIsocFramesToSchedule_stage2(GenericUSBXHCIIsochEP*, uint16_t, uint64_t*, bool*);
 	IOReturn RetireIsocTransactions(GenericUSBXHCIIsochEP*, bool);
 	/*
 	 * Rings
@@ -592,7 +595,7 @@ public:
 	bool DiscoverMuxedPorts(void);
 	IOReturn HCSelect(uint8_t, uint8_t);
 	IOReturn HCSelectWithMethod(char const*);
-	bool GetNeedsReset(uint8_t slot) { return SlotPtr(slot)->deviceNeedsReset; }
+	bool GetNeedsReset(uint8_t slot) const { return ConstSlotPtr(slot)->deviceNeedsReset; }
 	void SetNeedsReset(uint8_t slot, bool value) { SlotPtr(slot)->deviceNeedsReset = value; }
 	/*
 	 * XHCI Normatives
@@ -636,9 +639,9 @@ public:
 	bool FilterEventRing(int32_t, bool*);
 	bool PollEventRing2(int32_t);
 	void PollForCMDCompletions(int32_t);
-	bool DoStopCompletion(TRBStruct*);
-	void processTransferEvent(TRBStruct*);
-	bool processTransferEvent2(TRBStruct*, int32_t);
+	bool DoStopCompletion(TRBStruct const*);
+	bool processTransferEvent(TRBStruct const*);
+	bool processTransferEvent2(TRBStruct const*, int32_t);
 	IOReturn InitAnEventRing(int32_t);
 	void InitEventRing(int32_t, bool);
 	void FinalizeAnEventRing(int32_t);

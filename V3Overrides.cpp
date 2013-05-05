@@ -27,6 +27,7 @@ void CLASS::ControllerSleep(void)
 	 *   calls UIMEnableAddressEndpoints(,false) to stop endpoints.
 	 *   Then it puts enabled ports in U3 state.
 	 *   Then arrive here.
+	 * TBD: The kErrataIntelPantherPoint probably should be done!
 	 */
 	QuiesceAllEndpoints();
 #endif

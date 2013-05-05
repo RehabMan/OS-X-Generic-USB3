@@ -73,7 +73,7 @@ public:
 	 */
 	static GenericUSBXHCIIsochTD* ForEndpoint(GenericUSBXHCIIsochEP*);
 	static IOReturn TranslateXHCIStatus(uint32_t);
-	int32_t FrameForEventIndex(uint32_t);
+	int32_t FrameForEventIndex(uint32_t) const;
 };
 
 #endif

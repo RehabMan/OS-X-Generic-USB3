@@ -151,7 +151,7 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 	if (!pRing) {
 		pRing = CreateRing(slot, endpoint, maxStream);
 		if (!pRing)
-			return kIOReturnNoMemory; /* originally kIOReturnBadArgument */
+			return kIOReturnNoMemory; /* Note: originally kIOReturnBadArgument */
 	}
 	if (_pIsochEndpoint) {
 		if (pRing->isochEndpoint) {
@@ -494,7 +494,7 @@ IOReturn CLASS::CreateStream(int32_t slot, int32_t endpoint, uint32_t streamId)
 	pStreamRing->deleteInProgress = false;
 	pStreamRing->schedulingPending = false;
 	if (pStreamRing->md)
-		return kIOReturnInternalError; // Originally kIOReturnNoMemory
+		return kIOReturnInternalError; // Note: Originally kIOReturnNoMemory
 	if (kIOReturnSuccess != AllocRing(pStreamRing, 1))
 		return kIOReturnNoMemory;
 	pStreamRing->epType = pRing->epType;
@@ -508,7 +508,7 @@ IOReturn CLASS::CreateStream(int32_t slot, int32_t endpoint, uint32_t streamId)
 	uint16_t strm_dqptr = pStreamRing->physAddr & ~15ULL;
 	if (pStreamRing->cycleState)
 		strm_dqptr |= 1ULL;	// set DCS bit
-	strm_dqptr |= 2ULL;	// set SCT = 1 - Primary Transfer Ring
+	strm_dqptr |= 2ULL;	// Note: set SCT = 1 - Primary Transfer Ring
 	SetTRBAddr64(&pRing->ptr[streamId], strm_dqptr);
 	return kIOReturnSuccess;
 }

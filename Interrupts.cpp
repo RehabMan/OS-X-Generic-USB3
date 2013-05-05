@@ -15,7 +15,7 @@
 #define CLASS GenericUSBXHCI
 #define super IOUSBControllerV3
 
-extern "C" uint64_t ml_cpu_int_event_time(void);	// in com.apple.kpi.unsupported
+extern "C" uint64_t ml_cpu_int_event_time(void);	// Note: in com.apple.kpi.unsupported
 
 #pragma mark -
 #pragma mark Interrupts
@@ -64,7 +64,7 @@ bool CLASS::PrimaryInterruptFilter(OSObject* owner, IOFilterInterruptEventSource
 	}
 	if (!source || !controller->_controllerAvailable) {
 		/*
-		 * When sleeping and using pin interrupt, may get one that
+		 * Note: When sleeping and using pin interrupt, may get one that
 		 *   belongs to another device.
 		 */
 		static_cast<void>(__sync_fetch_and_add(&controller->_interruptCounters[3], 1));
@@ -185,8 +185,9 @@ bool CLASS::FilterEventRing(int32_t interrupter, bool* pInvokeContinuation)
 	ePtr->foundSome = true;
 	switch (XHCI_TRB_3_TYPE_GET(localTrb.d)) {
 		case XHCI_TRB_EVENT_TRANSFER:
-			processTransferEvent(&localTrb);
-			break;
+			if (processTransferEvent(&localTrb))
+				break;
+			return true;
 		case XHCI_TRB_EVENT_MFINDEX_WRAP:
 			_millsecondCounter += 2048U;	// 2^14 * 0.125 us = 2048 ms
 #if 0
@@ -300,7 +301,7 @@ bool CLASS::PollEventRing2(int32_t interrupter)
 #if 0
 		case XHCI_TRB_EVENT_PORT_STS_CHANGE:
 			PrintEventTRB(&localTrb, interrupter, false, 0);
-			EnsureUsability();	 // This is done in PollInterrupts using PCD
+			EnsureUsability();	 // Note: This is done in PollInterrupts using PCD
 			break;
 #endif
 		case XHCI_TRB_EVENT_MFINDEX_WRAP:
@@ -390,7 +391,7 @@ void CLASS::PollForCMDCompletions(int32_t interrupter)
 }
 
 __attribute__((visibility("hidden")))
-bool CLASS::DoStopCompletion(TRBStruct* pTrb)
+bool CLASS::DoStopCompletion(TRBStruct const* pTrb)
 {
 	uint64_t addr;
 	ringStruct* pRing;
@@ -398,7 +399,7 @@ bool CLASS::DoStopCompletion(TRBStruct* pTrb)
 	uint8_t slot, endpoint;
 
 	slot = static_cast<uint8_t>(XHCI_TRB_3_SLOT_GET(pTrb->d));
-	if (!slot || slot > _numSlots || SlotPtr(slot)->isInactive())
+	if (!slot || slot > _numSlots || ConstSlotPtr(slot)->isInactive())
 		return false;
 	endpoint = static_cast<uint8_t>(XHCI_TRB_3_EP_GET(pTrb->d));
 	if (!endpoint)
@@ -547,55 +548,103 @@ int CLASS::findInterruptIndex(IOService* target, bool allowMSI)
 #pragma mark Transfer Events
 #pragma mark -
 
+/*
+ * Returns true iff event TRB should be copied to bounce buffer
+ */
 __attribute__((visibility("hidden")))
-void CLASS::processTransferEvent(TRBStruct* pTrb)
+bool CLASS::processTransferEvent(TRBStruct const* pTrb)
 {
+	uint64_t timeStamp;
+	int64_t diffIndex64;
 	ringStruct* pRing;
 	GenericUSBXHCIIsochEP* pIsochEp;
-	int32_t slot, endpoint;
-	uint16_t inSlot, inSlot2;
+	GenericUSBXHCIIsochTD *pIsochTd, *pCachedHead;
+	int32_t slot, endpoint, indexIntoTD;
+	uint32_t cachedProducer;
+	uint16_t stopSlot, testSlot, nextSlot;
+	bool eventIsForThisTD, copyEvent;
 
 	/*
 	 * Interrupt Context
 	 */
 	slot = static_cast<int32_t>(XHCI_TRB_3_SLOT_GET(pTrb->d));
-	if (slot <= 0 || slot > _numSlots || SlotPtr(slot)->isInactive())
-		return;
+	if (slot <= 0 || slot > _numSlots || ConstSlotPtr(slot)->isInactive())
+		return true;
 	endpoint = static_cast<int32_t>(XHCI_TRB_3_EP_GET(pTrb->d));
 	if (endpoint < 2 || !IsIsocEP(slot, endpoint))
-		return;
+		return true;
 	pRing = GetRing(slot, endpoint, 0U);
 	if (pRing->isInactive()) {
 		static_cast<void>(__sync_fetch_and_add(&_errorCounters[3], 1));
-		return;
+		return true;
 	}
 	pIsochEp = pRing->isochEndpoint;
-	if (!pIsochEp)
-		return;		// Added
+	if (!pIsochEp || !pIsochEp->tdsScheduled)
+		return true;
+	copyEvent = true;
 	switch (XHCI_TRB_2_ERROR_GET(pTrb->c)) {
 		case XHCI_TRB_ERROR_SUCCESS:
 		case XHCI_TRB_ERROR_XACT:
 		case XHCI_TRB_ERROR_SHORT_PKT:
-			inSlot2 = pIsochEp->outSlot;
-			if (inSlot2 > 127U)
+			if (pIsochEp->outSlot > 127U)
 				break;
-			inSlot = pIsochEp->inSlot & 127U;
-			// TBD: 3E97 - 403A
-			if (inSlot2 == inSlot) {
-				// 4026
+			stopSlot = pIsochEp->inSlot & 127U;
+			pCachedHead = const_cast<GenericUSBXHCIIsochTD*>(pIsochEp->savedDoneQueueHead);
+			cachedProducer = pIsochEp->producerCount;
+			testSlot = pIsochEp->outSlot;
+			timeStamp = mach_absolute_time();
+			while (testSlot != stopSlot) {
+				nextSlot = (testSlot + 1U) & 127U;
+				pIsochTd = pIsochEp->tdSlots[testSlot];
+				if (!pIsochTd || !pIsochEp->tdsScheduled) {
+					testSlot = nextSlot;
+					continue;
+				}
+				eventIsForThisTD = false;
+				indexIntoTD = -1;
+				diffIndex64 = DiffTRBIndex(GetTRBAddr64(pTrb), pRing->physAddr);
+				if (diffIndex64 >= 0 && diffIndex64 < pRing->numTRBs - 1U) {	// Note: originally <=
+					indexIntoTD = pIsochTd->FrameForEventIndex(static_cast<uint32_t>(diffIndex64));
+					if (indexIntoTD >= 0)
+						eventIsForThisTD = true;
+				}
+				pIsochTd->eventTrb = *pTrb;
+				pIsochTd->UpdateFrameList(reinterpret_cast<AbsoluteTime const&>(timeStamp));
+				if (!eventIsForThisTD || indexIntoTD == static_cast<int32_t>(pIsochTd->_framesInTD) - 1) {
+					pIsochEp->tdSlots[testSlot] = 0;
+					pIsochTd->_doneQueueLink = pCachedHead;
+					pCachedHead = pIsochTd;
+					++cachedProducer;
+					static_cast<void>(__sync_fetch_and_add(&pIsochEp->onProducerQ, 1));
+					static_cast<void>(__sync_fetch_and_sub(&pIsochEp->scheduledTDs, 1));
+					pIsochEp->outSlot = testSlot;
+				} else
+					copyEvent = false;
+				if (eventIsForThisTD)
+					break;
+				testSlot = nextSlot;
 			}
+			IOSimpleLockLock(pIsochEp->wdhLock);
+			pIsochEp->savedDoneQueueHead = pCachedHead;
+			pIsochEp->producerCount = cachedProducer;
+			IOSimpleLockUnlock(pIsochEp->wdhLock);
 			break;
-		default:
+		case XHCI_TRB_ERROR_RING_UNDERRUN:
+		case XHCI_TRB_ERROR_RING_OVERRUN:
+		case XHCI_TRB_ERROR_MISSED_SERVICE:
+		case XHCI_TRB_ERROR_STOPPED:
+		case XHCI_TRB_ERROR_LENGTH:
 			pIsochEp->tdsScheduled = false;
 			break;
 	}
+	return copyEvent;
 }
 
 __attribute__((visibility("hidden")))
-bool CLASS::processTransferEvent2(TRBStruct* pTrb, int32_t interrupter)
+bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 {
 	int64_t diffIndex64;
-	ringStruct *pRing;
+	ringStruct* pRing;
 	XHCIAsyncEndpoint* asyncEp;
 	GenericUSBXHCIIsochEP* pIsochEp;
 	XHCIAsyncTD* pTd;
@@ -617,7 +666,7 @@ bool CLASS::processTransferEvent2(TRBStruct* pTrb, int32_t interrupter)
 	if (err == XHCI_TRB_ERROR_STOPPED || err == XHCI_TRB_ERROR_LENGTH)
 		return DoStopCompletion(pTrb);
 
-	if (slot <= 0 || slot > _numSlots || SlotPtr(slot)->isInactive() || !endpoint)
+	if (slot <= 0 || slot > _numSlots || ConstSlotPtr(slot)->isInactive() || !endpoint)
 		return false;
 	if (IsStreamsEndpoint(slot, endpoint)) {
 		if (!addr)
