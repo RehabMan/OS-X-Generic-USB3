@@ -201,7 +201,7 @@ __attribute__((visibility("hidden")))
 void ListOptions(PrintSink* pSink)
 {
 	/*
-	 * Keep this in sync with Startup
+	 * Note: Keep this in sync with Startup
 	 */
 	pSink->print("Kernel Flags\n");
 	pSink->print("  -gux_nosleep: Disable XHCI suspend/resume method, and use reset-on-resume (forces USB Bus re-enumeration)\n");

@@ -59,18 +59,20 @@ IOReturn CLASS::ReturnAllTransfersAndReinitRing(int32_t slot, int32_t endpoint, 
 	if (!pRing->ptr)
 		return kIOReturnNoMemory;
 	if (IsIsocEP(slot, endpoint)) {
-		if (pRing->isochEndpoint) {
-			for (int32_t count = 0; pRing->isochEndpoint->tdsScheduled && count < 120; ++count)
+		GenericUSBXHCIIsochEP* pIsochEp = pRing->isochEndpoint;
+		if (pIsochEp) {
+			for (int32_t count = 0; count < 120 && pIsochEp->tdsScheduled; ++count)
 				IOSleep(1U);
-			pRing->isochEndpoint->tdsScheduled = false;
-			AbortIsochEP(pRing->isochEndpoint);
+			if (pIsochEp->tdsScheduled)
+				pIsochEp->tdsScheduled = false;
+			AbortIsochEP(pIsochEp);
 		}
 		return kIOReturnSuccess;
 	}
 	if (pRing->dequeueIndex != pRing->enqueueIndex) {
-		XHCIAsyncEndpoint* pEp = pRing->asyncEndpoint;
-		if (pEp)
-			pEp->Abort();
+		XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
+		if (pAsyncEp)
+			pAsyncEp->Abort();
 	}
 	return ReinitTransferRing(slot, endpoint, streamId);
 }
@@ -141,7 +143,7 @@ int32_t CLASS::SetTRDQPtr(int32_t slot, int32_t endpoint, uint32_t streamId, int
 	if (pRing->cycleState)
 		localTrb.a |= XHCI_TRB_3_CYCLE_BIT;
 	if (streamId) {
-		localTrb.a |= 2U;  // SCT = 1U - Primary Transfer Ring
+		localTrb.a |= 2U;  // Note: SCT = 1U - Primary Transfer Ring
 		localTrb.c |= XHCI_TRB_2_STREAM_SET(streamId);
 	}
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_SET_TR_DEQUEUE, 0);

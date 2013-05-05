@@ -316,8 +316,11 @@ public:
 									 UInt16 maxPacketSize, UInt32 maxStream, UInt32 maxBurst);
 	IOReturn UIMCreateSSInterruptEndpoint(short functionAddress, short endpointNumber, UInt8 direction, short speed,
 										  UInt16 maxPacketSize, short pollingRate, UInt32 maxBurst);
+	/*
+	 * OS 10.8.2 maxBurst -> OS 10.8.3 maxBurstAndMult
+	 */
 	IOReturn UIMCreateSSIsochEndpoint(short functionAddress, short endpointNumber, UInt32 maxPacketSize, UInt8 direction,
-									  UInt8 interval, UInt32 maxBurst);
+									  UInt8 interval, UInt32 maxBurstAndMult);
 	IOReturn UIMCreateStreams(UInt8 functionNumber, UInt8 endpointNumber, UInt8 direction, UInt32 maxStream);
 	IOReturn GetRootHubPortErrorCount(UInt16 port, UInt16* count);
 	IOReturn GetBandwidthAvailableForDevice(IOUSBDevice* forDevice, UInt32* pBandwidthAvailable);
@@ -347,7 +350,7 @@ public:
 	IOReturn UIMCreateIsochEndpoint(short functionAddress, short endpointNumber, UInt32 maxPacketSize, UInt8 direction,
 									USBDeviceAddress highSpeedHub, int highSpeedPort, UInt8 interval);
 	IOUSBControllerIsochEndpoint* AllocateIsochEP(void);
-	IODMACommand* GetNewDMACommand();
+	IODMACommand* GetNewDMACommand(void);
 	IOReturn GetFrameNumberWithTime(UInt64* frameNumber, AbsoluteTime* theTime);
 
 	/*
@@ -357,7 +360,7 @@ public:
 	 * Pure
 	 */
 	IOReturn UIMInitialize(IOService* provider);
-	IOReturn UIMFinalize();
+	IOReturn UIMFinalize(void);
 	IOReturn UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNumber, UInt16 maxPacketSize,
 									  UInt8 speed) { return kIOReturnInternalError; }
 	IOReturn UIMCreateControlTransfer(short functionNumber, short endpointNumber, IOUSBCompletion completion,
@@ -460,8 +463,8 @@ public:
 	void PrintSlots(PrintSink* = 0);
 	void PrintEndpoints(uint8_t, PrintSink* = 0);
 	void PrintRootHubPortBandwidth(PrintSink* = 0);
-	static void PrintContext(ContextStruct*) {}
-	static void PrintEventTRB(TRBStruct*, int32_t, bool, ringStruct*) {}
+	static void PrintContext(ContextStruct const*) {}
+	static void PrintEventTRB(TRBStruct const*, int32_t, bool, ringStruct const*) {}
 	/*
 	 * Root Hub
 	 */
@@ -501,11 +504,13 @@ public:
 	static IOReturn TranslateCommandCompletion(int32_t);
 	static IOReturn GatedGetFrameNumberWithTime(OSObject*, void*, void*, void*, void*);
 #if 0
-	IOReturn CheckPeriodicBandwidth(int32_t, int32_t, uint16_t, int16_t, int32_t, uint32_t, uint32_t);
+	IOReturn CheckPeriodicBandwidth(int32_t slot, int32_t endpoint, uint16_t maxPacketSize, int16_t intervalExponent,
+									int32_t epType, uint32_t maxStream, uint32_t maxBurst, uint8_t multiple);
 #endif
 	IOReturn AllocStreamsContextArray(ringStruct*, uint32_t);
 	IOReturn configureHub(uint32_t, uint32_t);
 	SlotStruct* SlotPtr(uint8_t slot) { return &_slotArray[slot - 1U]; }
+	SlotStruct const* ConstSlotPtr(uint8_t slot) const { return &_slotArray[slot - 1U]; }
 	IOReturn ResetDevice(int32_t);
 	int32_t NegotiateBandwidth(int32_t);
 	int32_t SetLTV(uint32_t);
@@ -531,24 +536,25 @@ public:
 	 */
 	IOReturn CreateBulkEndpoint(uint8_t, uint8_t, uint8_t, uint16_t, uint32_t, uint32_t);
 	IOReturn CreateInterruptEndpoint(int16_t, int16_t, uint8_t, int16_t, uint16_t, int16_t, uint32_t);
-	IOReturn CreateIsochEndpoint(int16_t, int16_t, uint32_t, uint8_t, uint8_t, uint32_t);
+	IOReturn CreateIsochEndpoint(int16_t, int16_t, uint32_t, uint8_t, uint8_t, uint32_t, uint8_t);
 	void ClearEndpoint(int32_t, int32_t);
 	IOReturn QuiesceAllEndpoints(void);
-	IOReturn CreateEndpoint(int32_t, int32_t, uint16_t, int16_t, int32_t, uint32_t, uint32_t, void*);
+	IOReturn CreateEndpoint(int32_t, int32_t, uint16_t, int16_t, int32_t, uint32_t, uint32_t, uint8_t, void*);
 	IOReturn StartEndpoint(int32_t, int32_t, uint16_t);
 	bool checkEPForTimeOuts(int32_t, int32_t, uint32_t, uint32_t);
 	uint32_t QuiesceEndpoint(int32_t, int32_t);
-	IOReturn StopEndpoint(int32_t, int32_t, bool = false);
+	void StopEndpoint(int32_t, int32_t, bool = false);
 	void ResetEndpoint(int32_t, int32_t, bool = false);
 	bool IsIsocEP(int32_t, int32_t);
+	IOReturn NukeIsochEP(GenericUSBXHCIIsochEP*);
 	IOReturn DeleteIsochEP(GenericUSBXHCIIsochEP*);
-	void AbortIsochEP(GenericUSBXHCIIsochEP*);
+	IOReturn AbortIsochEP(GenericUSBXHCIIsochEP*);
 	static uint8_t TranslateEndpoint(int16_t, int16_t);
 	/*
 	 * Streams
 	 */
-	bool IsStreamsEndpoint(int32_t slot, int32_t endpoint) { return SlotPtr(slot)->maxStreamForEndpoint[endpoint] > 1U; }
-	uint16_t GetLastStreamForEndpoint(int32_t slot, int32_t endpoint) { return SlotPtr(slot)->lastStreamForEndpoint[endpoint]; }
+	bool IsStreamsEndpoint(int32_t slot, int32_t endpoint) const { return ConstSlotPtr(slot)->maxStreamForEndpoint[endpoint] > 1U; }
+	uint16_t GetLastStreamForEndpoint(int32_t slot, int32_t endpoint) const { return ConstSlotPtr(slot)->lastStreamForEndpoint[endpoint]; }
 	void RestartStreams(int32_t, int32_t, uint32_t);
 	IOReturn CreateStream(int32_t, int32_t, uint32_t);
 	ringStruct* FindStream(int32_t, int32_t, uint64_t, int32_t*, bool);
@@ -566,7 +572,8 @@ public:
 	static IOReturn GenerateNextPhysicalSegment(TRBStruct*, uint32_t*, size_t, IODMACommand*);
 	static void PutBackTRB(ringStruct*, TRBStruct*);
 	void AddIsocFramesToSchedule(GenericUSBXHCIIsochEP*);
-	void RetireIsocTransactions(GenericUSBXHCIIsochEP*, bool);
+	void AddIsocFramesToSchedule_stage2(GenericUSBXHCIIsochEP*, uint16_t, uint64_t*, bool*);
+	IOReturn RetireIsocTransactions(GenericUSBXHCIIsochEP*, bool);
 	/*
 	 * Rings
 	 */
@@ -590,7 +597,7 @@ public:
 	bool DiscoverMuxedPorts(void);
 	IOReturn HCSelect(uint8_t, uint8_t);
 	IOReturn HCSelectWithMethod(char const*);
-	bool GetNeedsReset(uint8_t slot) { return SlotPtr(slot)->deviceNeedsReset; }
+	bool GetNeedsReset(uint8_t slot) const { return ConstSlotPtr(slot)->deviceNeedsReset; }
 	void SetNeedsReset(uint8_t slot, bool value) { SlotPtr(slot)->deviceNeedsReset = value; }
 	/*
 	 * XHCI Normatives
@@ -621,7 +628,7 @@ public:
 	static void _CompleteSlotCommand(GenericUSBXHCI*, TRBStruct*, int32_t*);
 	static void CompleteSlotCommand(TRBStruct*, int32_t*);
 #if 0
-	static void CompleteRenesasVendorCommand(TRBStruct*, void*);
+	static void CompleteRenesasVendorCommand(TRBStruct*, int32_t*);
 #endif
 	/*
 	 * Event Handling
@@ -634,9 +641,9 @@ public:
 	bool FilterEventRing(int32_t, bool*);
 	bool PollEventRing2(int32_t);
 	void PollForCMDCompletions(int32_t);
-	bool DoStopCompletion(TRBStruct*);
-	void processTransferEvent(TRBStruct*);
-	bool processTransferEvent2(TRBStruct*, int32_t);
+	bool DoStopCompletion(TRBStruct const*);
+	bool processTransferEvent(TRBStruct const*);
+	bool processTransferEvent2(TRBStruct const*, int32_t);
 	IOReturn InitAnEventRing(int32_t);
 	void InitEventRing(int32_t, bool);
 	void FinalizeAnEventRing(int32_t);

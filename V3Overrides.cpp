@@ -27,6 +27,7 @@ void CLASS::ControllerSleep(void)
 	 *   calls UIMEnableAddressEndpoints(,false) to stop endpoints.
 	 *   Then it puts enabled ports in U3 state.
 	 *   Then arrive here.
+	 * TBD: The kErrataIntelPantherPoint probably should be done!
 	 */
 	QuiesceAllEndpoints();
 #endif
@@ -58,15 +59,16 @@ IOReturn CLASS::GetRootHubBOSDescriptor(OSData* desc)
 			sizeof(IOUSBDeviceCapabilityUSB2Extension),
 			kUSBDeviceCapability,
 			kUSBDeviceCapabilityUSB20Extension,
-			HostToUSBLong(2U),
+			HostToUSBLong(1U << kUSB20ExtensionLPMSupported),
 		},
 		{
 			sizeof(IOUSBDeviceCapabilitySuperSpeedUSB),
 			kUSBDeviceCapability,
 			kUSBDeviceCapabilitySuperSpeedUSB,
-			2U,
-			HostToUSBWord(12U),
-			8U,
+			HostToUSBLong(1U << kUSBSuperSpeedLTMCapable),
+			HostToUSBWord((1U << kUSBSuperSpeedSupportsHS) |
+						  (1U << kUSBSuperSpeedSupportsSS)),
+			1U << kUSBSuperSpeedSupportsSS,
 			10U,
 			HostToUSBWord(100U),
 		},
@@ -78,7 +80,7 @@ IOReturn CLASS::GetRootHubBOSDescriptor(OSData* desc)
 			{ 0xDF, 0xFB, 0x1E, 0x9E, 0x1B, 0x1D, 0x10, 0x46, 0xAE, 0x91, 0x3B, 0x66, 0xF5, 0x56, 0x1D, 0x0A },
 		},
 	};
-	if (!desc || desc->appendBytes(&allDesc, sizeof allDesc))
+	if (!desc || !desc->appendBytes(&allDesc, sizeof allDesc))
 		return(kIOReturnNoMemory);
 	return kIOReturnSuccess;
 }
@@ -90,10 +92,10 @@ IOReturn CLASS::GetRootHub3Descriptor(IOUSB3HubDescriptor* desc)
 	uint8_t* dstPtr;
 	OSNumber* appleCaptiveProperty;
 
-	hubDesc.length = sizeof(hubDesc);
+	hubDesc.length = sizeof hubDesc;
 	hubDesc.hubType = kUSB3HubDescriptorType;
 	hubDesc.numPorts = _v3ExpansionData->_rootHubNumPortsSS;
-	hubDesc.characteristics = XHCI_HCC_PPC(_HCCLow) ? kPerPortSwitchingBit : 0U;
+	hubDesc.characteristics = HostToUSBWord(static_cast<uint16_t>(XHCI_HCC_PPC(_HCCLow) ? kPerPortSwitchingBit : 0U));
 	hubDesc.powerOnToGood = 50U;
 	hubDesc.hubCurrent = 0U;
 	hubDesc.hubHdrDecLat = 0U;
@@ -103,12 +105,11 @@ IOReturn CLASS::GetRootHub3Descriptor(IOUSB3HubDescriptor* desc)
 	appleCaptive = appleCaptiveProperty ? appleCaptiveProperty->unsigned32BitValue() : 0U;
 	dstPtr = &hubDesc.removablePortFlags[0];
 	for (i = 0U; i < numBytes; i++) {
-		*dstPtr++ = (uint8_t) (appleCaptive & 0xFFU);
+		*dstPtr++ = static_cast<uint8_t>(appleCaptive & 0xFFU);
         appleCaptive >>= 8;
 	}
-    for (i = 0U; i < numBytes; i++) {
-        *dstPtr++ = 0xFFU;
-    }
+    for (i = 0U; i < numBytes; i++)
+		*dstPtr++ = 0xFFU;
 	if (!desc)
 		return kIOReturnNoMemory;
 	bcopy(&hubDesc, desc, hubDesc.length);
@@ -137,7 +138,7 @@ IOReturn CLASS::UIMAbortStream(UInt32 streamID, short functionNumber, short endp
 	uint8_t slot, endpoint;
 
 	if (functionNumber == _hub3Address || functionNumber == _hub2Address) {
-		if (streamID != UINT32_MAX)
+		if (streamID != kUSBAllStreams)
 			return kIOReturnInternalError;
 		if (endpointNumber) {
 			if (endpointNumber != 1)
@@ -156,7 +157,7 @@ IOReturn CLASS::UIMAbortStream(UInt32 streamID, short functionNumber, short endp
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (!endpoint || endpoint >= kUSBMaxPipes)
 		return kIOReturnBadArgument;
-	if (streamID == UINT32_MAX) {
+	if (streamID == kUSBAllStreams) {
 		QuiesceEndpoint(slot, endpoint);
 	} else if (!streamID) {
 		if (IsStreamsEndpoint(slot, endpoint))
@@ -166,9 +167,9 @@ IOReturn CLASS::UIMAbortStream(UInt32 streamID, short functionNumber, short endp
 	} else {
 		if (streamID > GetLastStreamForEndpoint(slot, endpoint))
 			return kIOReturnBadArgument;
-		uint32_t ret = QuiesceEndpoint(slot, endpoint);
+		uint32_t epState = QuiesceEndpoint(slot, endpoint);
 		rc1 = ReturnAllTransfersAndReinitRing(slot, endpoint, streamID);
-		if (ret == 1U)
+		if (epState == EP_STATE_RUNNING)
 			RestartStreams(slot, endpoint, streamID);
 		return rc1;
 	}
@@ -232,14 +233,31 @@ IOReturn CLASS::UIMCreateSSBulkEndpoint(UInt8 functionNumber, UInt8 endpointNumb
 IOReturn CLASS::UIMCreateSSInterruptEndpoint(short functionAddress, short endpointNumber, UInt8 direction, short speed,
 											 UInt16 maxPacketSize, short pollingRate, UInt32 maxBurst)
 {
+	/*
+	 * Preprocessing code added OS 10.8.3
+	 */
+	if (maxPacketSize > kUSB_EPDesc_MaxMPS)
+		maxPacketSize = (maxPacketSize + maxBurst) / (maxBurst + 1U);
 	return CreateInterruptEndpoint(functionAddress, endpointNumber, direction, speed, maxPacketSize,
 								   pollingRate, maxBurst);
 }
 
+/*
+ * In 10.8.2 -> 10.8.3, maxBurst changed to maxBurstAndMult with some preprocessing
+ */
 IOReturn CLASS::UIMCreateSSIsochEndpoint(short functionAddress, short endpointNumber, UInt32 maxPacketSize, UInt8 direction,
-										 UInt8 interval, UInt32 maxBurst)
+										 UInt8 interval, UInt32 maxBurstAndMult)
 {
-	return CreateIsochEndpoint(functionAddress, endpointNumber, maxPacketSize, direction, interval, maxBurst);
+	uint32_t maxBurst, multiple;
+
+	/*
+	 * Preprocessing code added OS 10.8.3
+	 */
+	maxBurst = maxBurstAndMult & 0xFFU;
+	multiple = (maxBurstAndMult & 0xFF00U) >> 8;
+	if (maxPacketSize > kUSB_EPDesc_MaxMPS)
+		maxPacketSize /= ((maxBurst + 1U) * (multiple + 1U));
+	return CreateIsochEndpoint(functionAddress, endpointNumber, maxPacketSize, direction, interval, maxBurst, multiple);
 }
 
 IOReturn CLASS::UIMCreateStreams(UInt8 functionNumber, UInt8 endpointNumber, UInt8 direction, UInt32 maxStream)

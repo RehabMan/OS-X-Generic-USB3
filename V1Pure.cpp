@@ -11,6 +11,7 @@
 #include "XHCITRB.h"
 #include "XHCITypes.h"
 #include <IOKit/IOFilterInterruptEventSource.h>
+#include <IOKit/usb/IOUSBRootHubDevice.h>
 
 #define CLASS GenericUSBXHCI
 #define super IOUSBControllerV3
@@ -210,7 +211,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		UIMFinalize();
 		return kIOReturnNoDevice;
 	}
-	_istKeepAwayFrames = (hcp2 & 8U) ? (hcp2 & 7U) : 1U;	// minimum of 1 frame
+	_istKeepAwayFrames = (hcp2 & 8U) ? (hcp2 & 7U) : 1U;	// Note: minimum of 1 frame
 	setProperty("ISTKeepAway", _istKeepAwayFrames, 8U);
 	_erstMax = 1U << XHCI_HCS2_ERST_MAX(hcp2);
 	for (int32_t interrupter = 0; interrupter < kMaxActiveInterrupters; ++interrupter) {
@@ -268,7 +269,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	return kIOReturnSuccess;
 }
 
-IOReturn CLASS::UIMFinalize()
+IOReturn CLASS::UIMFinalize(void)
 {
 	if (_providerACPIDevice) {
 		_providerACPIDevice->release();
@@ -318,7 +319,7 @@ IOReturn CLASS::UIMFinalize()
 
 IOReturn CLASS::UIMAbortEndpoint(short functionNumber, short endpointNumber, short direction)
 {
-	return UIMAbortStream(UINT32_MAX, functionNumber, endpointNumber, direction);
+	return UIMAbortStream(kUSBAllStreams, functionNumber, endpointNumber, direction);
 }
 
 IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, short direction)
@@ -436,7 +437,7 @@ IOReturn CLASS::UIMClearEndpointStall(short functionNumber, short endpointNumber
 	pContext = GetSlotContext(slot, endpoint);
 	if (XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0) != EP_STATE_HALTED)
 		ClearEndpoint(slot, endpoint);
-	return UIMAbortStream(UINT32_MAX, functionNumber, endpointNumber, direction);
+	return UIMAbortStream(kUSBAllStreams, functionNumber, endpointNumber, direction);
 }
 
 void CLASS::UIMRootHubStatusChange(void)
@@ -460,7 +461,7 @@ void CLASS::UIMRootHubStatusChange(void)
 		_rootHubStatusChangedBitmap = statusChangedBitmap;
 		return;
 	}
-	if (hubStatus.statusFlags & (kHubLocalPowerStatus | kHubOverCurrentIndicator))
+	if (USBToHostWord(hubStatus.statusFlags) & (kHubLocalPowerStatus | kHubOverCurrentIndicator))
 		statusChangedBitmap |= statusBit;
 	statusBit <<= 1;
 	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port, statusBit <<= 1) {
@@ -473,11 +474,13 @@ void CLASS::UIMRootHubStatusChange(void)
 			continue;
 		if (GetRootHubPortStatus(&portStatus, portToCheck) != kIOReturnSuccess)
 			continue;
+		portStatus.changeFlags = USBToHostWord(portStatus.changeFlags);
+		portStatus.statusFlags = USBToHostWord(portStatus.statusFlags);
 		if ((portStatus.statusFlags & kHubPortConnection) &&
 			!(portStatus.changeFlags & kHubPortConnection) &&
 			_rhPortEmulateCSC[port])
 			portStatus.changeFlags |= kHubPortConnection;
-		if (!(portStatus.changeFlags & ~kSSHubPortChangeBHResetMask))
+		if (!(portStatus.changeFlags & kHubPortSuperSpeedStateChangeMask))
 			continue;
 		portStatus.changeFlags |= kHubPortConnection;
 		statusChangedBitmap |= statusBit;
@@ -508,7 +511,7 @@ IOReturn CLASS::GetRootHubDeviceDescriptor(IOUSBDeviceDescriptor* desc)
 		9,										// UInt8 maxPacketSize;
 		HostToUSBWord(kAppleVendorID),			// UInt16 vendor:  Use the Apple Vendor ID from USB-IF
 		HostToUSBWord(kPrdRootHubAppleSS),		// UInt16 product:  All our root hubs are the same
-		HostToUSBWord(0x0300),					// UInt16 devRel:
+		HostToUSBWord(kUSBRel30),				// UInt16 devRel:
 		2,										// UInt8 manuIdx;
 		1,										// UInt8 prodIdx;
 		0,										// UInt8 serialIdx;
@@ -522,11 +525,11 @@ IOReturn CLASS::GetRootHubDeviceDescriptor(IOUSBDeviceDescriptor* desc)
 		HostToUSBWord(kUSBRel30),				// UInt16 usbRel Supports USB 3.0;
 		kUSBHubClass,							// UInt8 class;
 		kUSBHubSubClass,						// UInt8 subClass;
-		3,										// UInt8 protocol;
+		kHubSuperSpeedProtocol,					// UInt8 protocol;
 		9,										// UInt8 maxPacketSize;
 		HostToUSBWord(kAppleVendorID),			// UInt16 vendor:  Use the Apple Vendor ID from USB-IF
 		HostToUSBWord(kPrdRootHubAppleSS),		// UInt16 product:  All our root hubs are the same
-		HostToUSBWord(0x0300),					// UInt16 devRel:
+		HostToUSBWord(kUSBRel30),				// UInt16 devRel:
 		2,										// UInt8 manuIdx;
 		1,										// UInt8 prodIdx;
 		0,										// UInt8 serialIdx;
@@ -536,7 +539,7 @@ IOReturn CLASS::GetRootHubDeviceDescriptor(IOUSBDeviceDescriptor* desc)
 	if (!desc)
 		return kIOReturnNoMemory;
 
-	if ((desc->bLength & 3U) != 2U)
+	if (((desc->bLength & kUSBSpeed_Mask) >> kUSBSpeed_Shift) != kUSBDeviceSpeedHigh)
 		bcopy(&newDesc3, desc, newDesc3.bLength);
 	else
 		bcopy(&newDesc2, desc, newDesc2.bLength);
@@ -551,10 +554,10 @@ IOReturn CLASS::GetRootHubDescriptor(IOUSBHubDescriptor* desc)
 	uint8_t* dstPtr;
 	OSNumber* appleCaptiveProperty;
 
-	hubDesc.length = sizeof(hubDesc);
+	hubDesc.length = sizeof hubDesc;
 	hubDesc.hubType = kUSBHubDescriptorType;
 	hubDesc.numPorts = _v3ExpansionData->_rootHubNumPortsHS;
-	hubDesc.characteristics = XHCI_HCC_PPC(_HCCLow) ? kPerPortSwitchingBit : 0U;
+	hubDesc.characteristics = HostToUSBWord(static_cast<uint16_t>(XHCI_HCC_PPC(_HCCLow) ? kPerPortSwitchingBit : 0U));
 	hubDesc.powerOnToGood = 50U;
 	hubDesc.hubCurrent = 0U;
 	numBytes = ((hubDesc.numPorts + 1U) / 8U) + 1U;
@@ -562,14 +565,13 @@ IOReturn CLASS::GetRootHubDescriptor(IOUSBHubDescriptor* desc)
 	appleCaptive = appleCaptiveProperty ? appleCaptiveProperty->unsigned32BitValue() : 0U;
 	dstPtr = &hubDesc.removablePortFlags[0];
 	for (i = 0U; i < numBytes; i++) {
-		*dstPtr++ = (uint8_t) (appleCaptive & 0xFFU);
+		*dstPtr++ = static_cast<uint8_t>(appleCaptive & 0xFFU);
         appleCaptive >>= 8;
 	}
-    for (i = 0U; i < numBytes; i++) {
-        *dstPtr++ = 0xFFU;
-    }
-    hubDesc.length -= ((sizeof(hubDesc.removablePortFlags) - numBytes) +
-                       (sizeof(hubDesc.pwrCtlPortFlags) - numBytes));
+    for (i = 0U; i < numBytes; i++)
+		*dstPtr++ = 0xFFU;
+    hubDesc.length -= (((sizeof hubDesc.removablePortFlags) - numBytes) +
+                       ((sizeof hubDesc.pwrCtlPortFlags) - numBytes));
 	if (!desc)
 		return kIOReturnNoMemory;
 	bcopy(&hubDesc, desc, hubDesc.length);
@@ -657,7 +659,7 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 	 *   which is either kUSBDeviceSpeedHigh (2) or kUSBDeviceSpeedSuper (3).
 	 *   See IOUSBRootHubDevice::DeviceRequestWorker
 	 */
-	protocol = static_cast<uint8_t>(pStatus->statusFlags & kUSBSpeed_Mask);
+	protocol = static_cast<uint8_t>((pStatus->statusFlags & kUSBSpeed_Mask) >> kUSBSpeed_Shift);
 	_port = PortNumberProtocolToCanonical(port, protocol);
 	if (_port >= _rootHubNumPorts)
 		return kIOReturnBadArgument;
@@ -672,7 +674,7 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 	 */
 	statusFlags = static_cast<uint16_t>(portSC & (XHCI_PS_PR | XHCI_PS_OCA | XHCI_PS_PED | XHCI_PS_CCS));
 	linkState = static_cast<uint16_t>(XHCI_PS_PLS_GET(portSC));
-	if (protocol != 3U) {
+	if (protocol != kUSBDeviceSpeedSuper) {
 		if (linkState == XDEV_U3 || linkState == XDEV_RESUME)
 			statusFlags |= kHubPortSuspend;
 		speed = static_cast<uint8_t>(XHCI_PS_SPEED_GET(portSC));
@@ -740,7 +742,7 @@ IOReturn CLASS::SetRootHubPortFeature(UInt16 wValue, UInt16 port)
 	uint16_t _port;
 	uint8_t protocol;
 
-	protocol = static_cast<uint8_t>(wValue & kUSBSpeed_Mask);
+	protocol = static_cast<uint8_t>((wValue & kUSBSpeed_Mask) >> kUSBSpeed_Shift);
 	wValue = (wValue & kUSBAddress_Mask) >> kUSBAddress_Shift;
 	_port = PortNumberProtocolToCanonical(port & UINT8_MAX, protocol);
 	if (_port >= _rootHubNumPorts)
@@ -777,7 +779,7 @@ IOReturn CLASS::ClearRootHubPortFeature(UInt16 wValue, UInt16 port)
 	uint16_t _port;
 	uint8_t protocol;
 
-	protocol = static_cast<uint8_t>(wValue & kUSBSpeed_Mask);
+	protocol = static_cast<uint8_t>((wValue & kUSBSpeed_Mask) >> kUSBSpeed_Shift);
 	wValue = (wValue & kUSBAddress_Mask) >> kUSBAddress_Shift;
 	_port = PortNumberProtocolToCanonical(port, protocol);
 	if (_port >= _rootHubNumPorts)
@@ -965,14 +967,18 @@ IOReturn CLASS::GetRootHubStringDescriptor(UInt8 index, OSData* desc)
     productName2[0] = sizeof productName2;
 
     if (index == 1) {
-		bool b;
-		uint8_t const* p = static_cast<uint8_t const*>(desc->getBytesNoCopy());
-		if (!p || ((*p) & 3U) != 2U)
-			b = desc->appendBytes(&productName3, productName3[0]);
-		else
-			b = desc->appendBytes(&productName2, productName2[0]);
-		if (!b)
-            return kIOReturnNoMemory;
+		RHCommandHeader const* command = static_cast<RHCommandHeader const*>(desc->getBytesNoCopy());
+		uint8_t speed = 0U;
+
+		if (command)
+			speed = (command->request & kUSBSpeed_Mask) >> kUSBSpeed_Shift;
+		if (speed == kUSBDeviceSpeedHigh) {
+			if (!desc->appendBytes(&productName2,  productName2[0]))
+				return kIOReturnNoMemory;
+		} else {
+			if (!desc->appendBytes(&productName3,  productName3[0]))
+				return kIOReturnNoMemory;
+		}
     }
     if (index == 2) {
         if (!desc->appendBytes(&vendorName[0], vendorName[0]))

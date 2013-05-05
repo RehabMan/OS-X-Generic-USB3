@@ -125,6 +125,16 @@ IOReturn CLASS::UIMCreateInterruptEndpoint(short functionAddress, short endpoint
 										   short speed, UInt16 maxPacketSize, short pollingRate,
 										   USBDeviceAddress highSpeedHub, int highSpeedPort)
 {
+	uint32_t maxBurst = 0U;
+
+	/*
+	 * Preprocessing code added OS 10.8.3
+	 */
+	if (maxPacketSize > kUSB_EPDesc_MaxMPS) {
+		maxBurst = ((maxPacketSize + kUSB_EPDesc_MaxMPS - 1U) / kUSB_EPDesc_MaxMPS);
+		maxPacketSize = (maxPacketSize + maxBurst - 1U) / maxBurst;
+		--maxBurst;
+	}
 	return CreateInterruptEndpoint(functionAddress, endpointNumber, direction, speed,
-								   maxPacketSize, pollingRate, 0U);
+								   maxPacketSize, pollingRate, maxBurst);
 }
