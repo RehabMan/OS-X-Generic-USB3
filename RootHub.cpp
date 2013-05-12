@@ -197,11 +197,11 @@ __attribute__((visibility("hidden")))
 IOReturn CLASS::XHCIRootHubClearPortConnectionChange(uint16_t port)
 {
 	IOReturn rc = XHCIRootHubClearPortChangeBit(port, XHCI_PS_CSC);
-	if (_rhPortEmulateCSC[port])
-		_rhPortEmulateCSC[port] = false;
+	if (_rhPortEmulateCSC[port - 1U])
+		_rhPortEmulateCSC[port - 1U] = false;
 #if 0
-	_rhPortDebouncing[port] = false;
-	_rhPortDebounceADisconnect[port] = false;
+	_rhPortDebouncing[port - 1U] = false;
+	_rhPortDebounceADisconnect[port - 1U] = false;
 #endif
 	return rc;
 }
