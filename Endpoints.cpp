@@ -293,7 +293,7 @@ void CLASS::StopEndpoint(int32_t slot, int32_t endpoint, bool suspend)
 	if (suspend)
 		localTrb.d |= XHCI_TRB_3_SUSP_EP_BIT;
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_STOP_EP, 0);
-	if ((_errataBits & kErrataIntelPantherPoint) && retFromCMD == 196)
+	if ((_errataBits & kErrataIntelPantherPoint) && retFromCMD == -1000 - 196)	// Intel CC_NOSTOP
 		SetNeedsReset(slot, true);
 }
 

@@ -101,7 +101,7 @@ IOReturn CLASS::ReinitTransferRing(int32_t slot, int32_t endpoint, uint32_t stre
 	localTrb.d |= XHCI_TRB_3_EP_SET(endpoint);
 #endif
 	if (pRing->dequeueIndex == pRing->enqueueIndex) {
-		bzero(pRing->ptr, (pRing->numTRBs - 1U) * sizeof *pRing->ptr);
+		bzero(pRing->ptr, static_cast<size_t>(pRing->numTRBs - 1U) * sizeof *pRing->ptr);
 		pRing->ptr[pRing->numTRBs - 1U].d |= XHCI_TRB_3_TC_BIT;
 		pRing->cycleState = 1U;
 		pRing->enqueueIndex = 0U;
@@ -148,7 +148,7 @@ int32_t CLASS::SetTRDQPtr(int32_t slot, int32_t endpoint, uint32_t streamId, int
 	}
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_SET_TR_DEQUEUE, 0);
 	if (retFromCMD != -1 && retFromCMD > -1000) {
-		pRing->dequeueIndex = index;
+		pRing->dequeueIndex = static_cast<uint16_t>(index);
 		return retFromCMD;
 	}
 #if 0

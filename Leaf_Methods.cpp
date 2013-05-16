@@ -677,7 +677,7 @@ int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uin
 	while (pTrb->d & XHCI_TRB_3_CHAIN_BIT) {
 		next = trbIndexInRingQueue + 1;
 		if (next >= static_cast<int32_t>(pRing->numTRBs) - 1)
-			next = 0U;
+			next = 0;
 		if (next == static_cast<int32_t>(pRing->enqueueIndex))
 			break;
 		trbIndexInRingQueue = next;
