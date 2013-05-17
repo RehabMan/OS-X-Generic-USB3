@@ -138,7 +138,7 @@ IOReturn CLASS::EnqueCMD(TRBStruct* trb, int32_t trbType, TRBCallback callback, 
 	TRBStruct* target;
 	uint32_t fourth;
 	int32_t next = _commandRing.enqueueIndex;
-	if (next < static_cast<int>(_commandRing.numTRBs) - 2)
+	if (next < static_cast<int32_t>(_commandRing.numTRBs) - 2)
 		++next;
 	else
 		next = 0;
@@ -252,7 +252,7 @@ void CLASS::CompleteRenesasVendorCommand(TRBStruct* pTrb, int32_t* param)
 	if (err == XHCI_TRB_ERROR_SUCCESS)
 		ret = static_cast<int32_t>(pTrb->c & UINT16_MAX);
 	else
-		ret = -1000 - err;
+		ret = -1000 - err;	// Note: originally 1000 + err
 	*param = err;
 	GetCommandGate()->commandWakeup(param);
 }

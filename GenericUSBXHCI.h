@@ -595,6 +595,7 @@ public:
 	bool DiscoverMuxedPorts(void);
 	IOReturn HCSelect(uint8_t, uint8_t);
 	IOReturn HCSelectWithMethod(char const*);
+	IOReturn IntelSleepMuxBugWorkaround(void);
 	bool GetNeedsReset(uint8_t slot) const { return ConstSlotPtr(slot)->deviceNeedsReset; }
 	void SetNeedsReset(uint8_t slot, bool value) { SlotPtr(slot)->deviceNeedsReset = value; }
 	/*

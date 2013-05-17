@@ -525,7 +525,7 @@ ringStruct* CLASS::FindStream(int32_t slot, int32_t endpoint, uint64_t addr, int
 		if (!pRing[streamId].md)
 			continue;
 		diffIdx64 = DiffTRBIndex(addr, pRing[streamId].physAddr);
-		if (diffIdx64 < 0 || diffIdx64 >= pRing[streamId].numTRBs - 1U)
+		if (diffIdx64 < 0 || diffIdx64 >= pRing[streamId].numTRBs - 1U)	// Note: originally >
 			continue;
 		*pTrbIndexInRingQueue = static_cast<int32_t>(diffIdx64);
 		return &pRing[streamId];

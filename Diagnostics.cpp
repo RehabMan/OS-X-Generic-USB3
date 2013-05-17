@@ -439,7 +439,7 @@ void CLASS::PrintSlots(PrintSink* pSink)
 	if (!pSink)
 		pSink = const_cast<PrintSink*>(&IOLogSink);
 	for (uint8_t slot = 1U; slot <= _numSlots; ++slot) {
-		if (SlotPtr(slot)->isInactive())
+		if (ConstSlotPtr(slot)->isInactive())
 			continue;
 		pContext = GetSlotContext(slot);
 		TTslot = XHCI_SCTX_2_TT_HUB_SID_GET(pContext->_s.dwSctx2);
@@ -484,7 +484,7 @@ void CLASS::PrintEndpoints(uint8_t slot, PrintSink* pSink)
 		pSink = const_cast<PrintSink*>(&IOLogSink);
 	if (!slot ||
 		slot > _numSlots ||
-		SlotPtr(slot)->isInactive())
+		ConstSlotPtr(slot)->isInactive())
 		return;
 	pContext = GetSlotContext(slot);
 	numEps = XHCI_SCTX_0_CTX_NUM_GET(pContext->_s.dwSctx0);

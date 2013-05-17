@@ -75,7 +75,7 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 				return kIOReturnNoMemory;
 			}
 		}
-		SetDCBAAAddr64(&_dcbaa.ptr[slot], SlotPtr(slot)->physAddr);
+		SetDCBAAAddr64(&_dcbaa.ptr[slot], ConstSlotPtr(slot)->physAddr);
 		return AddressDevice(slot,
 							 packetSize,
 							 false,

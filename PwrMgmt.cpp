@@ -31,7 +31,7 @@ void CLASS::CheckSleepCapability(void)
 }
 
 __attribute__((visibility("hidden")))
-IOReturn CLASS::QuiesceAllEndpoints(void)
+IOReturn CLASS::IntelSleepMuxBugWorkaround(void)
 {
 	if (_errataBits & kErrataIntelPantherPoint) {
 		for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
@@ -43,8 +43,14 @@ IOReturn CLASS::QuiesceAllEndpoints(void)
 			Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, (portSC & XHCI_PS_WRITEBACK_MASK) | XHCI_PS_CSC);
 		}
 	}
+	return kIOReturnSuccess;
+}
+
+__attribute__((visibility("hidden")))
+IOReturn CLASS::QuiesceAllEndpoints(void)
+{
 	for (uint8_t slot = 1U; slot <= _numSlots; ++slot) {
-		if (SlotPtr(slot)->isInactive())
+		if (ConstSlotPtr(slot)->isInactive())
 			continue;
 		for (int32_t endpoint = 1; endpoint != kUSBMaxPipes; ++endpoint) {
 			ringStruct* pRing = GetRing(slot, endpoint, 0U);
@@ -153,7 +159,7 @@ void CLASS::SantizePortsAfterPowerLoss(void)
 		uint32_t portSC = GetPortSCForWriting(1U + static_cast<uint16_t>(port));
 		if (m_invalid_regspace)
 			return;
-		Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, portSC | XHCI_PS_WCE | XHCI_PS_WDE | XHCI_PS_WOE);
+		Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, portSC | XHCI_PS_WAKEBITS);
 	}
 }
 

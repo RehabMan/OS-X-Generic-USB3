@@ -47,35 +47,35 @@ bool CLASS::terminate(IOOptionBits options)
 IOReturn CLASS::message(UInt32 type, IOService* provider, void* argument)
 {
 	IOReturn rc;
-	uint8_t flag;
+	uint8_t controller;
 
 	rc = super::message(type, provider, argument);
 	switch (type) {
 		case kIOUSBMessageHubPortDeviceDisconnected:
 			if (m_invalid_regspace ||
 				(gUSBStackDebugFlags & kUSBDisableMuxedPortsMask) ||
-				!_v2ExpansionData ||
+				!_device ||
 				isInactive() ||
 				!(_errataBits & kErrataIntelPCIRoutingExtension))
 				return rc;
 			HCSelectWithMethod(static_cast<char const*>(argument));
 			return rc;
 		case kIOUSBMessageMuxFromEHCIToXHCI:
-			flag = 1U;
+			controller = 1U;
 			break;
 		case kIOUSBMessageMuxFromXHCIToEHCI:
-			flag = 0U;
+			controller = 0U;
 			break;
 		default:
 			return kIOReturnUnsupported;
 	}
 	if (m_invalid_regspace ||
 		(gUSBStackDebugFlags & kUSBDisableMuxedPortsMask) ||
-		!_v2ExpansionData ||
+		!_device ||
 		isInactive() ||
 		!(_errataBits & kErrataIntelPCIRoutingExtension))
 		return rc;
-	HCSelect(static_cast<uint8_t>(reinterpret_cast<size_t>(argument)), flag);
+	HCSelect(static_cast<uint8_t>(reinterpret_cast<size_t>(argument)), controller);
 	return rc;
 }
 
