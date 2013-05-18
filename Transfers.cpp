@@ -858,12 +858,12 @@ struct XHCIAsyncTD* XHCIAsyncEndpoint::GetTDFromActiveQueueWithIndex(uint16_t in
 }
 
 __attribute__((visibility("hidden")))
-void XHCIAsyncEndpoint::RetireTDs(XHCIAsyncTD* pTd, IOReturn passthruReturnCode, bool callCompletion, bool resetEndpoint)
+void XHCIAsyncEndpoint::RetireTDs(XHCIAsyncTD* pTd, IOReturn passthruReturnCode, bool callCompletion, bool flush)
 {
 	uint8_t slot, endpoint;
 
 	PutTDonDoneQueue(pTd);
-	if (resetEndpoint) {
+	if (flush) {
 		slot = pRing->slot;
 		endpoint = pRing->endpoint;
 		provider->QuiesceEndpoint(slot, endpoint);

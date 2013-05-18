@@ -282,13 +282,13 @@ IOReturn CLASS::AllocScratchpadBuffers(void)
 		return kIOReturnDeviceError;
 	}
 	pageSizes &= -pageSizes;	// leave just smallest size
-	_scratchpadBuffers.mdGC= OSArray::withCapacity(_scratchpadBuffers.max);
+	_scratchpadBuffers.mdGC = OSArray::withCapacity(_scratchpadBuffers.max);
 	if (!_scratchpadBuffers.mdGC) {
 		IOLog("%s: OSArray::withCapacity failed\n", __FUNCTION__);
 		return kIOReturnNoMemory;
 	}
 	rc = MakeBuffer(kIOMemoryPhysicallyContiguous | kIODirectionInOut,
-					_scratchpadBuffers.max * sizeof *_scratchpadBuffers.ptr,
+					static_cast<size_t>(_scratchpadBuffers.max) * sizeof *_scratchpadBuffers.ptr,
 					-PAGE_SIZE,
 					&_scratchpadBuffers.md,
 					reinterpret_cast<void**>(&_scratchpadBuffers.ptr),

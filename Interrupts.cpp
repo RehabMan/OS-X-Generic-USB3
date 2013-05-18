@@ -151,8 +151,20 @@ void CLASS::postFilterEventRing(int32_t interrupter)
 	/*
 	 * Interrupt Context
 	 */
-	if (m_invalid_regspace || !ePtr->foundSome)
+	if (m_invalid_regspace)
 		return;
+	if (!ePtr->foundSome) {
+		/*
+		 * Check if EHB is on
+		 */
+		uint32_t ehb = Read32Reg(reinterpret_cast<uint32_t volatile const*>(&_pXHCIRuntimeRegisters->irs[interrupter].erdp));
+		if (m_invalid_regspace ||
+			!(ehb & static_cast<uint32_t>(XHCI_ERDP_LO_BUSY)))
+			return;
+		/*
+		 * If EHB is on, fall thru and update ERDP anyway
+		 */
+	}
 	erdp = ePtr->erdp + ePtr->xHCDequeueIndex * sizeof *ePtr->erstPtr;
 	erdp |= XHCI_ERDP_LO_BUSY;
 	Write64Reg(&_pXHCIRuntimeRegisters->irs[interrupter].erdp, erdp, true);
@@ -187,11 +199,13 @@ bool CLASS::FilterEventRing(int32_t interrupter, bool* pInvokeContinuation)
 		case XHCI_TRB_EVENT_TRANSFER:
 			if (processTransferEvent(&localTrb))
 				break;
+			if (pInvokeContinuation)	// Note: Invoke PollEventRing2 to handle _isochEPList
+				*pInvokeContinuation = true;
 			return true;
 		case XHCI_TRB_EVENT_MFINDEX_WRAP:
 			_millsecondCounter += 2048U;	// 2^14 * 0.125 us = 2048 ms
 #if 0
-			PrintEventTRB(&localTrb, interrupter, true, 0);	// sure, in interrupt context
+			PrintEventTRB(&localTrb, interrupter, true, 0);
 			mfIndex = Read32Reg(&_pXHCIRuntimeRegisters->MFIndex);
 			if (m_invalid_regspace)
 				return false;
@@ -206,12 +220,12 @@ bool CLASS::FilterEventRing(int32_t interrupter, bool* pInvokeContinuation)
 			rhPort = static_cast<uint8_t>(localTrb.a >> 24);
 			if (rhPort && rhPort <= kMaxPorts)
 				RHPortStatusChangeBitmapSet(1U << rhPort);
-			if (pInvokeContinuation)
+			if (pInvokeContinuation)	// Note: Invoke PollInterrupts to call EnsureUsability
 				*pInvokeContinuation = true;
 			return true;
 #if 0
 		default:
-			PrintEventTRB(&localTrb, interrupter, true, 0);	// sure, in interrupt context
+			PrintEventTRB(&localTrb, interrupter, true, 0);
 			break;
 #endif
 	}
@@ -244,7 +258,8 @@ bool CLASS::PollEventRing2(int32_t interrupter)
 	TRBStruct localTrb;
 	EventRingStruct* ePtr = &_eventRing[interrupter];
 	uint32_t sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
-	if ((sts & XHCI_STS_HSE) && !_HSEDetected) {
+	if (!m_invalid_regspace &&
+		(sts & XHCI_STS_HSE) && !_HSEDetected) {
 		IOLog("%s: HSE bit set:%x (1)\n", __FUNCTION__, sts);
 		_HSEDetected = true;
 	}
@@ -335,7 +350,8 @@ bool CLASS::PollEventRing2(int32_t interrupter)
 
 done:
 	sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
-	if ((sts & XHCI_STS_HSE) && !_HSEDetected) {
+	if (!m_invalid_regspace &&
+		(sts & XHCI_STS_HSE) && !_HSEDetected) {
 		IOLog("%s: HSE bit set:%x (3)\n", __FUNCTION__, sts);
 		_HSEDetected = true;
 	}
@@ -385,7 +401,7 @@ void CLASS::PollForCMDCompletions(int32_t interrupter)
 				break;
 		}
 		++index;
-		if (index == ePtr->numBounceEntries)
+		if (index >= ePtr->numBounceEntries)
 			index = 0U;
 	}
 }
@@ -645,19 +661,19 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 {
 	int64_t diffIndex64;
 	ringStruct* pRing;
-	XHCIAsyncEndpoint* asyncEp;
+	XHCIAsyncEndpoint* pAsyncEp;
 	GenericUSBXHCIIsochEP* pIsochEp;
-	XHCIAsyncTD* pTd;
+	XHCIAsyncTD* pAsyncTd;
 	int32_t trbIndexInRingQueue;
 	IOReturn rc;
 	uint16_t next;
-	bool callCompletion, resetEndpoint;
+	bool callCompletion, flush;
 
 	/*
 	 * Threaded Handler Context
 	 */
 	uint64_t addr = GetTRBAddr64(pTrb);
-	uint32_t transferLength = XHCI_TRB_2_REM_GET(pTrb->c);
+	uint32_t shortfall = XHCI_TRB_2_REM_GET(pTrb->c);
 	int32_t err = static_cast<int32_t>(XHCI_TRB_2_ERROR_GET(pTrb->c));
 	int32_t slot = static_cast<int32_t>(XHCI_TRB_3_SLOT_GET(pTrb->d));
 	int32_t endpoint = static_cast<int32_t>(XHCI_TRB_3_EP_GET(pTrb->d));
@@ -722,16 +738,16 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 		pRing->dequeueIndex = next;
 		return true;
 	}
-	asyncEp = pRing->asyncEndpoint;
-	if (!asyncEp)
+	pAsyncEp = pRing->asyncEndpoint;
+	if (!pAsyncEp)
 		return true;
-	pTd = asyncEp->GetTDFromActiveQueueWithIndex(static_cast<uint16_t>(trbIndexInRingQueue));
-	if (!pTd) {
+	pAsyncTd = pAsyncEp->GetTDFromActiveQueueWithIndex(static_cast<uint16_t>(trbIndexInRingQueue));
+	if (!pAsyncTd) {
 		if (XHCI_EPCTX_0_EPSTATE_GET(GetSlotContext(slot, endpoint)->_e.dwEpCtx0) != EP_STATE_HALTED)
 			return true;
-		trbIndexInRingQueue = CountRingToED(pRing, trbIndexInRingQueue, &transferLength, true);
-		pTd = asyncEp->GetTDFromActiveQueueWithIndex(static_cast<uint16_t>(trbIndexInRingQueue));
-		if (!pTd)
+		trbIndexInRingQueue = CountRingToED(pRing, trbIndexInRingQueue, &shortfall, true);
+		pAsyncTd = pAsyncEp->GetTDFromActiveQueueWithIndex(static_cast<uint16_t>(trbIndexInRingQueue));
+		if (!pAsyncTd)
 			return true;
 	}
 	if (pRing->enqueueIndex == pRing->dequeueIndex)
@@ -741,20 +757,20 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 		next = 0U;
 	pRing->dequeueIndex = next;
 	if (ED)
-		transferLength = pTd->bytesThisTD - transferLength;
+		shortfall = pAsyncTd->bytesThisTD - shortfall;
 	if (err != XHCI_TRB_ERROR_SUCCESS) {
 		callCompletion = true;
-		resetEndpoint = pTd->multiTDTransaction;
+		flush = pAsyncTd->multiTDTransaction;
 		rc = TranslateXHCIStatus(err, (endpoint & 1) != 0, GetSlCtxSpeed(GetSlotContext(slot)), false);
 	} else {
-		callCompletion = pTd->interruptThisTD;
-		resetEndpoint = false;
+		callCompletion = pAsyncTd->interruptThisTD;
+		flush = false;
 		rc = kIOReturnSuccess;
 	}
-	pTd->shortfall = transferLength;
-	asyncEp->RetireTDs(pTd,
-					   GetNeedsReset(slot) ? kIOReturnNotResponding : rc,
-					   callCompletion,
-					   resetEndpoint);
+	pAsyncTd->shortfall = shortfall;
+	pAsyncEp->RetireTDs(pAsyncTd,
+						GetNeedsReset(slot) ? kIOReturnNotResponding : rc,
+						callCompletion,
+						flush);
 	return true;
 }
