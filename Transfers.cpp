@@ -101,7 +101,7 @@ IOReturn CLASS::ReinitTransferRing(int32_t slot, int32_t endpoint, uint32_t stre
 	localTrb.d |= XHCI_TRB_3_EP_SET(endpoint);
 #endif
 	if (pRing->dequeueIndex == pRing->enqueueIndex) {
-		bzero(pRing->ptr, (pRing->numTRBs - 1U) * sizeof *pRing->ptr);
+		bzero(pRing->ptr, static_cast<size_t>(pRing->numTRBs - 1U) * sizeof *pRing->ptr);
 		pRing->ptr[pRing->numTRBs - 1U].d |= XHCI_TRB_3_TC_BIT;
 		pRing->cycleState = 1U;
 		pRing->enqueueIndex = 0U;
@@ -148,7 +148,7 @@ int32_t CLASS::SetTRDQPtr(int32_t slot, int32_t endpoint, uint32_t streamId, int
 	}
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_SET_TR_DEQUEUE, 0);
 	if (retFromCMD != -1 && retFromCMD > -1000) {
-		pRing->dequeueIndex = index;
+		pRing->dequeueIndex = static_cast<uint16_t>(index);
 		return retFromCMD;
 	}
 #if 0
@@ -219,6 +219,19 @@ uint32_t CLASS::FreeSlotsOnRing(ringStruct const* pRing)
 	if (pRing->enqueueIndex < pRing->dequeueIndex)
 		return pRing->dequeueIndex - 1U - pRing->enqueueIndex;
 	uint32_t v = pRing->dequeueIndex + pRing->numTRBs - pRing->enqueueIndex;
+#if 0
+	if (GetSlCtxSpeed(GetSlotContext(pRing->slot)) >= kUSBDeviceSpeedSuper) {
+		uint32_t maxPacketSize, maxBurst, mult, align;
+		ContextStruct* epContext = GetSlotContext(pRing->slot, pRing->endpoint);
+		maxPacketSize = XHCI_EPCTX_1_MAXP_SIZE_GET(epContext->_e.dwEpCtx1);
+		maxBurst = XHCI_EPCTX_1_MAXB_GET(epContext->_e.dwEpCtx1) + 1U;
+		mult = XHCI_EPCTX_0_MULT_GET(epContext->_e.dwEpCtx0) + 1U;
+		align = 1U + (maxPacketSize * maxBurst * mult) / 4096U;
+		if (v > align)
+			return v - align;
+		return 0U;
+	}
+#endif
 	if (v > 3U)
 		return v - 3U;
 	return 0U;
@@ -635,7 +648,7 @@ void XHCIAsyncEndpoint::release(void)
 }
 
 static
-void wipeList(XHCIAsyncTD* pHead, XHCIAsyncTD* pTail)
+void wipeAsyncList(XHCIAsyncTD* pHead, XHCIAsyncTD* pTail)
 {
 	XHCIAsyncTD* pTd;
 
@@ -649,10 +662,10 @@ void wipeList(XHCIAsyncTD* pHead, XHCIAsyncTD* pTail)
 __attribute__((visibility("hidden")))
 void XHCIAsyncEndpoint::nuke(void)
 {
-	wipeList(queuedHead, queuedTail);
-	wipeList(scheduledHead, scheduledTail);
-	wipeList(doneHead, doneTail);
-	wipeList(freeHead, freeTail);
+	wipeAsyncList(queuedHead, queuedTail);
+	wipeAsyncList(scheduledHead, scheduledTail);
+	wipeAsyncList(doneHead, doneTail);
+	wipeAsyncList(freeHead, freeTail);
 	IOFree(this, sizeof *this);
 }
 
@@ -896,6 +909,18 @@ XHCIAsyncTD* XHCIAsyncEndpoint::GetTDFromFreeQueue(bool newOneOk)
 __attribute__((visibility("hidden")))
 void XHCIAsyncEndpoint::PutTDonDoneQueue(XHCIAsyncTD* pTd)
 {
+	if (doneHead && !doneTail) {
+		XHCIAsyncTD* pLastTd = doneHead;
+		uint32_t count = 0U;
+		while (pLastTd->next) {
+			if (count++ > numTDsDone) {
+				pLastTd = 0;
+				break;
+			}
+			pLastTd = pLastTd->next;
+		}
+		doneTail = pLastTd;
+	}
 	if (doneHead)
 		doneTail->next = pTd;
 	else
@@ -1033,9 +1058,9 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool isRHPortDisconnected, uint32_t frame
 	XHCIAsyncTD* pTd;
 	IOUSBCommand* command;
 	IOReturn passthruReturnCode;
-	uint32_t transferLength, ndto, cto, uims4, uims5, uims6;
+	uint32_t transferLength, ndto, cto, bytesTransferred, firstSeen, TRTime;
 	int32_t next;
-	bool screwed;
+	bool returnATransfer;
 
 	addr = GenericUSBXHCI::GetTRBAddr64(&pRing->stopTrb);
 	transferLength = XHCI_TRB_2_REM_GET(pRing->stopTrb.c);
@@ -1051,31 +1076,31 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool isRHPortDisconnected, uint32_t frame
 			return;
 		ndto = command->GetNoDataTimeout();
 		cto = command->GetCompletionTimeout();
-		uims5 = command->GetUIMScratch(5U);
-		if (!uims5) {
+		firstSeen = command->GetUIMScratch(5U);
+		if (!firstSeen) {
 			command->SetUIMScratch(5U, frameNumber);
-			uims5 = frameNumber;
+			firstSeen = frameNumber;
 		}
-		screwed = false;
-		if (cto && frameNumber - uims5 > cto) {
+		returnATransfer = false;
+		if (cto && frameNumber - firstSeen > cto) {
 			pTd->shortfall = pTd->bytesThisTD - transferLength;
-			screwed = true;
+			returnATransfer = true;
 		}
 		if (ndto) {
-			uims4 = command->GetUIMScratch(4U);
-			uims6 = command->GetUIMScratch(6U);
-			if (!uims6 ||
+			bytesTransferred = command->GetUIMScratch(4U);
+			TRTime = command->GetUIMScratch(6U);
+			if (!TRTime ||
 				command->GetUIMScratch(3U) != static_cast<uint32_t>(trbIndex64) ||
-				uims4 != transferLength) {
+				bytesTransferred != transferLength) {
 				command->SetUIMScratch(3U, static_cast<uint32_t>(trbIndex64));
 				command->SetUIMScratch(4U, transferLength);
 				command->SetUIMScratch(6U, frameNumber);
-			} else if (frameNumber - uims6 > ndto) {
-				pTd->shortfall = pTd->bytesThisTD - uims4;
-				screwed = true;
+			} else if (frameNumber - TRTime > ndto) {
+				pTd->shortfall = pTd->bytesThisTD - bytesTransferred;
+				returnATransfer = true;
 			}
 		}
-		if (!screwed)
+		if (!returnATransfer)
 			return;
 		passthruReturnCode = kIOUSBTransactionTimeout;
 	} else {

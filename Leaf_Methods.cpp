@@ -23,16 +23,16 @@ void CLASS::SetVendorInfo(void)
 {
 	OSData *vendProp, *deviceProp, *revisionProp;
 
-    // get this chips vendID, deviceID, revisionID
-    vendProp = OSDynamicCast(OSData, _device->getProperty( "vendor-id" ));
-    if (vendProp)
-        _vendorID = *((uint16_t *) vendProp->getBytesNoCopy());
-    deviceProp   = OSDynamicCast(OSData, _device->getProperty( "device-id" ));
-    if (deviceProp)
-        _deviceID = *((uint16_t *) deviceProp->getBytesNoCopy());
-    revisionProp = OSDynamicCast(OSData, _device->getProperty( "revision-id" ));
-    if (revisionProp)
-        _revisionID = *((uint16_t *) revisionProp->getBytesNoCopy());
+	// get this chips vendID, deviceID, revisionID
+	vendProp = OSDynamicCast(OSData, _device->getProperty( "vendor-id" ));
+	if (vendProp)
+		_vendorID = *static_cast<uint16_t const*>(vendProp->getBytesNoCopy());
+	deviceProp   = OSDynamicCast(OSData, _device->getProperty( "device-id" ));
+	if (deviceProp)
+		_deviceID = *static_cast<uint16_t const*>(deviceProp->getBytesNoCopy());
+	revisionProp = OSDynamicCast(OSData, _device->getProperty( "revision-id" ));
+	if (revisionProp)
+		_revisionID = *static_cast<uint16_t const*>(revisionProp->getBytesNoCopy());
 }
 
 __attribute__((visibility("hidden")))
@@ -126,7 +126,7 @@ uint32_t CLASS::GetPortSCForWriting(int16_t portNum)
 	/*
 	 * Note: all bits that aren't RW-1-commands
 	 */
-	return portSC & (XHCI_PS_DR | XHCI_PS_WOE | XHCI_PS_WDE | XHCI_PS_WCE |
+	return portSC & (XHCI_PS_DR | XHCI_PS_WAKEBITS |
 					 XHCI_PS_CAS | XHCI_PS_PIC_SET(3U) | (15U << 10) /* Speed */ | XHCI_PS_PP |
 					 XHCI_PS_OCA | XHCI_PS_CCS);
 }
@@ -252,7 +252,7 @@ IOReturn CLASS::XHCIHandshake(uint32_t volatile* pReg, uint32_t test_mask, uint3
 __attribute__((visibility("hidden")))
 ringStruct* CLASS::GetRing(int32_t slot, int32_t endpoint, uint32_t streamId)
 {
-	if (streamId <= SlotPtr(slot)->lastStreamForEndpoint[endpoint]) {
+	if (streamId <= ConstSlotPtr(slot)->lastStreamForEndpoint[endpoint]) {
 		ringStruct* pRing = SlotPtr(slot)->ringArrayForEndpoint[endpoint];
 		if (pRing)
 			return &pRing[streamId];
@@ -522,7 +522,7 @@ skip_low_full:
 	pContext->_s.dwSctx0 |= XHCI_SCTX_0_ROUTE_SET(routeString);
 	pContext = GetInputContextPtr(2);
 	pContext->_e.dwEpCtx1 |= XHCI_EPCTX_1_EPTYPE_SET(CTRL_EP);
-	pContext->_e.dwEpCtx1 |= XHCI_EPCTX_1_MAXP_SIZE_SET(maxPacketSize);
+	pContext->_e.dwEpCtx1 |= XHCI_EPCTX_1_MAXP_SIZE_SET(static_cast<uint32_t>(maxPacketSize));
 	pContext->_e.qwEpCtx2 |= (pRing->physAddr + pRing->dequeueIndex * sizeof *pRing->ptr) & XHCI_EPCTX_2_TR_DQ_PTR_MASK;
 	if (pRing->cycleState)
 		pContext->_e.qwEpCtx2 |= XHCI_EPCTX_2_DCS_SET(1U);
@@ -598,7 +598,7 @@ bool CLASS::IsStillConnectedAndEnabled(int32_t slot)
 __attribute__((visibility("hidden")))
 void CLASS::CheckSlotForTimeouts(int32_t slot, uint32_t frameNumber)
 {
-	if (SlotPtr(slot)->isInactive())
+	if (ConstSlotPtr(slot)->isInactive())
 		return;
 	for (int32_t endpoint = 1; endpoint != kUSBMaxPipes; ++endpoint) {
 		if (IsIsocEP(slot, endpoint))
@@ -677,7 +677,7 @@ int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uin
 	while (pTrb->d & XHCI_TRB_3_CHAIN_BIT) {
 		next = trbIndexInRingQueue + 1;
 		if (next >= static_cast<int32_t>(pRing->numTRBs) - 1)
-			next = 0U;
+			next = 0;
 		if (next == static_cast<int32_t>(pRing->enqueueIndex))
 			break;
 		trbIndexInRingQueue = next;
@@ -747,11 +747,11 @@ IOReturn CLASS::TranslateXHCIStatus(int32_t xhci_err, bool direction, uint8_t sp
 			return kIOReturnAborted;
 		case XHCI_TRB_ERROR_SPLIT_XACT:
 			return kIOUSBHighSpeedSplitError;
-		case 193:
+		case 193:	// Intel FORCE_HDR_USB2_NO_SUPPORT
 			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnInternalError : kIOReturnUnsupported;
-		case 199:
+		case 199:	// Intel CMPL_WITH_EMPTY_CONTEXT
 			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnInternalError : kIOReturnNotOpen;
-		case 200:
+		case 200:	// Intel VENDOR_CMD_FAILED
 			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnInternalError : kIOReturnNoBandwidth;
 		default:
 			return kIOReturnInternalError;
@@ -965,7 +965,9 @@ IOReturn CLASS::GetPortBandwidth(uint8_t HubSlot, uint8_t speed, uint8_t* pBuffe
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_GET_PORT_BW, 0);
 	if (retFromCMD == -1 || retFromCMD <= -1000) {
 		ReleaseInputContext();
-		return TranslateXHCIStatus(retFromCMD, false, speed, false);
+		if (retFromCMD == -1)
+			return kIOReturnInternalError;
+		return TranslateXHCIStatus(-1000 - retFromCMD, false, speed, false);
 	}
 	if (!HubSlot) {
 		bcopy(reinterpret_cast<uint8_t const*>(GetInputContextPtr()) + 1, pBuffer, _rootHubNumPorts);

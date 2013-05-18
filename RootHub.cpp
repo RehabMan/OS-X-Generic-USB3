@@ -33,13 +33,13 @@ IOReturn CLASS::XHCIRootHubPowerPort(uint16_t port, bool state)
 		return kIOReturnNoDevice;
 	pPortSC = &_pXHCIOperationalRegisters->prs[port - 1U].PortSC;
 	if (state)
-		portSC |= XHCI_PS_PP | XHCI_PS_WOE | XHCI_PS_WDE | XHCI_PS_WCE;
+		portSC |= XHCI_PS_PP | XHCI_PS_WAKEBITS;
 	else {
 		/*
 		 * Clear any pending change flags while powering down port.
 		 */
 		portSC |= XHCI_PS_CHANGEBITS;
-		portSC &= ~XHCI_PS_PP;
+		portSC &= ~(XHCI_PS_PP | XHCI_PS_WAKEBITS);
 	}
 	Write32Reg(pPortSC, portSC);
 	XHCIHandshake(pPortSC, XHCI_PS_PP, portSC, 10);
@@ -469,7 +469,7 @@ int32_t CLASS::FindSlotFromPort(uint16_t port)
 
 	++port;
 	for (uint8_t slot = 1U; slot <= _numSlots; ++slot) {
-		if (SlotPtr(slot)->isInactive())
+		if (ConstSlotPtr(slot)->isInactive())
 			continue;
 		pContext = GetSlotContext(slot);
 		if (port != XHCI_SCTX_1_RH_PORT_GET(pContext->_s.dwSctx1))

@@ -20,6 +20,7 @@ void CLASS::ControllerSleep(void)
 {
 	if (_myPowerState == kUSBPowerStateLowPower)
 		WakeControllerFromDoze();
+	IntelSleepMuxBugWorkaround();
 #if 0
 	/*
 	 * The actual (and correct) order of events is:
@@ -27,7 +28,6 @@ void CLASS::ControllerSleep(void)
 	 *   calls UIMEnableAddressEndpoints(,false) to stop endpoints.
 	 *   Then it puts enabled ports in U3 state.
 	 *   Then arrive here.
-	 * TBD: The kErrataIntelPantherPoint probably should be done!
 	 */
 	QuiesceAllEndpoints();
 #endif

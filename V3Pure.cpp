@@ -204,6 +204,25 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 		_isSleeping = false;
 	}
 	DisableComplianceMode();
+#if 0
+	/*
+	 * Note: This is done from AppleUSBHub via UIMEnableAddressEndpoint
+	 *   after ports are resumed.
+	 */
+	for (uint8_t slot = 1U; slot <= _numSlots; ++slot) {
+		if (ConstSlotPtr(slot)->isInactive())
+			continue;
+		for (int32_t endpoint = 1; endpoint != kUSBMaxPipes; ++endpoint) {
+			ringStruct* pRing = GetRing(slot, endpoint, 0U);
+			if (pRing->isInactive())
+				continue;
+			if (IsStreamsEndpoint(slot, endpoint))
+				RestartStreams(slot, endpoint, 0U);
+			else
+				StartEndpoint(slot, endpoint, 0U);
+		}
+	}
+#endif
 	uint32_t wait = 0U;
 	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
 		uint32_t portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);

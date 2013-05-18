@@ -440,10 +440,10 @@ IOReturn CLASS::InitAnEventRing(int32_t which)
 		return rc;
 	InitEventRing(which, false);
 	ePtr->numBounceEntries = 5120U;
-	ePtr->bounceQueuePtr = static_cast<TRBStruct*>(IOMalloc(ePtr->numBounceEntries * sizeof *ePtr->bounceQueuePtr));
+	ePtr->bounceQueuePtr = static_cast<TRBStruct*>(IOMalloc(static_cast<size_t>(ePtr->numBounceEntries) * sizeof *ePtr->bounceQueuePtr));
 	if (!ePtr->bounceQueuePtr)
 		return kIOReturnNoMemory;
-	bzero(ePtr->bounceQueuePtr, ePtr->numBounceEntries * sizeof *ePtr->bounceQueuePtr);
+	bzero(ePtr->bounceQueuePtr, static_cast<size_t>(ePtr->numBounceEntries) * sizeof *ePtr->bounceQueuePtr);
 	ePtr->bounceDequeueIndex = 0U;
 	ePtr->bounceEnqueueIndex = 0U;
 	ePtr->numBounceQueueOverflows = 0;
@@ -487,7 +487,7 @@ void CLASS::FinalizeAnEventRing(int32_t which)
 		ePtr->md = 0;
 	}
 	if (ePtr->bounceQueuePtr) {
-		IOFree(ePtr->bounceQueuePtr, ePtr->numBounceEntries * sizeof *ePtr->bounceQueuePtr);
+		IOFree(ePtr->bounceQueuePtr, static_cast<size_t>(ePtr->numBounceEntries) * sizeof *ePtr->bounceQueuePtr);
 		ePtr->bounceQueuePtr = 0;
 	}
 }
