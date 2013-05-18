@@ -367,6 +367,10 @@ void CLASS::ParkRing(ringStruct* pRing)
 	TRBStruct localTrb = { 0 };
 
 	slot = pRing->slot;
+#if 0
+	if (GetSlCtxSpeed(GetSlotContext(slot)) > kUSBDeviceSpeedHigh)
+		return;
+#endif
 	endpoint = pRing->endpoint;
 	QuiesceEndpoint(slot, endpoint);
 	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
@@ -607,12 +611,12 @@ void CLASS::CheckSlotForTimeouts(int32_t slot, uint32_t frameNumber)
 		if (pRing->isInactive())
 			continue;
 		if (IsStreamsEndpoint(slot, endpoint)) {
-			bool needRestart = false;
+			bool stopped = false;
 			uint16_t lastStream = GetLastStreamForEndpoint(slot, endpoint);
 			for (uint16_t streamId = 1U; streamId <= lastStream; ++streamId)
 				if (checkEPForTimeOuts(slot, endpoint, streamId, frameNumber))
-					needRestart = true;
-			if (needRestart)
+					stopped = true;
+			if (stopped)
 				RestartStreams(slot, endpoint, 0U);
 		} else if (checkEPForTimeOuts(slot, endpoint, 0U, frameNumber))
 			StartEndpoint(slot, endpoint, 0U);
@@ -662,8 +666,8 @@ __attribute__((visibility("hidden")))
 IOReturn CLASS::GatedGetFrameNumberWithTime(OSObject* owner, void* frameNumber, void* theTime, void*, void*)
 {
 	CLASS* me = static_cast<CLASS*>(owner);
-	*reinterpret_cast<uint64_t*>(frameNumber) = me->_millsecondsTimers[3];
-	*reinterpret_cast<uint64_t*>(theTime) = me->_millsecondsTimers[1];
+	*static_cast<uint64_t*>(frameNumber) = me->_millsecondsTimers[3];
+	*static_cast<uint64_t*>(theTime) = me->_millsecondsTimers[1];
 	return kIOReturnSuccess;
 }
 

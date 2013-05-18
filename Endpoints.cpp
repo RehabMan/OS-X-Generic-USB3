@@ -341,16 +341,16 @@ bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId
 	ContextStruct* pEpContext;
 	uint32_t ndto;
 	uint16_t dq;
-	bool isDisconnected, ret = false;
+	bool abortAll, stopped = false;
 
 	pRing = GetRing(slot, endpoint, streamId);
 	if (!pRing)
 		return false;
-	isDisconnected = true;
+	abortAll = true;
 	if (!GetNeedsReset(slot))
-		isDisconnected = !IsStillConnectedAndEnabled(slot);
+		abortAll = !IsStillConnectedAndEnabled(slot);
 	dq = pRing->dequeueIndex;
-	if (!isDisconnected && (pRing->lastSeenDequeueIndex != dq || pRing->enqueueIndex == dq)) {
+	if (!abortAll && (pRing->lastSeenDequeueIndex != dq || pRing->enqueueIndex == dq)) {
 		pRing->lastSeenDequeueIndex = dq;
 		return false;
 	}
@@ -360,7 +360,7 @@ bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId
 	pEp = pRing->asyncEndpoint;
 	if (!pEp)
 		return false;
-	if (isDisconnected)
+	if (abortAll)
 		pEpContext = GetSlotContext(slot, endpoint);
 	else if (pEp->NeedTimeouts()) {
 		pEpContext = GetSlotContext(slot, endpoint);
@@ -387,9 +387,9 @@ bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId
 			case EP_STATE_STOPPED:
 				break;
 			case EP_STATE_RUNNING:
-				if (!streamId || isDisconnected) {
+				if (!streamId || abortAll) {
 					StopEndpoint(slot, endpoint);
-					ret = true;
+					stopped = true;
 				}
 				break;
 			default:
@@ -399,8 +399,8 @@ bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId
 #endif
 				break;
 		}
-	pEp->UpdateTimeouts(isDisconnected, frameNumber, ret);
-	return ret;
+	pEp->UpdateTimeouts(abortAll, frameNumber, stopped);
+	return stopped;
 }
 
 __attribute__((visibility("hidden")))
@@ -505,7 +505,7 @@ IOReturn CLASS::CreateStream(int32_t slot, int32_t endpoint, uint32_t streamId)
 																   pEp->multiple);
 	if (!pStreamRing->asyncEndpoint)
 		return kIOReturnNoMemory;
-	uint16_t strm_dqptr = pStreamRing->physAddr & ~15ULL;
+	uint64_t strm_dqptr = pStreamRing->physAddr & ~15ULL;
 	if (pStreamRing->cycleState)
 		strm_dqptr |= 1ULL;	// set DCS bit
 	strm_dqptr |= 2ULL;	// Note: set SCT = 1 - Primary Transfer Ring
