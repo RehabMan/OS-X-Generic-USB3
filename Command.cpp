@@ -39,7 +39,7 @@ IOReturn CLASS::RestoreCRCr(void)
 	uint64_t newCRCr;
 	uint8_t newCycleState;
 
-	newCRCr = _commandRing.physAddr + _commandRing.dequeueIndex * sizeof *_commandRing.ptr;
+	newCRCr = _commandRing.physAddr + static_cast<size_t>(_commandRing.dequeueIndex) * sizeof *_commandRing.ptr;
 #if 0
 	newCRCr &= ~XHCI_CRCR_LO_MASK;	// Note: This is a XHCI design flaw, as dequeueIndex may not be a multiple of 4
 #endif

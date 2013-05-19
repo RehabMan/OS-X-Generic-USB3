@@ -235,9 +235,9 @@ IOReturn CLASS::WaitForUSBSts(uint32_t test_mask, uint32_t test_target)
 }
 
 __attribute__((noinline, visibility("hidden")))
-IOReturn CLASS::XHCIHandshake(uint32_t volatile* pReg, uint32_t test_mask, uint32_t test_target, int msec)
+IOReturn CLASS::XHCIHandshake(uint32_t volatile const* pReg, uint32_t test_mask, uint32_t test_target, int32_t msec)
 {
-	for (int count = 0; count < msec; ++count) {
+	for (int32_t count = 0; count < msec; ++count) {
 		if (count)
 			IOSleep(1U);
 		uint32_t reg = Read32Reg(pReg);
@@ -962,8 +962,8 @@ IOReturn CLASS::GetPortBandwidth(uint8_t HubSlot, uint8_t speed, uint8_t* pBuffe
 		default:
 			return kIOReturnBadArgument;
 	}
-	localTrb.d |= XHCI_TRB_3_SLOT_SET(HubSlot);
-	localTrb.d |= XHCI_TRB_3_TLBPC_SET(xspeed);
+	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(HubSlot));
+	localTrb.d |= XHCI_TRB_3_TLBPC_SET(static_cast<uint32_t>(xspeed));
 	GetInputContext();
 	SetTRBAddr64(&localTrb, _inputContext.physAddr);
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_GET_PORT_BW, 0);

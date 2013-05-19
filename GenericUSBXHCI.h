@@ -609,7 +609,7 @@ public:
 	IOReturn StopUSBBus(void);
 	void RestartUSBBus(void);
 	IOReturn WaitForUSBSts(uint32_t, uint32_t);
-	IOReturn XHCIHandshake(uint32_t volatile*, uint32_t, uint32_t, int);
+	IOReturn XHCIHandshake(uint32_t volatile const*, uint32_t, uint32_t, int32_t);
 	IOReturn AddressDevice(uint32_t,uint16_t,bool,uint8_t,int32_t,int32_t);
 	IOReturn EnterTestMode(void);
 	IOReturn LeaveTestMode(void);

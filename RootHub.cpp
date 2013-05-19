@@ -303,7 +303,7 @@ IOReturn CLASS::RHResumePortCompletion(uint32_t port)
 		_rhPortBeingResumed[_port] = false;
 		return kIOReturnNoDevice;
 	}
-	portSC = GetPortSCForWriting(port);
+	portSC = GetPortSCForWriting(static_cast<int16_t>(port));
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
 	Write32Reg(&_pXHCIOperationalRegisters->prs[_port].PortSC, portSC | XHCI_PS_LWS | XHCI_PS_PLS_SET(XDEV_U0) | XHCI_PS_PLC);
@@ -326,7 +326,7 @@ IOReturn CLASS::RHCompleteResumeOnAllPorts(void)
 		if (!_rhPortBeingResumed[port])
 			continue;
 		Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC,
-				   GetPortSCForWriting(port + 1U) | XHCI_PS_LWS | XHCI_PS_PLS_SET(XDEV_U0) | XHCI_PS_PLC);
+				   GetPortSCForWriting(static_cast<int16_t>(port) + 1) | XHCI_PS_LWS | XHCI_PS_PLS_SET(XDEV_U0) | XHCI_PS_PLC);
 		wait_val = 2U;
 	}
 	if (wait_val)
