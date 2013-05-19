@@ -725,7 +725,7 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 											((portSC >> 16) & 0xC0U) |	// CEC, PLC as above
 											((portSC >> 14) & kSSHubPortChangeBHResetMask));	// WRC
 	}
-#if 0
+#ifdef DEBOUNCING
 	if (_rhPortBeingWarmReset[_port]) {
 		pStatus->statusFlags = HostToUSBWord(statusFlags | kHubPortConnection);
 		pStatus->changeFlags = HostToUSBWord(0U);
@@ -735,7 +735,7 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 	if ((portSC & (XHCI_PS_CSC | XHCI_PS_CCS)) == XHCI_PS_CCS &&
 		_rhPortEmulateCSC[_port])
 		changeFlags |= kHubPortConnection;
-#if 0
+#ifdef DEBOUNCING
 	HandlePortDebouncing(&statusFlags, &changeFlags, _port, linkState, protocol);
 #endif
 	if (!changeFlags)

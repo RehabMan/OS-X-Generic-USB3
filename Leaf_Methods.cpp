@@ -435,6 +435,16 @@ IOUSBHubPolicyMaker* CLASS::GetHubForProtocol(uint8_t protocol)
 }
 
 __attribute__((visibility("hidden")))
+uint16_t CLASS::GetCompanionRootPort(uint8_t protocol, uint16_t port)
+{
+	if (protocol == kUSBDeviceSpeedHigh)
+		return port - _v3ExpansionData->_rootHubPortsHSStartRange + _v3ExpansionData->_rootHubPortsSSStartRange;
+	if (protocol == kUSBDeviceSpeedSuper)
+		return port - _v3ExpansionData->_rootHubPortsSSStartRange + _v3ExpansionData->_rootHubPortsHSStartRange;
+	return 0U;
+}
+
+__attribute__((visibility("hidden")))
 ringStruct* CLASS::CreateRing(int32_t slot, int32_t endpoint, uint32_t maxStream)
 {
 	ringStruct* pRing = static_cast<ringStruct*>(IOMalloc((1U + maxStream) * sizeof *pRing));

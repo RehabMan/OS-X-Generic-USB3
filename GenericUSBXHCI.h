@@ -228,6 +228,8 @@ private:
 									// offset 0x238E8
 	XHCIRootHubResetParams _rhResetParams[kMaxPorts];
 									// offset 0x23960
+#endif
+#ifdef DEBOUNCING
 	bool _rhPortDebouncing[kMaxPorts];
 									// offset 0x239D8
 	bool _rhPortDebounceADisconnect[kMaxPorts];
@@ -236,6 +238,8 @@ private:
 	uint64_t _rhDebounceNanoSeconds[kMaxPorts];// offset 0x239F8
 	bool _rhPortBeingWarmReset[kMaxPorts];
 									// offset 0x23A70
+#endif
+#if 0
 	bool _hasPCIPwrMgmt;			// offset 0x23A7F
 	uint32_t _ExpressCardPort;		// offset 0x23A80
 	bool _badExpressCardAttached;	// offset 0x23A84
@@ -492,11 +496,12 @@ public:
 	uint16_t PortNumberCanonicalToProtocol(uint16_t, uint8_t*);
 	uint16_t PortNumberProtocolToCanonical(uint16_t, uint8_t);
 	IOUSBHubPolicyMaker* GetHubForProtocol(uint8_t protocol);
+	uint16_t GetCompanionRootPort(uint8_t, uint16_t);
 	bool IsStillConnectedAndEnabled(int32_t);
 	void CheckSlotForTimeouts(int32_t, uint32_t);
-#if 0
+#ifdef DEBOUNCING
 	int32_t FindSlotFromPort(uint16_t);
-	void HandlePortDebouncing(uint16_t*, uint16_t*, uint16_t, uint16_t, uint8_t);
+	IOReturn HandlePortDebouncing(uint16_t*, uint16_t*, uint16_t, uint16_t, uint8_t);
 #endif
 	IOReturn TranslateXHCIStatus(int32_t, bool, uint8_t, bool);
 	static IOReturn TranslateCommandCompletion(int32_t);

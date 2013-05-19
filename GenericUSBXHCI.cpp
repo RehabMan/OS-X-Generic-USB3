@@ -129,6 +129,10 @@ bool CLASS::init(OSDictionary* dictionary)
 	 *   XHCIAsyncTransferDescriptor: public OSObject
 	 *   RootHubPortTable: public OSObject
 	 *   TTBandwidthTable: public OSObject
+	 *
+	 * Compiler symbol options
+	 *   LONG_RESET - enable complex reset sequence related to Intel Series 7 muxed ports
+	 *   DEBOUNCING - enable port debounce code
 	 */
 	if (!super::init(dictionary)) {
 		IOLog("%s: super::init failed\n", __FUNCTION__);
