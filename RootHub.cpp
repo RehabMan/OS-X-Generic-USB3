@@ -7,6 +7,9 @@
 //
 
 #include "GenericUSBXHCI.h"
+#ifdef DEBOUNCING
+#include "XHCITypes.h"
+#endif
 
 #define CLASS GenericUSBXHCI
 #define super IOUSBControllerV3
@@ -114,7 +117,7 @@ __attribute__((visibility("hidden")))
 IOReturn CLASS::XHCIRootHubResetPort(uint8_t protocol, uint16_t port)
 {
 	IOReturn rc;
-#if 0
+#ifdef LONG_RESET
 	uint32_t recCount;
 #endif
 	uint16_t _port;
@@ -123,14 +126,14 @@ IOReturn CLASS::XHCIRootHubResetPort(uint8_t protocol, uint16_t port)
 	if (_rhPortBeingReset[_port])
 		return kIOReturnSuccess;
 	_rhPortBeingReset[_port] = true;
-#if 0
+#ifdef LONG_RESET
 	for (recCount = 0U; _workLoop->inGate();) {
 		++recCount;
 		_workLoop->OpenGate();
 	}
 #endif
 	rc = RHResetPort(protocol, port);
-#if 0
+#ifdef LONG_RESET
 	while (recCount--)
 		_workLoop->CloseGate();
 #endif
@@ -199,7 +202,7 @@ IOReturn CLASS::XHCIRootHubClearPortConnectionChange(uint16_t port)
 	IOReturn rc = XHCIRootHubClearPortChangeBit(port, XHCI_PS_CSC);
 	if (_rhPortEmulateCSC[port - 1U])
 		_rhPortEmulateCSC[port - 1U] = false;
-#if 0
+#ifdef DEBOUNCING
 	_rhPortDebouncing[port - 1U] = false;
 	_rhPortDebounceADisconnect[port - 1U] = false;
 #endif
@@ -225,17 +228,20 @@ IOReturn CLASS::RHResetPort(uint8_t protocol, uint16_t port)
 {
 	uint32_t portSC;
 	uint16_t _port;
+#ifdef LONG_RESET
+	uint32_t companionPortSC, companionPLSAfterReset, count;
+	uint16_t companionPort;
+#endif
 
 	portSC = GetPortSCForWriting(port);
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
 	_port = port - 1U;
 	Write32Reg(&_pXHCIOperationalRegisters->prs[_port].PortSC, portSC | XHCI_PS_PR);
-#if 0
+#ifdef LONG_RESET
 	if (!(_errataBits & kErrataIntelPCIRoutingExtension) ||
 		(gUSBStackDebugFlags & kUSBDisableMuxedPortsMask))
 		return kIOReturnSuccess;
-	uint32_t count;
 	for (count = 0U; count < 8U; ++count) {
 		if (count)
 			IOSleep(32U);
@@ -248,10 +254,47 @@ IOReturn CLASS::RHResetPort(uint8_t protocol, uint16_t port)
 	if (XHCI_PS_SPEED_GET(portSC) == XDEV_SS)
 		return kIOReturnSuccess;
 	IOSleep(500U - count * 32U);
-	/*
-	 * TBD: E66F
-	 */
-	IOLog("%s: Code Incomplete\n", __FUNCTION__);
+	companionPort = GetCompanionRootPort(protocol, port);
+	companionPortSC = Read32Reg(&_pXHCIOperationalRegisters->prs[companionPort - 1U].PortSC);
+	if (m_invalid_regspace)
+		return kIOReturnNoDevice;
+	portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[_port].PortSC);
+	if (m_invalid_regspace)
+		return kIOReturnNoDevice;
+	companionPLSAfterReset = XHCI_PS_PLS_GET(companionPortSC);
+	if (XHCI_PS_SPEED_GET(portSC) == XDEV_HS &&
+		(portSC & XHCI_PS_CCS) &&
+		!(companionPortSC & (XHCI_PS_CCS | XHCI_PS_CEC | XHCI_PS_CAS | XHCI_PS_PLC | XHCI_PS_WRC)) &&
+		companionPLSAfterReset == XDEV_RXDETECT) {
+		Write32Reg(&_pXHCIOperationalRegisters->prs[_port].PortSC, (portSC & XHCI_PS_WRITEBACK_MASK) | XHCI_PS_PRC);
+		HCSelect(static_cast<uint8_t>(_port), 0U);
+		for (count = 0U; count < 8U; ++count) {
+			if (count)
+				IOSleep(32U);
+			portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[_port].PortSC);
+			if (m_invalid_regspace)
+				return kIOReturnNoDevice;
+			if (portSC & XHCI_PS_CSC)
+				break;
+		}
+		Write32Reg(&_pXHCIOperationalRegisters->prs[_port].PortSC, (portSC & XHCI_PS_WRITEBACK_MASK) | XHCI_PS_CSC);
+		return kIOUSBDeviceTransferredToCompanion;
+	}
+	if (!_inTestMode && companionPLSAfterReset == XDEV_COMPLIANCE) {
+		XHCIRootHubWarmResetPort(companionPort);
+		for (count = 0U; count < 8U; ++count) {
+			if (count)
+				IOSleep(32U);
+			companionPortSC = Read32Reg(&_pXHCIOperationalRegisters->prs[companionPort - 1U].PortSC);
+			if (m_invalid_regspace)
+				return kIOReturnNoDevice;
+			if (companionPortSC & (XHCI_PS_PRC | XHCI_PS_WRC))
+				break;
+		}
+		if (companionPortSC & (XHCI_PS_PRC | XHCI_PS_WRC))
+			Write32Reg(&_pXHCIOperationalRegisters->prs[companionPort - 1U].PortSC,
+					   (companionPortSC & XHCI_PS_WRITEBACK_MASK) | XHCI_PS_PRC | XHCI_PS_WRC);
+	}
 #endif
 	return kIOReturnSuccess;
 }
@@ -303,7 +346,7 @@ IOReturn CLASS::RHResumePortCompletion(uint32_t port)
 		_rhPortBeingResumed[_port] = false;
 		return kIOReturnNoDevice;
 	}
-	portSC = GetPortSCForWriting(port);
+	portSC = GetPortSCForWriting(static_cast<int16_t>(port));
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
 	Write32Reg(&_pXHCIOperationalRegisters->prs[_port].PortSC, portSC | XHCI_PS_LWS | XHCI_PS_PLS_SET(XDEV_U0) | XHCI_PS_PLC);
@@ -326,7 +369,7 @@ IOReturn CLASS::RHCompleteResumeOnAllPorts(void)
 		if (!_rhPortBeingResumed[port])
 			continue;
 		Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC,
-				   GetPortSCForWriting(port + 1U) | XHCI_PS_LWS | XHCI_PS_PLS_SET(XDEV_U0) | XHCI_PS_PLC);
+				   GetPortSCForWriting(static_cast<int16_t>(port) + 1) | XHCI_PS_LWS | XHCI_PS_PLS_SET(XDEV_U0) | XHCI_PS_PLC);
 		wait_val = 2U;
 	}
 	if (wait_val)
@@ -458,10 +501,7 @@ void CLASS::FinalizeRHThreadCalls(void)
 #pragma mark Port Debouncing
 #pragma mark -
 
-#if 0
-#define CHECK1 (kSSHubPortChangePortLinkStateMask | kHubPortConnection)
-#define CHECK2 (kSSHubPortChangeBHResetMask | kHubPortBeingReset | kHubPortConnection)
-
+#ifdef DEBOUNCING
 __attribute__((noinline, visibility("hidden")))
 int32_t CLASS::FindSlotFromPort(uint16_t port)
 {
@@ -484,10 +524,12 @@ int32_t CLASS::FindSlotFromPort(uint16_t port)
 }
 
 __attribute__((noinline, visibility("hidden")))
-void CLASS::HandlePortDebouncing(uint16_t* pStatusFlags, uint16_t* pChangeFlags, uint16_t port, uint16_t linkState, uint8_t protocol)
+IOReturn CLASS::HandlePortDebouncing(uint16_t* pStatusFlags, uint16_t* pChangeFlags, uint16_t port, uint16_t linkState, uint8_t protocol)
 {
-	uint64_t c_stamp;
+	uint64_t currentNanoSeconds, now;
+	uint32_t portSC;
 	int32_t slot;
+	bool warmResetIssued;
 
 	/*
 	 * Insanity Now! Serenity Later.
@@ -495,71 +537,78 @@ void CLASS::HandlePortDebouncing(uint16_t* pStatusFlags, uint16_t* pChangeFlags,
 	if (protocol != kUSBDeviceSpeedSuper) {
 		if (_rhPortDebouncing[port])
 			*pStatusFlags |= kHubPortDebouncing;
-		return;
+		return kIOReturnSuccess;
 	}
-	if ((*pChangeFlags & (0xFF00U | CHECK1)) == CHECK1 &&
-		linkState == XDEV_INACTIVE &&
-		(slot = FindSlotFromPort(port) >= 0)) {
-		uint32_t portSC;
-		bool inGate = getWorkLoop()->inGate();
-		IOCommandGate* gate = inGate ? GetCommandGate() : 0;
-		_rhPortBeingWarmReset[port] = true;
-		XHCIRootHubWarmResetPort(1U + port);
-		for (int32_t count = 0; count < 8; ++count) {
-			if (count) {
-				if (inGate)
-					SleepWithGateReleased(gate, 32U);
-				else
-					IOSleep(32U);
+	warmResetIssued = false;
+	if ((*pChangeFlags & kHubPortConnection) &&
+		(*pChangeFlags & kSSHubPortChangePortLinkStateMask) &&
+		linkState == XDEV_INACTIVE) {
+		slot = FindSlotFromPort(port);
+		if (slot >= 0) {
+			_rhPortBeingWarmReset[port] = true;
+			XHCIRootHubWarmResetPort(1U + port);
+			for (int32_t count = 0; count < 8; ++count) {
+				if (count)
+					CheckedSleep(32U);
+				portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);
+				if (m_invalid_regspace) {
+					_rhPortBeingWarmReset[port] = false;
+					return kIOReturnNoDevice;
+				}
+				if (portSC & XHCI_PS_WRC)
+					break;
 			}
-			portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);
-			if (m_invalid_regspace) {
-				_rhPortBeingWarmReset[port] = false;
-#if 0
-				return kIOReturnNoDevice;
-#else
-				return;
-#endif
-			}
-			if (portSC & XHCI_PS_WRC)
-				break;
-		}
-		if (XHCI_PS_PLS_GET(portSC) == XDEV_U0 &&
-			(portSC & (XHCI_PS_PED | XHCI_PS_CCS))) {
-			XHCIRootHubClearPortConnectionChange(1U + port);
-			*pChangeFlags &= ~kHubPortConnection;
-		}
-		XHCIRootHubClearPortChangeBit(1U + port, XHCI_PS_PRC | XHCI_PS_WRC);
-		SetNeedsReset(slot, true);
-		_rhPortBeingWarmReset[port] = false;
-		absolutetime_to_nanoseconds(mach_absolute_time(), &c_stamp);
-		_rhDebounceNanoSeconds[port] = c_stamp - 100 * kMillisecondScale;
-		_rhPortDebouncing[port] = true;
-		_rhPortDebounceADisconnect[port] = !(*pStatusFlags & kHubPortConnection);
-	} else if ((*pChangeFlags & (0xFF00U | CHECK2)) == kHubPortConnection && !(*pStatusFlags & kHubPortBeingReset)) {
-		uint64_t stamp = mach_absolute_time();
-		if (_rhPortDebouncing[port]) {
-			absolutetime_to_nanoseconds(stamp, &c_stamp);
-			if (c_stamp - _rhDebounceNanoSeconds[port] < 100 * kMillisecondScale)
+			if (XHCI_PS_PLS_GET(portSC) == XDEV_U0 &&
+				(portSC & (XHCI_PS_PED | XHCI_PS_CCS))) {
 				*pChangeFlags &= ~kHubPortConnection;
-			else if (_rhPortDebounceADisconnect[port] ==
-					 ((*pStatusFlags & kHubPortConnection) != 0U)) {
 				XHCIRootHubClearPortConnectionChange(1U + port);
+			}
+			XHCIRootHubClearPortChangeBit(1U + port, XHCI_PS_PRC | XHCI_PS_WRC);
+			SetNeedsReset(slot, true);
+			_rhPortBeingWarmReset[port] = false;
+			absolutetime_to_nanoseconds(mach_absolute_time(), &currentNanoSeconds);
+			_rhDebounceNanoSeconds[port] = currentNanoSeconds - 100 * kMillisecondScale;
+			_rhPortDebouncing[port] = true;
+			warmResetIssued = true;
+			_rhPortDebounceADisconnect[port] = !(*pStatusFlags & kHubPortConnection);
+		}
+	}
+	if (!warmResetIssued) {
+		if ((*pChangeFlags & kHubPortConnection) &&
+			!(*pChangeFlags & kSSHubPortChangeBHResetMask) &&
+			!(*pChangeFlags & kHubPortBeingReset) &&
+			!(*pStatusFlags & kSSHubPortStatusBeingResetMask)) {
+			now = mach_absolute_time();
+			if (_rhPortDebouncing[port]) {
+				absolutetime_to_nanoseconds(now, &currentNanoSeconds);
+				if (static_cast<int64_t>(currentNanoSeconds - _rhDebounceNanoSeconds[port]) < 100 * kMillisecondScale)
+					*pChangeFlags &= ~kHubPortConnection;
+				else {
+					if (_rhPortDebounceADisconnect[port] &&
+						(*pStatusFlags & kHubPortConnection)) {
+						*pChangeFlags &= ~kHubPortConnection;
+						XHCIRootHubClearPortConnectionChange(1U + port);
+					} else if (!_rhPortDebounceADisconnect[port] &&
+							   !(*pStatusFlags & kHubPortConnection)) {
+						*pChangeFlags &= ~kHubPortConnection;
+						XHCIRootHubClearPortConnectionChange(1U + port);
+					}
+				}
+			} else {
+				_rhPortDebounceADisconnect[port] = !(*pStatusFlags & kHubPortConnection);
 				*pChangeFlags &= ~kHubPortConnection;
+				absolutetime_to_nanoseconds(now, &_rhDebounceNanoSeconds[port]);
+				_rhPortDebouncing[port] = true;
 			}
 		} else {
-			absolutetime_to_nanoseconds(stamp, &_rhDebounceNanoSeconds[port]);
-			_rhPortDebouncing[port] = true;
-			_rhPortDebounceADisconnect[port] = !(*pStatusFlags & kHubPortConnection);
-			*pChangeFlags &= ~kHubPortConnection;
+			_rhPortDebouncing[port] = false;
+			_rhPortDebounceADisconnect[port] = false;
 		}
-	} else {
-		_rhPortDebouncing[port] = false;
-		_rhPortDebounceADisconnect[port] = false;
 	}
 	if (_rhPortDebouncing[port] ||
-		(*pChangeFlags & (0xFF00U | kHubPortOverCurrent)) ||
+		(*pChangeFlags & kHubPortOverCurrent) ||
 		(*pStatusFlags & kHubPortOverCurrent))
 		*pStatusFlags |= kHubPortDebouncing;
+	return kIOReturnSuccess;
 }
 #endif

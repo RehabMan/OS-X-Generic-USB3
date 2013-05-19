@@ -156,7 +156,7 @@ __attribute__((visibility("hidden")))
 void CLASS::SantizePortsAfterPowerLoss(void)
 {
 	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
-		uint32_t portSC = GetPortSCForWriting(1U + static_cast<uint16_t>(port));
+		uint32_t portSC = GetPortSCForWriting(1 + static_cast<int16_t>(port));
 		if (m_invalid_regspace)
 			return;
 		Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, portSC | XHCI_PS_WAKEBITS);

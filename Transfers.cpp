@@ -391,7 +391,7 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 						fourth |= XHCI_TRB_3_ISP_BIT;
 						break;
 				}
-			} else if (isFirstFragment)
+			} else if (endpoint & 1U)	/* in/ctrl endpoint */
 				switch (XHCI_TRB_3_TYPE_GET(fourth)) {
 					case XHCI_TRB_TYPE_NORMAL:
 					case XHCI_TRB_TYPE_ISOCH:
@@ -858,12 +858,12 @@ struct XHCIAsyncTD* XHCIAsyncEndpoint::GetTDFromActiveQueueWithIndex(uint16_t in
 }
 
 __attribute__((visibility("hidden")))
-void XHCIAsyncEndpoint::RetireTDs(XHCIAsyncTD* pTd, IOReturn passthruReturnCode, bool callCompletion, bool resetEndpoint)
+void XHCIAsyncEndpoint::RetireTDs(XHCIAsyncTD* pTd, IOReturn passthruReturnCode, bool callCompletion, bool flush)
 {
 	uint8_t slot, endpoint;
 
 	PutTDonDoneQueue(pTd);
-	if (resetEndpoint) {
+	if (flush) {
 		slot = pRing->slot;
 		endpoint = pRing->endpoint;
 		provider->QuiesceEndpoint(slot, endpoint);
@@ -1051,7 +1051,7 @@ bool XHCIAsyncEndpoint::NeedTimeouts(void)
 }
 
 __attribute__((visibility("hidden")))
-void XHCIAsyncEndpoint::UpdateTimeouts(bool isRHPortDisconnected, uint32_t frameNumber, bool isEndpointOk)
+void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool stopped)
 {
 	uint64_t addr;
 	int64_t trbIndex64;
@@ -1070,7 +1070,7 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool isRHPortDisconnected, uint32_t frame
 	pTd = scheduledHead;
 	if (!pTd)
 		return;
-	if (!isRHPortDisconnected) {
+	if (!abortAll) {
 		command = pTd->command;
 		if (!command)
 			return;
@@ -1112,7 +1112,7 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool isRHPortDisconnected, uint32_t frame
 		next = 0;
 	if (provider->GetNeedsReset(pRing->slot))
 		passthruReturnCode = kIOReturnNotResponding;
-	if (!isEndpointOk)
+	if (!stopped)
 		provider->QuiesceEndpoint(pRing->slot, pRing->endpoint);
 	provider->SetTRDQPtr(pRing->slot, pRing->endpoint, pTd->streamId, next);
 	RetireTDs(pTd, passthruReturnCode, true, true);

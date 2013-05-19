@@ -235,9 +235,9 @@ IOReturn CLASS::WaitForUSBSts(uint32_t test_mask, uint32_t test_target)
 }
 
 __attribute__((noinline, visibility("hidden")))
-IOReturn CLASS::XHCIHandshake(uint32_t volatile* pReg, uint32_t test_mask, uint32_t test_target, int msec)
+IOReturn CLASS::XHCIHandshake(uint32_t volatile const* pReg, uint32_t test_mask, uint32_t test_target, int32_t msec)
 {
-	for (int count = 0; count < msec; ++count) {
+	for (int32_t count = 0; count < msec; ++count) {
 		if (count)
 			IOSleep(1U);
 		uint32_t reg = Read32Reg(pReg);
@@ -282,13 +282,13 @@ IOReturn CLASS::AllocScratchpadBuffers(void)
 		return kIOReturnDeviceError;
 	}
 	pageSizes &= -pageSizes;	// leave just smallest size
-	_scratchpadBuffers.mdGC= OSArray::withCapacity(_scratchpadBuffers.max);
+	_scratchpadBuffers.mdGC = OSArray::withCapacity(_scratchpadBuffers.max);
 	if (!_scratchpadBuffers.mdGC) {
 		IOLog("%s: OSArray::withCapacity failed\n", __FUNCTION__);
 		return kIOReturnNoMemory;
 	}
 	rc = MakeBuffer(kIOMemoryPhysicallyContiguous | kIODirectionInOut,
-					_scratchpadBuffers.max * sizeof *_scratchpadBuffers.ptr,
+					static_cast<size_t>(_scratchpadBuffers.max) * sizeof *_scratchpadBuffers.ptr,
 					-PAGE_SIZE,
 					&_scratchpadBuffers.md,
 					reinterpret_cast<void**>(&_scratchpadBuffers.ptr),
@@ -367,6 +367,10 @@ void CLASS::ParkRing(ringStruct* pRing)
 	TRBStruct localTrb = { 0 };
 
 	slot = pRing->slot;
+#if 0
+	if (GetSlCtxSpeed(GetSlotContext(slot)) > kUSBDeviceSpeedHigh)
+		return;
+#endif
 	endpoint = pRing->endpoint;
 	QuiesceEndpoint(slot, endpoint);
 	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
@@ -428,6 +432,16 @@ IOUSBHubPolicyMaker* CLASS::GetHubForProtocol(uint8_t protocol)
 	if (protocol == kUSBDeviceSpeedSuper && _expansionData && _rootHubDeviceSS)
 		return _rootHubDeviceSS->GetPolicyMaker();
 	return 0;
+}
+
+__attribute__((visibility("hidden")))
+uint16_t CLASS::GetCompanionRootPort(uint8_t protocol, uint16_t port)
+{
+	if (protocol == kUSBDeviceSpeedHigh)
+		return port - _v3ExpansionData->_rootHubPortsHSStartRange + _v3ExpansionData->_rootHubPortsSSStartRange;
+	if (protocol == kUSBDeviceSpeedSuper)
+		return port - _v3ExpansionData->_rootHubPortsSSStartRange + _v3ExpansionData->_rootHubPortsHSStartRange;
+	return 0U;
 }
 
 __attribute__((visibility("hidden")))
@@ -607,12 +621,12 @@ void CLASS::CheckSlotForTimeouts(int32_t slot, uint32_t frameNumber)
 		if (pRing->isInactive())
 			continue;
 		if (IsStreamsEndpoint(slot, endpoint)) {
-			bool needRestart = false;
+			bool stopped = false;
 			uint16_t lastStream = GetLastStreamForEndpoint(slot, endpoint);
 			for (uint16_t streamId = 1U; streamId <= lastStream; ++streamId)
 				if (checkEPForTimeOuts(slot, endpoint, streamId, frameNumber))
-					needRestart = true;
-			if (needRestart)
+					stopped = true;
+			if (stopped)
 				RestartStreams(slot, endpoint, 0U);
 		} else if (checkEPForTimeOuts(slot, endpoint, 0U, frameNumber))
 			StartEndpoint(slot, endpoint, 0U);
@@ -662,8 +676,8 @@ __attribute__((visibility("hidden")))
 IOReturn CLASS::GatedGetFrameNumberWithTime(OSObject* owner, void* frameNumber, void* theTime, void*, void*)
 {
 	CLASS* me = static_cast<CLASS*>(owner);
-	*reinterpret_cast<uint64_t*>(frameNumber) = me->_millsecondsTimers[3];
-	*reinterpret_cast<uint64_t*>(theTime) = me->_millsecondsTimers[1];
+	*static_cast<uint64_t*>(frameNumber) = me->_millsecondsTimers[3];
+	*static_cast<uint64_t*>(theTime) = me->_millsecondsTimers[1];
 	return kIOReturnSuccess;
 }
 
@@ -958,8 +972,8 @@ IOReturn CLASS::GetPortBandwidth(uint8_t HubSlot, uint8_t speed, uint8_t* pBuffe
 		default:
 			return kIOReturnBadArgument;
 	}
-	localTrb.d |= XHCI_TRB_3_SLOT_SET(HubSlot);
-	localTrb.d |= XHCI_TRB_3_TLBPC_SET(xspeed);
+	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(HubSlot));
+	localTrb.d |= XHCI_TRB_3_TLBPC_SET(static_cast<uint32_t>(xspeed));
 	GetInputContext();
 	SetTRBAddr64(&localTrb, _inputContext.physAddr);
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_GET_PORT_BW, 0);

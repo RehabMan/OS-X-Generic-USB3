@@ -50,6 +50,12 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	if (!_v3ExpansionData->_onThunderbolt)
 		_expansionData->_isochMaxBusStall = 25000U;
 	_pXHCICapRegisters = reinterpret_cast<struct XHCICapRegisters volatile*>(_deviceBase->getVirtualAddress());
+#if 0
+	if (m_invalid_regspace) {
+		UIMFinalize();
+		return kIOReturnNoDevice;
+	}
+#endif
 	// enable the card registers
 	_device->configWrite16(kIOPCIConfigCommand, kIOPCICommandMemorySpace);
 #if 0
@@ -183,18 +189,20 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		UIMFinalize();
 		return rc;
 	}
+#if 0
 	bzero(_dcbaa.ptr, (1U + static_cast<size_t>(_numSlots)) * sizeof *_dcbaa.ptr);
+#endif
 	Write64Reg(&_pXHCIOperationalRegisters->DCBAap, _dcbaa.physAddr, false);
 	_commandRing.numTRBs = PAGE_SIZE / sizeof *_commandRing.ptr;
-	_commandRing.callbacks = static_cast<TRBCallbackEntry*>(IOMalloc(_commandRing.numTRBs * sizeof *_commandRing.callbacks));
+	_commandRing.callbacks = static_cast<TRBCallbackEntry*>(IOMalloc(static_cast<size_t>(_commandRing.numTRBs) * sizeof *_commandRing.callbacks));
 	if (!_commandRing.callbacks) {
 		IOLog("%s: IOMalloc failed\n", __FUNCTION__);
 		UIMFinalize();
 		return kIOReturnNoMemory;
 	}
-	bzero(_commandRing.callbacks, _commandRing.numTRBs * sizeof *_commandRing.callbacks);
+	bzero(_commandRing.callbacks, static_cast<size_t>(_commandRing.numTRBs) * sizeof *_commandRing.callbacks);
 	rc = MakeBuffer(kIOMemoryPhysicallyContiguous | kIODirectionInOut,
-					_commandRing.numTRBs * sizeof *_commandRing.ptr,
+					static_cast<size_t>(_commandRing.numTRBs) * sizeof *_commandRing.ptr,
 					-PAGE_SIZE,
 					&_commandRing.md,
 					reinterpret_cast<void**>(&_commandRing.ptr),
@@ -251,7 +259,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	_filterInterruptActive = false;
 #endif
 	_millsecondCounter = 0ULL;
-	bzero(&_interruptCounters, sizeof _interruptCounters);
+	bzero(&_interruptCounters[0], sizeof _interruptCounters);
 	_HSEDetected = false;
 	_RenesasControllerVersion = 0U;
 	_debugCtr = 0U;
@@ -717,7 +725,7 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 											((portSC >> 16) & 0xC0U) |	// CEC, PLC as above
 											((portSC >> 14) & kSSHubPortChangeBHResetMask));	// WRC
 	}
-#if 0
+#ifdef DEBOUNCING
 	if (_rhPortBeingWarmReset[_port]) {
 		pStatus->statusFlags = HostToUSBWord(statusFlags | kHubPortConnection);
 		pStatus->changeFlags = HostToUSBWord(0U);
@@ -727,7 +735,7 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 	if ((portSC & (XHCI_PS_CSC | XHCI_PS_CCS)) == XHCI_PS_CCS &&
 		_rhPortEmulateCSC[_port])
 		changeFlags |= kHubPortConnection;
-#if 0
+#ifdef DEBOUNCING
 	HandlePortDebouncing(&statusFlags, &changeFlags, _port, linkState, protocol);
 #endif
 	if (!changeFlags)
