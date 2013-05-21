@@ -24,6 +24,7 @@ extern "C" {
 struct XHCICapRegisters
 {
 	uint8_t  CapLength;
+	uint8_t  Rsvd;
 	uint16_t HCIVersion;
 	uint32_t HCSParams[3];
 	uint32_t HCCParams;
@@ -161,6 +162,7 @@ struct XHCIInterruptRegisterSet
 	uint32_t iman;
 	uint32_t imod;
 	uint32_t erstsz;
+	uint32_t RsvdP;
 	uint64_t erstba;
 	uint64_t erdp;
 };
@@ -198,6 +200,7 @@ struct XHCIXECPStruct_SP
 	uint32_t nameString;
 	uint8_t compatiblePortOffset;
 	uint8_t compatiblePortCount;
+	uint16_t Rsvd;
 };
 
 #ifdef __cplusplus
