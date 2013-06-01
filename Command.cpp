@@ -34,12 +34,12 @@ void CLASS::InitCMDRing(void)
 }
 
 __attribute__((visibility("hidden")))
-IOReturn CLASS::RestoreCRCr(void)
+void CLASS::RestoreCRCr(void)
 {
 	uint64_t newCRCr;
 	uint8_t newCycleState;
 
-	newCRCr = _commandRing.physAddr + static_cast<size_t>(_commandRing.dequeueIndex) * sizeof *_commandRing.ptr;
+	newCRCr = _commandRing.physAddr + _commandRing.dequeueIndex * sizeof *_commandRing.ptr;
 #if 0
 	newCRCr &= ~XHCI_CRCR_LO_MASK;	// Note: This is a XHCI design flaw, as dequeueIndex may not be a multiple of 4
 #endif
@@ -51,19 +51,18 @@ IOReturn CLASS::RestoreCRCr(void)
 		newCRCr |= XHCI_CRCR_LO_RCS;
 
 	Write64Reg(&_pXHCIOperationalRegisters->CRCr, newCRCr, false);
-	return kIOReturnSuccess;
 }
 
 __attribute__((visibility("hidden")))
 IOReturn CLASS::CommandStop(void)
 {
-	uint32_t lowCRCr = Read32Reg(reinterpret_cast<uint32_t volatile*>(&_pXHCIOperationalRegisters->CRCr));
+	uint32_t lowCRCr = Read32Reg(reinterpret_cast<uint32_t volatile const*>(&_pXHCIOperationalRegisters->CRCr));
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
 	if (!(lowCRCr & static_cast<uint32_t>(XHCI_CRCR_LO_CRR)))
 		return kIOReturnSuccess;
 	_commandRing.stopPending = true;
-	Write32Reg(reinterpret_cast<uint32_t volatile*>(&_pXHCIOperationalRegisters->CRCr), XHCI_CRCR_LO_CS);
+	Write32Reg(reinterpret_cast<uint32_t volatile*>(&_pXHCIOperationalRegisters->CRCr), static_cast<uint32_t>(XHCI_CRCR_LO_CS));
 	for (int32_t count = 0; _commandRing.stopPending && count < 100; ++count) {
 		if (count)
 			IOSleep(1U);
@@ -73,6 +72,7 @@ IOReturn CLASS::CommandStop(void)
 	}
 	if (_commandRing.stopPending) {
 		_commandRing.stopPending = false;
+		IOLog("%s: Timeout waiting for command ring to stop, 100ms\n", __FUNCTION__);
 		return kIOReturnTimeout;
 	}
 	return kIOReturnSuccess;
@@ -81,13 +81,13 @@ IOReturn CLASS::CommandStop(void)
 __attribute__((visibility("hidden")))
 IOReturn CLASS::CommandAbort(void)
 {
-	uint32_t lowCRCr = Read32Reg(reinterpret_cast<uint32_t volatile*>(&_pXHCIOperationalRegisters->CRCr));
+	uint32_t lowCRCr = Read32Reg(reinterpret_cast<uint32_t volatile const*>(&_pXHCIOperationalRegisters->CRCr));
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
 	if (!(lowCRCr & static_cast<uint32_t>(XHCI_CRCR_LO_CRR)))
 		return kIOReturnSuccess;
 	_commandRing.stopPending = true;
-	Write32Reg(reinterpret_cast<uint32_t volatile*>(&_pXHCIOperationalRegisters->CRCr), XHCI_CRCR_LO_CA);
+	Write32Reg(reinterpret_cast<uint32_t volatile*>(&_pXHCIOperationalRegisters->CRCr), static_cast<uint32_t>(XHCI_CRCR_LO_CA));
 	for (int32_t count = 0; _commandRing.stopPending && count < 10000; ++count) {
 		if (count)
 			IODelay(10U);
@@ -96,6 +96,7 @@ IOReturn CLASS::CommandAbort(void)
 			return kIOReturnNoDevice;
 	}
 	if (_commandRing.stopPending) {
+		IOLog("%s: Timeout waiting for command to abort, 100ms\n", __FUNCTION__);
 		_commandRing.stopPending = false;
 		return kIOReturnTimeout;
 	}
@@ -111,7 +112,7 @@ int32_t CLASS::WaitForCMD(TRBStruct* trb, int32_t trbType, TRBCallback callback)
 	if (m_invalid_regspace)
 		return ret;
 	if ((sts & XHCI_STS_HSE) && !_HSEDetected) {
-		IOLog("%s: HSE bit set:%x (1)\n", __FUNCTION__, sts);
+		IOLog("%s: HSE bit set:%#x (1)\n", __FUNCTION__, sts);
 		_HSEDetected = true;
 	}
 	if (isInactive() || !_controllerAvailable)
@@ -127,7 +128,7 @@ int32_t CLASS::WaitForCMD(TRBStruct* trb, int32_t trbType, TRBCallback callback)
 	}
 	if (ret != -1)
 		return ret;
-	IOLog("%s: Timeout waiting for command completion, 100ms\n", __FUNCTION__);
+	IOLog("%s: Timeout waiting for command completion (opcode %#x), 100ms\n", __FUNCTION__, static_cast<uint32_t>(trbType));
 	CommandAbort();
 	return ret;
 }
@@ -142,8 +143,10 @@ IOReturn CLASS::EnqueCMD(TRBStruct* trb, int32_t trbType, TRBCallback callback, 
 		++next;
 	else
 		next = 0;
-	if (next == _commandRing.dequeueIndex)
+	if (next == _commandRing.dequeueIndex) {
+		IOLog("%s: Ring full, enq:%u, deq:%u\n", __FUNCTION__, _commandRing.enqueueIndex, _commandRing.dequeueIndex);
 		return kIOReturnNoResources;
+	}
 	target = &_commandRing.ptr[_commandRing.enqueueIndex];
 	target->a = trb->a;
 	target->b = trb->b;
