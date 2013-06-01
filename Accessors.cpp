@@ -70,22 +70,28 @@ uint64_t CLASS::Read64Reg(uint64_t volatile const* p)
 	if (m_invalid_regspace)
 		return UINT64_MAX;
 	if (XHCI_HCC_AC64(_HCCLow)) {
+#if __LP64__
 		if (_errataBits & kErrataFrescoLogic) {
+#endif
 			lowv = *reinterpret_cast<uint32_t volatile const*>(p);
-			if (lowv != UINT32_MAX) {
-				highv = reinterpret_cast<uint32_t volatile const*>(p)[1];
-				if (highv != UINT32_MAX)
-					return (static_cast<uint64_t>(highv) << 32) | lowv;
-			}
+			if (lowv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
+				return UINT64_MAX;
+			highv = reinterpret_cast<uint32_t volatile const*>(p)[1];
+			if (highv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
+				return UINT64_MAX;
+			return (static_cast<uint64_t>(highv) << 32) | lowv;
+#if __LP64__
 		} else {
 			v = *p;
 			if (v != UINT64_MAX)
 				return v;
 		}
+#endif
 	} else {
 		lowv = *reinterpret_cast<uint32_t volatile const*>(p);
-		if (lowv != UINT32_MAX)
-			return lowv;
+		if (lowv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
+			return UINT64_MAX;
+		return lowv;
 	}
 	if (_v3ExpansionData->_onThunderbolt)
 		m_invalid_regspace = true;
@@ -106,11 +112,15 @@ void CLASS::Write64Reg(uint64_t volatile* p, uint64_t v, bool)
 	if (m_invalid_regspace)
 		return;
 	if (XHCI_HCC_AC64(_HCCLow)) {
+#if __LP64__
 		if (_errataBits & kErrataFrescoLogic) {
+#endif
 			*reinterpret_cast<uint32_t volatile*>(p) = static_cast<uint32_t>(v);
 			reinterpret_cast<uint32_t volatile*>(p)[1] = static_cast<uint32_t>(v >> 32);
+#if __LP64__
 		} else
 			*p = v;
+#endif
 	} else {
 		*reinterpret_cast<uint32_t volatile*>(p) = static_cast<uint32_t>(v);
 		reinterpret_cast<uint32_t volatile*>(p)[1] = 0U;
