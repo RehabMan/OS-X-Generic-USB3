@@ -67,7 +67,7 @@ UInt64 CLASS::GetMicroFrameNumber(void)
 	sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace || (sts & XHCI_STS_HCH))
 		return 0ULL;
-	for (count = 0U; count < 100U; ++count) {
+	for (count = 0U; count < 2U; ++count) {
 		if (count)
 			IODelay(126U);
 		counter1 = _millsecondCounter;
@@ -75,12 +75,28 @@ UInt64 CLASS::GetMicroFrameNumber(void)
 		counter2 = _millsecondCounter;
 		if (m_invalid_regspace)
 			return 0ULL;
+		if (counter1 != counter2) {
+			/*
+			 * Note: This can only happen if a primary
+			 *   interrupt takes place between readings,
+			 *   so use the 2nd reading and assume
+			 *   MFIndex 0.
+			 */
+			return counter2 << 3;
+		}
 		mfIndex &= XHCI_MFINDEX_MASK;
-		if (counter1 == counter2 && mfIndex)
+		if (mfIndex)
+			break;
+		/*
+		 * Note: XHCI allows controllers to halt the
+		 *   clock if no device is connected.  Some,
+		 *   such as the Renesas uPD720200a don't
+		 *   generate timer interrupts when no device
+		 *   is connected initially.  No need to delay.
+		 */
+		if (!counter1)
 			break;
 	}
-	if (count == 100U)
-		return 0ULL;
 	return (counter1 << 3) + mfIndex;
 }
 
