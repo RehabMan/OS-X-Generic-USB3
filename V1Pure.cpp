@@ -56,6 +56,10 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		return kIOReturnNoDevice;
 	}
 #endif
+	/*
+	 * TBD: This also disables bus-mastering.  Bios may still
+	 *   own the xHC.  Is that a problem?
+	 */
 	// enable the card registers
 	_device->configWrite16(kIOPCIConfigCommand, kIOPCICommandMemorySpace);
 #if 0
@@ -85,12 +89,12 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		UIMFinalize();
 		return kIOReturnDeviceError;
 	}
-	_filterInterruptSource =IOFilterInterruptEventSource::filterInterruptEventSource(this,
-																					 InterruptHandler,
-																					 PrimaryInterruptFilter,
-																					 _device,
-																					 findInterruptIndex(_device,
-																										!(_errataBits & kErrataDisableMSI)));
+	_filterInterruptSource = IOFilterInterruptEventSource::filterInterruptEventSource(this,
+																					  InterruptHandler,
+																					  PrimaryInterruptFilter,
+																					  _device,
+																					  findInterruptIndex(_device,
+																										 !(_errataBits & kErrataDisableMSI)));
 	if (!_filterInterruptSource) {
 		IOLog("%s: Unable to create filterInterruptEventSource\n", __FUNCTION__);
 		UIMFinalize();
