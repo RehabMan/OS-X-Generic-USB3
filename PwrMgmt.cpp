@@ -23,11 +23,26 @@ void CLASS::CheckSleepCapability(void)
 		kIOReturnSuccess == _device->enablePCIPowerManagement(kPCIPMCSPowerStateD3)) {
 		_expansionData->_controllerCanSleep = true;
 		setProperty("Card Type", "Built-in");
+#if 1
+		setProperty("ResetOnResume", false);
+#endif
 		return;
 	}
 	IOLog("%s: xHC will be unloaded across sleep\n", getName());
 	_expansionData->_controllerCanSleep = false;
+#if 0
 	setProperty("Card Type", "PCI");
+#else
+	/*
+	 * Note:
+	 *   Always set the Card Type to Built-in, in order
+	 *   to enable the extra-current mechanism, even
+	 *   if xHC does not support save/restore.
+	 * See IOUSBRootHubDevice::start
+	 */
+	setProperty("Card Type", "Built-in");
+	setProperty("ResetOnResume", true);
+#endif
 }
 
 __attribute__((visibility("hidden")))
@@ -166,9 +181,37 @@ void CLASS::SantizePortsAfterPowerLoss(void)
 __attribute__((visibility("hidden")))
 void CLASS::SetPropsForBookkeeping(void)
 {
-	uint32_t extraPower = (kUSB3MaxPowerPerPort - kUSB2MaxPowerPerPort) * _rootHubNumPorts;
-	_device->setProperty(kAppleMaxPortCurrent, kUSB3MaxPowerPerPort, 32U);
-	_device->setProperty(kAppleCurrentExtra, extraPower, 32U);
-	_device->setProperty(kAppleMaxPortCurrentInSleep, kUSB3MaxPowerPerPort, 32U);
-	_device->setProperty(kAppleCurrentExtraInSleep, extraPower, 32U);
+	/*
+	 * Note:
+	 *   IOUSBController::CreateRootHubDevice copies these properties
+	 *   from _device to the root hub devices, and also to IOResources.
+	 *   The copying to IOResources takes place once (globally).
+	 *   IOUSBRootHubDevice::RequestExtraWakePower then uses the global
+	 *   values on IOResources to do power-accounting for all root hubs
+	 *   in the system (!).  So whatever value given here for extra current
+	 *   must cover 400mA of extra current for each SS root hub port in
+	 *   the system.
+	 *   Since there may be more than one xHC, must account for them all.
+	 *   Set a high value of 255 to (hopefully) cover everything.
+	 *   Additionally, iPhone/iPad ask for 1600mA of extra power on high-speed
+	 *   ports, so we allow for that as well.
+	 */
+#if 0
+	uint32_t defaultTotalExtraCurrent = (kUSB3MaxPowerPerPort - kUSB2MaxPowerPerPort) * _rootHubNumPorts;
+	uint32_t defaultMaxCurrentPerPort = kUSB3MaxPowerPerPort;
+#else
+	uint32_t defaultTotalExtraCurrent = (kUSB3MaxPowerPerPort - kUSB2MaxPowerPerPort) * 255U;
+	uint32_t defaultMaxCurrentPerPort = kUSB3MaxPowerPerPort + 1600U;
+#endif
+	/*
+	 * Note: Only set defaults if none were injected via DSDT
+	 */
+	if (!OSDynamicCast(OSNumber, _device->getProperty(kAppleMaxPortCurrent)))
+		_device->setProperty(kAppleMaxPortCurrent, defaultMaxCurrentPerPort, 32U);
+	if (!OSDynamicCast(OSNumber, _device->getProperty(kAppleCurrentExtra)))
+		_device->setProperty(kAppleCurrentExtra, defaultTotalExtraCurrent, 32U);
+	if (!OSDynamicCast(OSNumber, _device->getProperty(kAppleMaxPortCurrentInSleep)))
+		_device->setProperty(kAppleMaxPortCurrentInSleep, defaultMaxCurrentPerPort, 32U);
+	if (!OSDynamicCast(OSNumber, _device->getProperty(kAppleCurrentExtraInSleep)))
+		_device->setProperty(kAppleCurrentExtraInSleep, defaultTotalExtraCurrent, 32U);
 }

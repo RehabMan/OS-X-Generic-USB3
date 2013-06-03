@@ -625,7 +625,7 @@ public:
 	 * Command Ring
 	 */
 	void InitCMDRing(void);
-	IOReturn RestoreCRCr(void);
+	void RestoreCRCr(void);
 	IOReturn CommandStop(void);
 	IOReturn CommandAbort(void);
 	int32_t WaitForCMD(TRBStruct*, int32_t, TRBCallback);
