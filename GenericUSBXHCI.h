@@ -607,7 +607,7 @@ public:
 	 * XHCI Normatives
 	 */
 	IOReturn ResetController(void);
-	uint32_t GetPortSCForWriting(int16_t);	// original virtual
+	uint32_t GetPortSCForWriting(uint16_t);	// original virtual
 	void DecodeExtendedCapability(uint32_t);
 	void DecodeSupportedProtocol(XHCIXECPStruct volatile*);
 	void TakeOwnershipFromBios(void);

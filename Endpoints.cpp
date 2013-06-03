@@ -96,13 +96,14 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 	uint8_t epState;
 	TRBStruct localTrb = { 0 };
 
-	/*
-	 * TBD: TestConfiguredEpCount eliminated here, because
-	 *   of inconsistent codepaths for allocation of
-	 *   asyncEndpoint/isochEndpoint.
-	 */
 	_pIsochEndpoint = (endpointType | CTRL_EP) == ISOC_IN_EP ? static_cast<GenericUSBXHCIIsochEP*>(pIsochEndpoint) : 0;
 	numPagesInRingQueue = _pIsochEndpoint ? _pIsochEndpoint->numPagesInRingQueue : 1U;
+	/*
+	 * Note: For Isoch, this already checked in CreateIsochEndpoint
+	 */
+	if (!_pIsochEndpoint &&
+		_numEndpoints >= _maxNumEndpoints)
+		return kIOUSBEndpointCountExceeded;
 	pEpContext = GetSlotContext(slot, endpoint);
 	epState = static_cast<uint8_t>(XHCI_EPCTX_0_EPSTATE_GET(pEpContext->_e.dwEpCtx0));
 	pRing = (epState != EP_STATE_DISABLED) ? GetRing(slot, endpoint, maxStream) : 0;

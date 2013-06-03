@@ -143,7 +143,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	DisableComplianceMode();
 	u = XHCI_HCC_PSA_SZ_MAX(hcc);
 	if (u)
-		_maxPSASize = 1U << (1U + u);
+		_maxPSASize = 2U << u;
 	else
 		_maxPSASize = 0U;
 	_HCCLow = static_cast<uint8_t>(hcc & 255U);
@@ -387,17 +387,19 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 		DeleteStreams(slot, endpoint);
 		if (pRing) {
 			if ((pRing->epType | CTRL_EP) == ISOC_IN_EP) {
-				if (pRing->isochEndpoint)
+				if (pRing->isochEndpoint) {
 					DeleteIsochEP(pRing->isochEndpoint);
-				pRing->isochEndpoint = 0;
+					static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
+					pRing->isochEndpoint = 0;
+				}
 			} else {
 				if (pRing->asyncEndpoint) {
 					pRing->asyncEndpoint->Abort();
 					pRing->asyncEndpoint->release();
+					static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
+					pRing->asyncEndpoint = 0;
 				}
-				pRing->asyncEndpoint = 0;
 			}
-			static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
 		}
 	}
 	if (pRing) {
@@ -743,7 +745,7 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 	HandlePortDebouncing(&statusFlags, &changeFlags, _port, linkState, protocol);
 #endif
 	if (!changeFlags)
-		_rhPortStatusChangeBitmapGated &= ~(1U << (1U + _port));
+		_rhPortStatusChangeBitmapGated &= ~(2U << _port);
 	pStatus->statusFlags = HostToUSBWord(statusFlags);
 	pStatus->changeFlags = HostToUSBWord(changeFlags);
 	return kIOReturnSuccess;
@@ -759,9 +761,8 @@ IOReturn CLASS::SetRootHubPortFeature(UInt16 wValue, UInt16 port)
 	_port = PortNumberProtocolToCanonical(port & UINT8_MAX, protocol);
 	if (_port >= _rootHubNumPorts)
 		return kIOReturnBadArgument;
-	++_port;
 	if (gux_log_level >= 2)
-		IOLog("%s(wValue %u, port %u)\n", __FUNCTION__, wValue, _port);
+		IOLog("%s(wValue %u, port %u)\n", __FUNCTION__, wValue, 1U + _port);
 	switch (wValue) {
 		case kUSBHubPortEnableFeature:
 			return XHCIRootHubEnablePort(_port, true);
@@ -796,9 +797,8 @@ IOReturn CLASS::ClearRootHubPortFeature(UInt16 wValue, UInt16 port)
 	_port = PortNumberProtocolToCanonical(port, protocol);
 	if (_port >= _rootHubNumPorts)
 		return kIOReturnBadArgument;
-	++_port;
 	if (gux_log_level >= 2)
-		IOLog("%s(wValue %u, port %u)\n", __FUNCTION__, wValue, _port);
+		IOLog("%s(wValue %u, port %u)\n", __FUNCTION__, wValue, 1U + _port);
 	switch (wValue) {
 		case kUSBHubPortEnableFeature:
 			return XHCIRootHubEnablePort(_port, false);

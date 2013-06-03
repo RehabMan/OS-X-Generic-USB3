@@ -68,6 +68,8 @@ IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNum
 		if (XHCI_EPCTX_0_EPSTATE_GET(GetSlotContext(slot, endpoint)->_e.dwEpCtx0) == EP_STATE_RUNNING)
 			StopEndpoint(slot, endpoint);
 	} else {
+		if (_numEndpoints >= _maxNumEndpoints)
+			return kIOUSBEndpointCountExceeded;
 		pIsochEp = OSDynamicCast(GenericUSBXHCIIsochEP,
 								 CreateIsochronousEndpoint(functionAddress, endpointNumber, direction));
 		if (!pIsochEp)
@@ -98,8 +100,8 @@ IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNum
 	rc = CreateEndpoint(slot, endpoint, static_cast<uint16_t>(maxPacketSize),
 						intervalExponent, epType, 0U, maxBurst, multiple, pIsochEp);
 	if (rc != kIOReturnSuccess && !pIsochEp->pRing) {
-		static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
 		DeleteIsochEP(pIsochEp);
+		static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
 	}
 	return rc;
 }

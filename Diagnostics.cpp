@@ -338,7 +338,7 @@ void CLASS::PrintRuntimeRegs(PrintSink* pSink)
 	pSink->print("Config %u\n", Read32Reg(&_pXHCIOperationalRegisters->Config) & XHCI_CONFIG_SLOTS_MASK);
 	pSink->print("MFIndex %u\n", Read32Reg(&_pXHCIRuntimeRegisters->MFIndex) & XHCI_MFINDEX_MASK);
 	pSink->print("Last Time Sync xHC %llu milliseconds <-> CPU %llu nanoseconds\n", _millsecondsTimers[3], _millsecondsTimers[1]);
-	pSink->print("# Configured Endpoints %u\n", _numEndpoints);
+	pSink->print("# Configured Endpoints %d\n", _numEndpoints);
 	pSink->print("# Interrupts: Total %u, Serviced %u, Inactive %u, Offline %u\n",
 				 _interruptCounters[1],
 				 _interruptCounters[0],
@@ -509,7 +509,7 @@ void CLASS::PrintEndpoints(uint8_t slot, PrintSink* pSink)
 		maxPSA = XHCI_EPCTX_0_MAXP_STREAMS_GET(pEpContext->_e.dwEpCtx0);
 		if (maxPSA)
 			pSink->print("  Streams Endpoint, MaxPSA %u, LSA %c, HID %c\n",
-						 (1U << (1U + maxPSA)),
+						 2U << maxPSA,
 						 test_bit(pEpContext->_e.dwEpCtx0, 15),
 						 test_bit(pEpContext->_e.dwEpCtx1, 7));
 	}

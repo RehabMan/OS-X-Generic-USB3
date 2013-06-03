@@ -117,20 +117,6 @@ IOReturn CLASS::MakeBufferUnmapped(uint32_t mem_options,
 	return kIOReturnSuccess;
 }
 
-__attribute__((noinline, visibility("hidden")))
-uint32_t CLASS::GetPortSCForWriting(int16_t portNum)
-{
-	uint32_t portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[portNum - 1].PortSC);
-	if (m_invalid_regspace)
-		return portSC;
-	/*
-	 * Note: all bits that aren't RW-1-commands
-	 */
-	return portSC & (XHCI_PS_DR | XHCI_PS_WAKEBITS |
-					 XHCI_PS_CAS | XHCI_PS_PIC_SET(3U) | (15U << 10) /* Speed */ | XHCI_PS_PP |
-					 XHCI_PS_OCA | XHCI_PS_CCS);
-}
-
 __attribute__((visibility("hidden")))
 IOReturn CLASS::AllocRing(ringStruct* pRing, int32_t numPages)
 {
@@ -390,40 +376,6 @@ void CLASS::ParkRing(ringStruct* pRing)
 #endif
 }
 
-__attribute__((noinline, visibility("hidden")))
-uint16_t CLASS::PortNumberCanonicalToProtocol(uint16_t canonical, uint8_t* pProtocol)
-{
-	if (canonical + 1U >= _v3ExpansionData->_rootHubPortsSSStartRange &&
-		canonical + 1U < _v3ExpansionData->_rootHubPortsSSStartRange + _v3ExpansionData->_rootHubNumPortsSS) {
-		if (pProtocol)
-			*pProtocol = kUSBDeviceSpeedSuper;
-		return canonical - _v3ExpansionData->_rootHubPortsSSStartRange + 2U;
-	}
-	if (canonical + 1U >= _v3ExpansionData->_rootHubPortsHSStartRange &&
-		canonical + 1U < _v3ExpansionData->_rootHubPortsHSStartRange + _v3ExpansionData->_rootHubNumPortsHS) {
-		if (pProtocol)
-			*pProtocol = kUSBDeviceSpeedHigh;
-		return canonical - _v3ExpansionData->_rootHubPortsHSStartRange + 2U;
-	}
-	return 0U;
-}
-
-__attribute__((noinline, visibility("hidden")))
-uint16_t CLASS::PortNumberProtocolToCanonical(uint16_t port, uint8_t protocol)
-{
-	switch (protocol & kUSBSpeed_Mask) {
-		case kUSBDeviceSpeedSuper:
-			if (port && port <= _v3ExpansionData->_rootHubNumPortsSS)
-				return port + _v3ExpansionData->_rootHubPortsSSStartRange - 2U;
-			break;
-		case kUSBDeviceSpeedHigh:
-			if (port && port <= _v3ExpansionData->_rootHubNumPortsHS)
-				return port + _v3ExpansionData->_rootHubPortsHSStartRange - 2U;
-			break;
-	}
-	return UINT16_MAX;
-}
-
 __attribute__((visibility("hidden")))
 IOUSBHubPolicyMaker* CLASS::GetHubForProtocol(uint8_t protocol)
 {
@@ -432,16 +384,6 @@ IOUSBHubPolicyMaker* CLASS::GetHubForProtocol(uint8_t protocol)
 	if (protocol == kUSBDeviceSpeedSuper && _expansionData && _rootHubDeviceSS)
 		return _rootHubDeviceSS->GetPolicyMaker();
 	return 0;
-}
-
-__attribute__((visibility("hidden")))
-uint16_t CLASS::GetCompanionRootPort(uint8_t protocol, uint16_t port)
-{
-	if (protocol == kUSBDeviceSpeedHigh)
-		return port - _v3ExpansionData->_rootHubPortsHSStartRange + _v3ExpansionData->_rootHubPortsSSStartRange;
-	if (protocol == kUSBDeviceSpeedSuper)
-		return port - _v3ExpansionData->_rootHubPortsSSStartRange + _v3ExpansionData->_rootHubPortsHSStartRange;
-	return 0U;
 }
 
 __attribute__((visibility("hidden")))
@@ -850,7 +792,7 @@ IOReturn CLASS::EnterTestMode(void)
 		if (m_invalid_regspace)
 			return kIOReturnNoDevice;
 		if (portSC & XHCI_PS_PP)
-			XHCIRootHubPowerPort(1U + static_cast<uint16_t>(port), false);
+			XHCIRootHubPowerPort(port, false);
 	}
 	rc = StopUSBBus();
 	if (rc != kIOReturnSuccess)
