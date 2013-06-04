@@ -356,7 +356,7 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 		if (_errataBits & kErrataParkRing)
 			ParkRing(pRing);
 	}
-	if (endpoint == 1U) {
+	if (!endpointNumber) {
 		if (pRing) {
 			XHCIAsyncEndpoint* pEp = pRing->asyncEndpoint;
 			if (pEp) {
@@ -846,7 +846,7 @@ IOReturn CLASS::ClearRootHubPortFeature(UInt16 wValue, UInt16 port)
 
 IOReturn CLASS::SetHubAddress(UInt16 wValue)
 {
-	if ((wValue & kUSBSpeed_Mask) == kUSBDeviceSpeedSuper)
+	if (((wValue & kUSBSpeed_Mask) >> kUSBSpeed_Shift) == kUSBDeviceSpeedSuper)
 		_hub3Address = (wValue & kUSBAddress_Mask) >> kUSBAddress_Shift;
 	else
 		_hub2Address = (wValue & kUSBAddress_Mask) >> kUSBAddress_Shift;

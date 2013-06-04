@@ -46,23 +46,34 @@ void CLASS::CheckSleepCapability(void)
 }
 
 __attribute__((visibility("hidden")))
-IOReturn CLASS::IntelSleepMuxBugWorkaround(void)
+IOReturn CLASS::CompleteSuspendOnAllPorts(void)
 {
-	if (_errataBits & kErrataIntelPantherPoint) {
-		for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
-			uint32_t portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);
-			if (m_invalid_regspace)
-				return kIOReturnNoDevice;
-			if (portSC & XHCI_PS_CSC)
-				continue;
-			Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, (portSC & XHCI_PS_WRITEBACK_MASK) | XHCI_PS_CSC);
+	uint32_t wait, portSC, changePortSC;
+
+	wait = 0U;
+	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
+		changePortSC = 0U;
+		portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);
+		if (m_invalid_regspace)
+			return kIOReturnNoDevice;
+		if ((_errataBits & kErrataIntelPantherPoint) &&
+			!(portSC & XHCI_PS_CSC))
+			changePortSC = XHCI_PS_CSC;
+		if ((portSC & XHCI_PS_PED) &&
+			XHCI_PS_PLS_GET(portSC) < XDEV_U3) {
+			changePortSC |= XHCI_PS_LWS | XHCI_PS_PLS_SET(XDEV_U3);
+			wait = 15U;
 		}
+		if (changePortSC)
+			Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, (portSC & XHCI_PS_WRITEBACK_MASK) | changePortSC);
 	}
+	if (wait)
+		IOSleep(wait);
 	return kIOReturnSuccess;
 }
 
 __attribute__((visibility("hidden")))
-IOReturn CLASS::QuiesceAllEndpoints(void)
+void CLASS::QuiesceAllEndpoints(void)
 {
 	for (uint8_t slot = 1U; slot <= _numSlots; ++slot) {
 		if (ConstSlotPtr(slot)->isInactive())
@@ -73,7 +84,6 @@ IOReturn CLASS::QuiesceAllEndpoints(void)
 				QuiesceEndpoint(slot, endpoint);
 		}
 	}
-	return kIOReturnSuccess;
 }
 
 __attribute__((visibility("hidden")))

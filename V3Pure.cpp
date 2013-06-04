@@ -328,7 +328,7 @@ IOReturn CLASS::UIMEnableAddressEndpoints(USBDeviceAddress address, bool enable)
 		ringStruct* pRing = GetRing(slot, endpoint, 0U);
 		if (pRing->isInactive())
 			continue;
-		QuiesceEndpoint(slot, endpoint);	// Note: originally StopEndpoint(slot, endpoint)
+		StopEndpoint(slot, endpoint);
 	}
 	_addressMapper.Active[address] = false;
 	return kIOReturnSuccess;

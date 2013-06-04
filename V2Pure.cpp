@@ -39,6 +39,17 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 		if (retFromCMD == -1 || retFromCMD <= -1000)
 			return retFromCMD == (-1000 - XHCI_TRB_ERROR_NO_SLOTS) ? kIOUSBDeviceCountExceeded : kIOReturnInternalError;
 		slot = static_cast<uint8_t>(retFromCMD);
+		if (!slot || slot > _numSlots) {
+			/*
+			 * Sanity check.  Bail out, 'cause UIMDeleteEndpoint
+			 *   won't handle invalid slot # well.
+			 */
+			ClearTRB(&trb, true);
+			trb.d = XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
+			WaitForCMD(&trb, XHCI_TRB_TYPE_DISABLE_SLOT, 0);
+			IOLog("%s: xHC assigned invalid slot number %u\n", __FUNCTION__, slot);
+			return kIOUSBDeviceCountExceeded;
+		}
 		_addressMapper.Slot[0] = slot;
 		_addressMapper.Active[0] = true;
 		pRing = CreateRing(slot, 1, 0U);

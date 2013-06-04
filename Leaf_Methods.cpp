@@ -192,26 +192,30 @@ void CLASS::TakeOwnershipFromBios(void)
 	v = Read32Reg(_pUSBLegSup);
 	if (m_invalid_regspace)
 		return;
-	if (v & (1U << 16)) {
-		v |= (1U << 24);
-		Write32Reg(_pUSBLegSup, v);
-		rc = XHCIHandshake(_pUSBLegSup, 1U << 16, 0U, 100);
+	if (v & XHCI_HC_BIOS_OWNED) {
+		Write32Reg(_pUSBLegSup, v | XHCI_HC_OS_OWNED);
+		rc = XHCIHandshake(_pUSBLegSup, XHCI_HC_BIOS_OWNED, 0U, 100);
 		if (rc == kIOReturnNoDevice)
 			return;
 		if (rc == kIOReturnTimeout) {
 			IOLog("%s: Unable to take ownership of xHC from BIOS within 100 ms\n", __FUNCTION__);
 			/*
-			 * Break bios hold by disabling SMI events
+			 * Fall through to break bios hold by disabling SMI enables
 			 */
-			Write32Reg(_pUSBLegSup + 1, 7U << 29);
-			return;
 		}
 	}
 	v = Read32Reg(_pUSBLegSup + 1);
 	if (m_invalid_regspace)
 		return;
-	if (v & (7U << 29))
-		Write32Reg(_pUSBLegSup + 1, v);
+	/*
+	 * Clear all SMI enables
+	 */
+	v &= XHCI_LEGACY_DISABLE_SMI;
+	/*
+	 * Clear RW1C bits
+	 */
+	v |= XHCI_LEGACY_SMI_EVENTS;
+	Write32Reg(_pUSBLegSup + 1, v);
 }
 
 __attribute__((noinline, visibility("hidden")))
@@ -389,13 +393,19 @@ IOUSBHubPolicyMaker* CLASS::GetHubForProtocol(uint8_t protocol)
 __attribute__((visibility("hidden")))
 ringStruct* CLASS::CreateRing(int32_t slot, int32_t endpoint, uint32_t maxStream)
 {
+	SlotStruct* pSlot = SlotPtr(slot);
+	if (pSlot->ringArrayForEndpoint[endpoint]) {
+		if (maxStream > pSlot->maxStreamForEndpoint[endpoint])
+			return 0;
+		return pSlot->ringArrayForEndpoint[endpoint];
+	}
 	ringStruct* pRing = static_cast<ringStruct*>(IOMalloc((1U + maxStream) * sizeof *pRing));
 	if (!pRing)
 		return pRing;
 	bzero(pRing, (1U + maxStream) * sizeof *pRing);
-	SlotPtr(slot)->maxStreamForEndpoint[endpoint] = static_cast<uint16_t>(maxStream);
-	SlotPtr(slot)->lastStreamForEndpoint[endpoint] = 0U;
-	SlotPtr(slot)->ringArrayForEndpoint[endpoint] = pRing;
+	pSlot->maxStreamForEndpoint[endpoint] = static_cast<uint16_t>(maxStream);
+	pSlot->lastStreamForEndpoint[endpoint] = 0U;
+	pSlot->ringArrayForEndpoint[endpoint] = pRing;
 	for (uint32_t streamId = 0U; streamId <= maxStream; ++streamId) {
 		pRing[streamId].slot = static_cast<uint8_t>(slot);
 		pRing[streamId].endpoint = static_cast<uint8_t>(endpoint);
@@ -404,7 +414,7 @@ ringStruct* CLASS::CreateRing(int32_t slot, int32_t endpoint, uint32_t maxStream
 }
 
 __attribute__((visibility("hidden")))
-IOReturn CLASS::AddressDevice(uint32_t deviceSlot, uint16_t maxPacketSize, bool wantSAR, uint8_t speed, int32_t highSpeedSlot, int32_t highSpeedPort)
+IOReturn CLASS::AddressDevice(uint32_t deviceSlot, uint16_t maxPacketSize, bool wantSAR, uint8_t speed, int32_t highSpeedHubSlot, int32_t highSpeedPort)
 {
 	ringStruct* pRing;
 	ContextStruct *pContext, *pHubContext;
@@ -444,6 +454,22 @@ IOReturn CLASS::AddressDevice(uint32_t deviceSlot, uint16_t maxPacketSize, bool 
 	pContext = GetInputContextPtr(1);
 	pContext->_s.dwSctx1 |= XHCI_SCTX_1_RH_PORT_SET(static_cast<uint32_t>(currentPortOnHub));
 	pContext->_s.dwSctx0 = XHCI_SCTX_0_CTX_NUM_SET(1U);
+#if 0
+	uint32_t portSpeed = Read32Reg(&_pXHCIOperationalRegisters->prs[currentPortOnHub - 1U].PortSC);
+	if (m_invalid_regspace)
+		return kIOReturnNoDevice;
+	portSpeed = XHCI_PS_SPEED_GET(portSpeed);
+	if (portSpeed >= XDEV_SS) {
+		SetSlCtxSpeed(pContext, portSpeed);
+		maxPacketSize = 512U;
+		goto skip_low_full;
+	}
+#else
+	if ((currentHubAddress == _hub3Address) &&
+		(speed < kUSBDeviceSpeedSuper || maxPacketSize != 512U))
+		IOLog("%s: Inconsistent device speed %u (maxPacketSize %u) for topology rooted in SuperSpeed hub\n",
+			  __FUNCTION__, speed, maxPacketSize);
+#endif
 	switch (speed) {
 		case kUSBDeviceSpeedLow:
 			SetSlCtxSpeed(pContext, XDEV_LS);
@@ -462,10 +488,10 @@ IOReturn CLASS::AddressDevice(uint32_t deviceSlot, uint16_t maxPacketSize, bool 
 	/*
 	 * Note: Only for Low or Full Speed devices
 	 */
-	if (highSpeedSlot) {
+	if (highSpeedHubSlot) {
 		pContext->_s.dwSctx2 |= XHCI_SCTX_2_TT_PORT_NUM_SET(highSpeedPort);
-		pContext->_s.dwSctx2 |= XHCI_SCTX_2_TT_HUB_SID_SET(highSpeedSlot);
-		pHubContext = GetSlotContext(highSpeedSlot);
+		pContext->_s.dwSctx2 |= XHCI_SCTX_2_TT_HUB_SID_SET(highSpeedHubSlot);
+		pHubContext = GetSlotContext(highSpeedHubSlot);
 		if (pHubContext && XHCI_SCTX_0_MTT_GET(pHubContext->_s.dwSctx0))
 			pContext->_s.dwSctx0 |= XHCI_SCTX_0_MTT_SET(1U);
 		else

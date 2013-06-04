@@ -486,7 +486,7 @@ uint16_t CLASS::PortNumberCanonicalToProtocol(uint16_t canonical, uint8_t* pProt
 __attribute__((noinline, visibility("hidden")))
 uint16_t CLASS::PortNumberProtocolToCanonical(uint16_t port, uint8_t protocol)
 {
-	switch (protocol & kUSBSpeed_Mask) {
+	switch ((protocol & kUSBSpeed_Mask) >> kUSBSpeed_Shift) {
 		case kUSBDeviceSpeedSuper:
 			if (port && port <= _v3ExpansionData->_rootHubNumPortsSS)
 				return port + _v3ExpansionData->_rootHubPortsSSStartRange - 2U;

@@ -20,17 +20,16 @@ void CLASS::ControllerSleep(void)
 {
 	if (_myPowerState == kUSBPowerStateLowPower)
 		WakeControllerFromDoze();
-	IntelSleepMuxBugWorkaround();
-#if 0
 	/*
 	 * The actual (and correct) order of events is:
 	 *   AppleUSBHub down the power tree
 	 *   calls UIMEnableAddressEndpoints(,false) to stop endpoints.
 	 *   Then it puts enabled ports in U3 state.
 	 *   Then arrive here.
+	 *   Following 2 calls serve as a watchdog.
 	 */
 	QuiesceAllEndpoints();
-#endif
+	CompleteSuspendOnAllPorts();
 	CommandStop();
 	EnableInterruptsFromController(false);
 	IOSleep(1U);	// drain primary interrupts
@@ -273,14 +272,16 @@ IOReturn CLASS::UIMCreateStreams(UInt8 functionNumber, UInt8 endpointNumber, UIn
 		return kIOReturnBadArgument;
 	if (pSlot->lastStreamForEndpoint[endpoint])
 		return maxStream ? kIOReturnBadArgument : kIOReturnInternalError;
-	if (!IsStreamsEndpoint(slot, endpoint))
-		return kIOReturnBadArgument;
-	if (maxStream < 2U)
+	if (maxStream < 2U || maxStream > pSlot->maxStreamForEndpoint[endpoint])
 		return kIOReturnBadArgument;
 	pSlot->lastStreamForEndpoint[endpoint] = static_cast<uint16_t>(maxStream);
 	for (uint16_t streamId = 1U; streamId <= maxStream; ++streamId) {
 		IOReturn rc = CreateStream(slot, endpoint, streamId);
 		if (rc != kIOReturnSuccess) {
+			/*
+			 * TBD: This leaks the rings that were allocated
+			 *   up to the failure.
+			 */
 			pSlot->lastStreamForEndpoint[endpoint] = 0U;
 			return rc;
 		}
