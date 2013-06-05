@@ -33,28 +33,31 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 		return kIOReturnSuccess;
 	packetSize = maxPacketSize != 9U ? maxPacketSize : 512U;
 	if (!functionNumber) {
-		if (__sync_fetch_and_add(&_numEndpoints, 1) >= _maxNumEndpoints) {
-			static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
+		if (_numEndpoints >= _maxNumEndpoints)
 			return kIOUSBEndpointCountExceeded;
-		}
 		retFromCMD = WaitForCMD(&trb, XHCI_TRB_TYPE_ENABLE_SLOT, 0);
-		if (retFromCMD == -1 || retFromCMD <= -1000) {
-			static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
+		if (retFromCMD == -1 || retFromCMD <= -1000)
 			return retFromCMD == (-1000 - XHCI_TRB_ERROR_NO_SLOTS) ? kIOUSBDeviceCountExceeded : kIOReturnInternalError;
-		}
 		slot = static_cast<uint8_t>(retFromCMD);
+		if (!slot || slot > _numSlots) {
+			/*
+			 * Sanity check.  Bail out, 'cause UIMDeleteEndpoint
+			 *   won't handle invalid slot # well.
+			 */
+			ClearTRB(&trb, true);
+			trb.d = XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
+			WaitForCMD(&trb, XHCI_TRB_TYPE_DISABLE_SLOT, 0);
+			IOLog("%s: xHC assigned invalid slot number %u\n", __FUNCTION__, slot);
+			return kIOUSBDeviceCountExceeded;
+		}
 		_addressMapper.Slot[0] = slot;
 		_addressMapper.Active[0] = true;
 		pRing = CreateRing(slot, 1, 0U);
-		if (!pRing || pRing->md) {
-			static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
+		if (!pRing || pRing->md)
 			return kIOReturnInternalError;
-		}
 		rc = AllocRing(pRing, 1);
-		if (rc != kIOReturnSuccess) {
-			static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
+		if (rc != kIOReturnSuccess)
 			return kIOReturnNoMemory;
-		}
 		rc = MakeBuffer(kIOMemoryPhysicallyContiguous | kIODirectionInOut,
 						GetDeviceContextSize(),
 						-PAGE_SIZE,
@@ -63,7 +66,6 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 						&SlotPtr(slot)->physAddr);
 		if (rc != kIOReturnSuccess) {
 			DeallocRing(pRing);
-			static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
 			return kIOReturnNoMemory;
 		}
 		if (!pRing->asyncEndpoint) {
@@ -71,9 +73,9 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 			pRing->asyncEndpoint = XHCIAsyncEndpoint::withParameters(this, pRing, packetSize, 0U, 0U);
 			if (!pRing->asyncEndpoint) {
 				DeallocRing(pRing);
-				static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
 				return kIOReturnNoMemory;
 			}
+			static_cast<void>(__sync_fetch_and_add(&_numEndpoints, 1));
 		}
 		SetDCBAAAddr64(&_dcbaa.ptr[slot], ConstSlotPtr(slot)->physAddr);
 		return AddressDevice(slot,

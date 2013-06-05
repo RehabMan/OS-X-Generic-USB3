@@ -96,17 +96,18 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 	uint8_t epState;
 	TRBStruct localTrb = { 0 };
 
-	/*
-	 * TBD: TestConfiguredEpCount eliminated here, because
-	 *   of inconsistent codepaths for allocation of
-	 *   asyncEndpoint/isochEndpoint.
-	 */
 	_pIsochEndpoint = (endpointType | CTRL_EP) == ISOC_IN_EP ? static_cast<GenericUSBXHCIIsochEP*>(pIsochEndpoint) : 0;
 	numPagesInRingQueue = _pIsochEndpoint ? _pIsochEndpoint->numPagesInRingQueue : 1U;
+	/*
+	 * Note: For Isoch, this already checked in CreateIsochEndpoint
+	 */
+	if (!_pIsochEndpoint &&
+		_numEndpoints >= _maxNumEndpoints)
+		return kIOUSBEndpointCountExceeded;
+#if 0
 	pEpContext = GetSlotContext(slot, endpoint);
 	epState = static_cast<uint8_t>(XHCI_EPCTX_0_EPSTATE_GET(pEpContext->_e.dwEpCtx0));
 	pRing = (epState != EP_STATE_DISABLED) ? GetRing(slot, endpoint, maxStream) : 0;
-#if 0
 	/*
 	 * Note:
 	 * It is just plain wrong for software to try and calculate available periodic
@@ -147,12 +148,14 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 		if (rc != kIOReturnSuccess)
 			return rc;
 	}
-#endif
 	if (!pRing) {
+#endif
 		pRing = CreateRing(slot, endpoint, maxStream);
 		if (!pRing)
 			return kIOReturnNoMemory; /* Note: originally kIOReturnBadArgument */
+#if 0
 	}
+#endif
 	if (_pIsochEndpoint) {
 		if (pRing->isochEndpoint) {
 			if (pRing->isochEndpoint != _pIsochEndpoint)
@@ -160,10 +163,16 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 		} else
 			pRing->isochEndpoint = _pIsochEndpoint;
 	} else {
-		pRing->asyncEndpoint = XHCIAsyncEndpoint::withParameters(this, pRing, maxPacketSize, maxBurst, multiple);
-		if (!pRing->asyncEndpoint)
-			return kIOReturnNoMemory;
-		static_cast<void>(__sync_fetch_and_add(&_numEndpoints, 1));
+		if (pRing->asyncEndpoint) {
+			if (!pRing->asyncEndpoint->checkOwnership(this, pRing))
+				return kIOReturnInternalError;
+			pRing->asyncEndpoint->setParameters(maxPacketSize, maxBurst, multiple);
+		} else {
+			pRing->asyncEndpoint = XHCIAsyncEndpoint::withParameters(this, pRing, maxPacketSize, maxBurst, multiple);
+			if (!pRing->asyncEndpoint)
+				return kIOReturnNoMemory;
+			static_cast<void>(__sync_fetch_and_add(&_numEndpoints, 1));
+		}
 	}
 	pRing->epType = static_cast<uint8_t>(endpointType);
 	pRing->nextIsocFrame = 0ULL;

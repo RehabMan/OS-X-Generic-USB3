@@ -203,6 +203,11 @@ struct XHCIXECPStruct_SP
 	uint16_t Rsvd;
 };
 
+#define	XHCI_HC_BIOS_OWNED	(1U << 16)
+#define	XHCI_HC_OS_OWNED	(1U << 24)
+#define	XHCI_LEGACY_DISABLE_SMI	((7U << 1) | (255U << 5) | (7U << 17))
+#define	XHCI_LEGACY_SMI_EVENTS	(7U << 29)
+
 #ifdef __cplusplus
 }
 #endif

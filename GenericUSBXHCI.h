@@ -521,6 +521,7 @@ public:
 	int32_t SetLTV(uint32_t);
 	IOReturn GetPortBandwidth(uint8_t, uint8_t, uint8_t*, size_t*);
 	void NukeSlot(uint8_t);
+	IOReturn CompleteSuspendOnAllPorts(void);
 	void NotifyRootHubsOfPowerLoss(void);
 	void SantizePortsAfterPowerLoss(void);
 	static void SleepWithGateReleased(IOCommandGate*, uint32_t);
@@ -543,7 +544,7 @@ public:
 	IOReturn CreateInterruptEndpoint(int16_t, int16_t, uint8_t, int16_t, uint16_t, int16_t, uint32_t);
 	IOReturn CreateIsochEndpoint(int16_t, int16_t, uint32_t, uint8_t, uint8_t, uint32_t, uint8_t);
 	void ClearEndpoint(int32_t, int32_t);
-	IOReturn QuiesceAllEndpoints(void);
+	void QuiesceAllEndpoints(void);
 	IOReturn CreateEndpoint(int32_t, int32_t, uint16_t, int16_t, int32_t, uint32_t, uint32_t, uint8_t, void*);
 	IOReturn StartEndpoint(int32_t, int32_t, uint16_t);
 	bool checkEPForTimeOuts(int32_t, int32_t, uint32_t, uint32_t);
@@ -602,14 +603,13 @@ public:
 	bool DiscoverMuxedPorts(void);
 	IOReturn HCSelect(uint8_t, uint8_t);
 	IOReturn HCSelectWithMethod(char const*);
-	IOReturn IntelSleepMuxBugWorkaround(void);
 	bool GetNeedsReset(uint8_t slot) const { return ConstSlotPtr(slot)->deviceNeedsReset; }
 	void SetNeedsReset(uint8_t slot, bool value) { SlotPtr(slot)->deviceNeedsReset = value; }
 	/*
 	 * XHCI Normatives
 	 */
 	IOReturn ResetController(void);
-	uint32_t GetPortSCForWriting(int16_t);	// original virtual
+	uint32_t GetPortSCForWriting(uint16_t);	// original virtual
 	void DecodeExtendedCapability(uint32_t);
 	void DecodeSupportedProtocol(XHCIXECPStruct volatile*);
 	void TakeOwnershipFromBios(void);

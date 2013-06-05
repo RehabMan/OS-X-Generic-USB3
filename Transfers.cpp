@@ -608,23 +608,36 @@ __attribute__((visibility("hidden")))
 XHCIAsyncEndpoint* XHCIAsyncEndpoint::withParameters(CLASS* provider, ringStruct* pRing, uint32_t maxPacketSize, uint32_t maxBurst, uint32_t multiple)
 {
 	XHCIAsyncEndpoint* obj;
-	uint32_t MBPMultiple;
 	obj = static_cast<XHCIAsyncEndpoint*>(IOMalloc(sizeof *obj));
 	if (!obj)
 		return 0;
 	bzero(obj, sizeof *obj);
 	obj->provider = provider;
 	obj->pRing = pRing;
-	obj->maxPacketSize = maxPacketSize;
-	obj->maxBurst = maxBurst;
-	obj->multiple = multiple;
+	obj->setParameters(maxPacketSize, maxBurst, multiple);
+	return obj;
+}
+
+__attribute__((visibility("hidden")))
+void XHCIAsyncEndpoint::setParameters(uint32_t maxPacketSize, uint32_t maxBurst, uint32_t multiple)
+{
+	uint32_t MBPMultiple;
+
+	this->maxPacketSize = maxPacketSize;
+	this->maxBurst = maxBurst;
+	this->multiple = multiple;
 	/*
 	 * Note: MBP = maxPacketSize * (1U + maxBurst)
 	 *  (Max Burst Payload)
 	 */
 	MBPMultiple = maxPacketSize * (1U + maxBurst) * (1U + multiple);
-	obj->maxTDBytes = (1U << 17) - ((1U << 17) % MBPMultiple);
-	return obj;
+	maxTDBytes = (1U << 17) - ((1U << 17) % MBPMultiple);
+}
+
+__attribute__((visibility("hidden")))
+bool XHCIAsyncEndpoint::checkOwnership(CLASS* provider, ringStruct* pRing)
+{
+	return this->provider == provider && this->pRing == pRing;
 }
 
 __attribute__((visibility("hidden")))

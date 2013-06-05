@@ -67,6 +67,10 @@ UInt64 CLASS::GetMicroFrameNumber(void)
 	sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace || (sts & XHCI_STS_HCH))
 		return 0ULL;
+	/*
+	 * TBD: For 32-bit compile, access to _millsecondCounter
+	 *   is non-atomic, here vs FilterEventRing.
+	 */
 	for (count = 0U; count < 2U; ++count) {
 		if (count)
 			IODelay(126U);
