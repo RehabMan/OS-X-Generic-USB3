@@ -414,7 +414,7 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 		if (!pRing->isInactive())
 			return kIOReturnSuccess;
 	}
-	bzero(&localTrb, sizeof localTrb);
+	ClearTRB(&localTrb, true);
 	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
 	WaitForCMD(&localTrb, XHCI_TRB_TYPE_DISABLE_SLOT, 0);
 	pSlot->ctx = 0;

@@ -125,6 +125,7 @@ struct SlotStruct
 	bool deviceNeedsReset;	// 544
 
 	__attribute__((always_inline)) bool isInactive(void) const { return !this->md; }
+	__attribute__((always_inline)) bool IsStreamsEndpoint(int32_t endpoint) const { return maxStreamForEndpoint[endpoint] > 1U; }
 };
 
 struct TRBCallbackEntry

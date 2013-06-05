@@ -161,19 +161,16 @@ int32_t CLASS::SetTRDQPtr(int32_t slot, int32_t endpoint, uint32_t streamId, int
 __attribute__((visibility("hidden")))
 void CLASS::ClearStopTDs(int32_t slot, int32_t endpoint)
 {
-	ringStruct* pRing;
-	if (IsStreamsEndpoint(slot, endpoint)) {
-		uint16_t lastStream = GetLastStreamForEndpoint(slot, endpoint);
-		for (uint16_t streamId = 1U; streamId <= lastStream; ++streamId) {	// Note: originally <
-			pRing = GetRing(slot, endpoint, streamId);
-			if (pRing)
-				ClearTRB(&pRing->stopTrb, false);
-		}
-	} else {
-		pRing = GetRing(slot, endpoint, 0U);
-		if (pRing)
-			ClearTRB(&pRing->stopTrb, false);
-	}
+	SlotStruct* pSlot = SlotPtr(slot);
+	ringStruct* pRing = pSlot->ringArrayForEndpoint[endpoint];
+	if (!pRing)
+		return;
+	if (pSlot->IsStreamsEndpoint(endpoint)) {
+		uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
+		for (uint16_t streamId = 1U; streamId <= lastStream; ++streamId)	// Note: originally <
+			ClearTRB(&pRing[streamId].stopTrb, false);
+	} else
+		ClearTRB(&pRing->stopTrb, false);
 }
 
 __attribute__((visibility("hidden")))
@@ -496,7 +493,7 @@ TRBStruct* CLASS::GetNextTRB(ringStruct* pRing, void* isLastTrbInTransaction, TR
 			for (reposition = 0U, pTrb2 = pRing->ptr;
 				 indexOfFirstTrbInFragment < indexOfLinkTrb;
 				 ++indexOfFirstTrbInFragment, ++reposition, ++pTrb1, ++pTrb2) {
-				bcopy(pTrb1, pTrb2, sizeof *pTrb2); // copy from indexOfFirstTrbInFragment to reposition
+				*pTrb2 = *pTrb1;	// copy from indexOfFirstTrbInFragment to reposition
 				pTrb2->d ^= XHCI_TRB_3_CYCLE_BIT;
 			}
 			/*

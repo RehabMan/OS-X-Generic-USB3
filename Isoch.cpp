@@ -175,7 +175,7 @@ IOReturn CLASS::AbortIsochEP(GenericUSBXHCIIsochEP* pIsochEp)
 			if (!pIsochTd && nextSlot != pIsochEp->inSlot)
 				pIsochEp->outSlot = nextSlot;
 			if (pIsochTd) {
-				bzero(&pIsochTd->eventTrb, sizeof pIsochTd->eventTrb);
+				ClearTRB(&pIsochTd->eventTrb, true);
 				pIsochTd->UpdateFrameList(reinterpret_cast<AbsoluteTime const&>(timeStamp));
 				static_cast<void>(__sync_fetch_and_sub(&pIsochEp->scheduledTDs, 1));
 				if (pIsochEp->scheduledTDs < 0)
@@ -323,7 +323,7 @@ void CLASS::AddIsocFramesToSchedule(GenericUSBXHCIIsochEP* pIsochEp)
 	if (!pIsochEp->continuousStream)
 		while (pIsochEp->toDoList->_frameNumber <= currFrame + _istKeepAwayFrames) {
 			pIsochTd = static_cast<GenericUSBXHCIIsochTD*>(GetTDfromToDoList(pIsochEp));
-			bzero(&pIsochTd->eventTrb, sizeof pIsochTd->eventTrb);
+			ClearTRB(&pIsochTd->eventTrb, true);
 			rc = pIsochTd->UpdateFrameList(reinterpret_cast<AbsoluteTime const&>(timeStamp));
 			if (pIsochEp->scheduledTDs > 0)
 				PutTDonDeferredQueue(pIsochEp, pIsochTd);

@@ -275,13 +275,11 @@ IOReturn CLASS::UIMCreateStreams(UInt8 functionNumber, UInt8 endpointNumber, UIn
 	if (maxStream < 2U || maxStream > pSlot->maxStreamForEndpoint[endpoint])
 		return kIOReturnBadArgument;
 	pSlot->lastStreamForEndpoint[endpoint] = static_cast<uint16_t>(maxStream);
+	ringStruct* pRing = pSlot->ringArrayForEndpoint[endpoint];
 	for (uint16_t streamId = 1U; streamId <= maxStream; ++streamId) {
-		IOReturn rc = CreateStream(slot, endpoint, streamId);
+		IOReturn rc = CreateStream(pRing, streamId);
 		if (rc != kIOReturnSuccess) {
-			/*
-			 * TBD: This leaks the rings that were allocated
-			 *   up to the failure.
-			 */
+			CleanupPartialStreamAllocations(pRing, streamId);
 			pSlot->lastStreamForEndpoint[endpoint] = 0U;
 			return rc;
 		}

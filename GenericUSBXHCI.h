@@ -557,10 +557,11 @@ public:
 	/*
 	 * Streams
 	 */
-	bool IsStreamsEndpoint(int32_t slot, int32_t endpoint) const { return ConstSlotPtr(slot)->maxStreamForEndpoint[endpoint] > 1U; }
+	bool IsStreamsEndpoint(int32_t slot, int32_t endpoint) const { return ConstSlotPtr(slot)->IsStreamsEndpoint(endpoint); }
 	uint16_t GetLastStreamForEndpoint(int32_t slot, int32_t endpoint) const { return ConstSlotPtr(slot)->lastStreamForEndpoint[endpoint]; }
 	void RestartStreams(int32_t, int32_t, uint32_t);
-	IOReturn CreateStream(int32_t, int32_t, uint32_t);
+	IOReturn CreateStream(ringStruct*, uint16_t);
+	void CleanupPartialStreamAllocations(ringStruct*, uint16_t);
 	ringStruct* FindStream(int32_t, int32_t, uint64_t, int32_t*, bool);
 	void DeleteStreams(int32_t, int32_t);
 	/*
