@@ -580,17 +580,18 @@ bool CLASS::IsStillConnectedAndEnabled(int32_t slot)
 __attribute__((visibility("hidden")))
 void CLASS::CheckSlotForTimeouts(int32_t slot, uint32_t frameNumber)
 {
-	if (ConstSlotPtr(slot)->isInactive())
+	SlotStruct* pSlot = SlotPtr(slot);
+	if (pSlot->isInactive())
 		return;
 	for (int32_t endpoint = 1; endpoint != kUSBMaxPipes; ++endpoint) {
 		if (IsIsocEP(slot, endpoint))
 			continue;
-		ringStruct* pRing = GetRing(slot, endpoint, 0U);
+		ringStruct* pRing = pSlot->ringArrayForEndpoint[endpoint];
 		if (pRing->isInactive())
 			continue;
-		if (IsStreamsEndpoint(slot, endpoint)) {
+		if (pSlot->IsStreamsEndpoint(endpoint)) {
 			bool stopped = false;
-			uint16_t lastStream = GetLastStreamForEndpoint(slot, endpoint);
+			uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
 			for (uint16_t streamId = 1U; streamId <= lastStream; ++streamId)
 				if (checkEPForTimeOuts(slot, endpoint, streamId, frameNumber))
 					stopped = true;

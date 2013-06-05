@@ -76,10 +76,11 @@ __attribute__((visibility("hidden")))
 void CLASS::QuiesceAllEndpoints(void)
 {
 	for (uint8_t slot = 1U; slot <= _numSlots; ++slot) {
-		if (ConstSlotPtr(slot)->isInactive())
+		SlotStruct* pSlot = SlotPtr(slot);
+		if (pSlot->isInactive())
 			continue;
 		for (int32_t endpoint = 1; endpoint != kUSBMaxPipes; ++endpoint) {
-			ringStruct* pRing = GetRing(slot, endpoint, 0U);
+			ringStruct* pRing = pSlot->ringArrayForEndpoint[endpoint];
 			if (!pRing->isInactive())
 				QuiesceEndpoint(slot, endpoint);
 		}
