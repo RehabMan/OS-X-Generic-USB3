@@ -34,19 +34,20 @@ IOReturn CLASS::CreateTransfer(IOUSBCommand* command, uint32_t streamId)
 		return AddDummyCommand(pRing, command);
 	if (pRing->deleteInProgress)
 		return kIOReturnNoDevice;
-	XHCIAsyncEndpoint* pEp = pRing->asyncEndpoint;
-	if (!pEp)
+	if ((pRing->epType | CTRL_EP) == ISOC_IN_EP)
 		return kIOUSBEndpointNotFound;
-	if (pEp->aborting)
+	XHCIAsyncEndpoint* pAsyncEP = pRing->asyncEndpoint;
+	if (!pAsyncEP)
+		return kIOUSBEndpointNotFound;
+	if (pAsyncEP->aborting)
 		return kIOReturnNotPermitted;
-	ContextStruct* pContext = GetSlotContext(slot, endpoint);
-	switch (XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0)) {
+	switch (XHCI_EPCTX_0_EPSTATE_GET(GetSlotContext(slot, endpoint)->_e.dwEpCtx0)) {
 		case EP_STATE_HALTED:
 		case EP_STATE_ERROR:
 			return kIOUSBPipeStalled;
 	}
-	IOReturn rc = pEp->CreateTDs(command, static_cast<uint16_t>(streamId), 0U, 0xFFU, 0);
-	pEp->ScheduleTDs();
+	IOReturn rc = pAsyncEP->CreateTDs(command, static_cast<uint16_t>(streamId), 0U, 0xFFU, 0);
+	pAsyncEP->ScheduleTDs();
 	return rc;
 }
 
@@ -80,39 +81,30 @@ IOReturn CLASS::ReturnAllTransfersAndReinitRing(int32_t slot, int32_t endpoint, 
 __attribute__((visibility("hidden")))
 IOReturn CLASS::ReinitTransferRing(int32_t slot, int32_t endpoint, uint32_t streamId)
 {
-#if 0
-	ContextStruct* pContext;
-	TRBStruct localTrb = { 0 };
-#endif
 	int32_t retFromCMD;
 	ringStruct* pRing = GetRing(slot, endpoint, streamId);
 	if (!pRing)
 		return kIOReturnBadArgument;
-#if 0
-	pContext = GetSlotContext(slot, endpoint);
-	PrintContext(pContext);
-#endif
 	if (pRing->isInactive() ||
 		!pRing->ptr ||
 		pRing->numTRBs < 2U)
 		return kIOReturnNoMemory;
-#if 0
-	localTrb.d |= XHCI_TRB_3_SLOT_SET(slot);
-	localTrb.d |= XHCI_TRB_3_EP_SET(endpoint);
-#endif
 	if (pRing->dequeueIndex == pRing->enqueueIndex) {
 		bzero(pRing->ptr, static_cast<size_t>(pRing->numTRBs - 1U) * sizeof *pRing->ptr);
-		pRing->ptr[pRing->numTRBs - 1U].d |= XHCI_TRB_3_TC_BIT;
+		pRing->ptr[pRing->numTRBs - 1U].d = XHCI_TRB_3_TYPE_SET(XHCI_TRB_TYPE_LINK) | XHCI_TRB_3_TC_BIT;
 		pRing->cycleState = 1U;
 		pRing->enqueueIndex = 0U;
 		pRing->dequeueIndex = 0U;
+		pRing->lastSeenDequeueIndex = 0U;
+		pRing->lastSeenFrame = 0U;
+		pRing->nextIsocFrame = 0ULL;
 	}
 	retFromCMD = SetTRDQPtr(slot, endpoint, streamId, pRing->dequeueIndex);
 	if (pRing->schedulingPending) {
 		if (!IsIsocEP(slot, endpoint)) {
-			XHCIAsyncEndpoint* pEp = pRing->asyncEndpoint;
-			if (pEp)
-				pEp->ScheduleTDs();
+			XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
+			if (pAsyncEp)
+				pAsyncEp->ScheduleTDs();
 		}
 		if (IsStreamsEndpoint(slot, endpoint))
 			RestartStreams(slot, endpoint, 0U);
@@ -132,7 +124,8 @@ int32_t CLASS::SetTRDQPtr(int32_t slot, int32_t endpoint, uint32_t streamId, int
 	if (!pRing)
 		return -1256;
 	ContextStruct* pContext = GetSlotContext(slot, endpoint);
-	if (XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0) != EP_STATE_STOPPED) {
+	uint32_t epState = XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0);
+	if (epState != EP_STATE_STOPPED && epState != EP_STATE_ERROR) {
 		if (!IsStreamsEndpoint(slot, endpoint) ||
 			pRing->dequeueIndex != pRing->enqueueIndex)
 			return -1000 - XHCI_TRB_ERROR_CONTEXT_STATE;
@@ -140,8 +133,19 @@ int32_t CLASS::SetTRDQPtr(int32_t slot, int32_t endpoint, uint32_t streamId, int
 	localTrb.d |= XHCI_TRB_3_SLOT_SET(slot);
 	localTrb.d |= XHCI_TRB_3_EP_SET(endpoint);
 	SetTRBAddr64(&localTrb, pRing->physAddr + index * sizeof(TRBStruct));
-	if (pRing->cycleState)
-		localTrb.a |= XHCI_TRB_3_CYCLE_BIT;
+	/*
+	 * Note:
+	 *   If emptying ring, use enqueue cycle-state, otherwise
+	 *   assume index TRB has not been evaluated yet and trust
+	 *   its cycle-state.
+	 */
+	if (index == pRing->enqueueIndex) {
+		if (pRing->cycleState)
+			localTrb.a |= XHCI_TRB_3_CYCLE_BIT;
+	} else {
+		if (pRing->ptr[index].d & XHCI_TRB_3_CYCLE_BIT)
+			localTrb.a |= XHCI_TRB_3_CYCLE_BIT;
+	}
 	if (streamId) {
 		localTrb.a |= 2U;  // Note: SCT = 1U - Primary Transfer Ring
 		localTrb.c |= XHCI_TRB_2_STREAM_SET(streamId);
@@ -178,34 +182,40 @@ IOReturn CLASS::AddDummyCommand(ringStruct* pRing, IOUSBCommand* command)
 {
 	IOReturn rc;
 
-	XHCIAsyncEndpoint* pEp = pRing->asyncEndpoint;
-	if (!pEp)
+	if ((pRing->epType | CTRL_EP) == ISOC_IN_EP)
 		return kIOUSBEndpointNotFound;
-	if (pEp->aborting)
+	XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
+	if (!pAsyncEp)
+		return kIOUSBEndpointNotFound;
+	if (pAsyncEp->aborting)
 		return kIOReturnNotPermitted;
-	rc = pEp->CreateTDs(command, 0U, XHCI_TRB_3_TYPE_SET(XHCI_TRB_TYPE_NOOP) | XHCI_TRB_3_IOC_BIT, 0U, 0);
-	pEp->ScheduleTDs();
+	rc = pAsyncEp->CreateTDs(command, 0U, XHCI_TRB_3_TYPE_SET(XHCI_TRB_TYPE_NOOP) | XHCI_TRB_3_IOC_BIT, 0U, 0);
+	pAsyncEp->ScheduleTDs();
 	return rc;
 }
 
 __attribute__((visibility("hidden")))
 bool CLASS::CanTDFragmentFit(ringStruct const* pRing, uint32_t numBytes)
 {
-	uint16_t numFit;
+	uint16_t numFit, spaceInStart;
 	uint32_t maxNumPages = (numBytes / PAGE_SIZE) + 2U;
+	if ((numBytes & PAGE_MASK) > 1U)
+		++maxNumPages;
+	/*
+	 * Note: maxNumPages accounts for possible EVENT_DATA
+	 */
 	if (pRing->enqueueIndex < pRing->dequeueIndex)
 		numFit = pRing->dequeueIndex - 1U - pRing->enqueueIndex;
 	else {
-#if 0
-		numFit = pRing->numTRBs - 1U - pRing->enqueueIndex + pRing->dequeueIndex;
-#else
-		uint16_t v;
 		numFit = pRing->numTRBs - pRing->enqueueIndex;
-		v = pRing->dequeueIndex;
-		numFit = (numFit > 3U) ? numFit - 3U : 0U;
-		v = (v > 2U) ? v - 2U : 0U;
-		if (numFit < v) numFit = v;
-#endif
+		spaceInStart = pRing->dequeueIndex;
+		if (spaceInStart) {
+			if (numFit)
+				--numFit;
+			if (numFit < (--spaceInStart))
+				numFit = spaceInStart;
+		} else
+			numFit = (numFit > 2U) ? (numFit - 2U) : 0U;
 	}
 	return maxNumPages <= numFit;
 }
@@ -444,7 +454,7 @@ IOReturn CLASS::_createTransfer(void* pTd, bool isIsochTransfer, uint32_t bytesT
 }
 
 __attribute__((visibility("hidden")))
-TRBStruct* CLASS::GetNextTRB(ringStruct* pRing, void* isLastTrbInTransaction, TRBStruct** ppFirstTrbInFragment, bool isFirstTrbInTransaction)
+TRBStruct* CLASS::GetNextTRB(ringStruct* pRing, void* isLastTrbInTransaction, TRBStruct** ppFirstTrbInFragment, bool isFirstFragmentInTransaction)
 {
 	TRBStruct *pTrb1, *pTrb2;
 	int32_t indexOfLinkTrb, indexOfFirstTrbInFragment;
@@ -505,11 +515,16 @@ TRBStruct* CLASS::GetNextTRB(ringStruct* pRing, void* isLastTrbInTransaction, TR
 			pTrb2->b = pTrb1->b;
 			pTrb2->c = pTrb1->c;
 			fourth = pTrb1->d;
-			if (isFirstTrbInTransaction)
+			if (isFirstFragmentInTransaction)
 				fourth &= ~XHCI_TRB_3_CHAIN_BIT;
 			else
 				fourth |= XHCI_TRB_3_CHAIN_BIT;
+			/*
+			 * Note: This could lead xHC to immediately parse link TRB
+			 */
+			IOSync();
 			pTrb2->d = fourth;
+			IOSync();
 			newEnqueueIndex = reposition + 1U;
 			*ppFirstTrbInFragment = pRing->ptr;
 			pRing->enqueueIndex = reposition;
@@ -680,7 +695,7 @@ void XHCIAsyncEndpoint::nuke(void)
 }
 
 __attribute__((visibility("hidden")))
-IOReturn XHCIAsyncEndpoint::CreateTDs(IOUSBCommand* command, uint16_t streamId, uint32_t mystery, uint8_t immediateDataSize, uint8_t* pImmediateData)
+IOReturn XHCIAsyncEndpoint::CreateTDs(IOUSBCommand* command, uint16_t streamId, uint32_t mystery, uint8_t immediateDataSize, uint8_t const* pImmediateData)
 {
 	XHCIAsyncTD* pTd;
 	size_t transferRequestBytes, numBytesLeft, bytesDone;
@@ -823,7 +838,7 @@ IOReturn XHCIAsyncEndpoint::Abort(void)
 	pRing->returnInProgress = true;
 	while (scheduledHead) {
 		IOUSBCommand* command = scheduledHead->command;
-		FlushTDsWithStatus(command);
+		FlushTDs(command, 1);
 		MoveTDsFromReadyQToDoneQ(command);
 	}
 	pRing->returnInProgress = false;
@@ -876,17 +891,33 @@ void XHCIAsyncEndpoint::RetireTDs(XHCIAsyncTD* pTd, IOReturn passthruReturnCode,
 	if (flush) {
 		slot = pRing->slot;
 		endpoint = pRing->endpoint;
-		provider->QuiesceEndpoint(slot, endpoint);
-		FlushTDsWithStatus(pTd->command);
-		MoveTDsFromReadyQToDoneQ(pTd->command);
-		if (scheduledHead) {
-			/*
-			 * Note - original is inverted...
-			 */
-			if (provider->IsStreamsEndpoint(slot, endpoint))
-				provider->RestartStreams(slot, endpoint, 0U);
-			else
-				provider->StartEndpoint(slot, endpoint, 0U);
+		/*
+		 * Notes:
+		 * If the endpoint is still running
+		 *   - if more TDs are queued for transaction-to-flush, must stop the EP, and set TRDQPtr
+		 *     in order to break the chain.
+		 *   - otherwise, if other transactions are scheduled beyond flushed one, it's not safe
+		 *     to set TRDQPtr since the xHC may have advanced past the flushed transaction.  Let the
+		 *     EP continue to run.  Any events for flushed TDs are safely discarded in processTransferEvent2.
+		 *   - otherwise, EP will safely idle after finishing flushed transaction, so can let
+		 *     it run.
+		 */
+		if ((!queuedHead || queuedHead->command != pTd->command) &&
+			XHCI_EPCTX_0_EPSTATE_GET(provider->GetSlotContext(slot, endpoint)->_e.dwEpCtx0) == EP_STATE_RUNNING) {
+			FlushTDs(pTd->command, 0);
+		} else {
+			provider->QuiesceEndpoint(slot, endpoint);
+			FlushTDs(pTd->command, 2);
+			MoveTDsFromReadyQToDoneQ(pTd->command);
+			if (scheduledHead) {
+				/*
+				 * Note - original is inverted...
+				 */
+				if (provider->IsStreamsEndpoint(slot, endpoint))
+					provider->RestartStreams(slot, endpoint, 0U);
+				else
+					provider->StartEndpoint(slot, endpoint, 0U);
+			}
 		}
 	}
 	if (callCompletion)
@@ -939,18 +970,24 @@ void XHCIAsyncEndpoint::PutTDonDoneQueue(XHCIAsyncTD* pTd)
 	++numTDsDone;
 }
 
+/*
+ * updateDequeueOption
+ *   0 - don't update TRDQPtr
+ *   1 - update TRDQPtr if ring empty after flush
+ *   2 - always update TRDQPtr
+ */
 __attribute__((visibility("hidden")))
-void XHCIAsyncEndpoint::FlushTDsWithStatus(IOUSBCommand* command)
+void XHCIAsyncEndpoint::FlushTDs(IOUSBCommand* command, int updateDequeueOption)
 {
 	XHCIAsyncTD* pTd;
 	uint32_t streamId;
 	int32_t indexInQueue;
-	bool foundSome;
+	bool updateDequeueIndex;
 
 	pTd = scheduledHead;
 	if (!command || !pTd)
 		return;
-	foundSome = false;
+	updateDequeueIndex = false;
 	indexInQueue = 0;
 	streamId = 0U;
 	while (pTd && pTd->command == command) {
@@ -961,15 +998,22 @@ void XHCIAsyncEndpoint::FlushTDsWithStatus(IOUSBCommand* command)
 			scheduledHead = pTd->next;
 		--numTDsScheduled;
 		streamId = pTd->streamId;
-		indexInQueue = pTd->lastTrbIndex;
-		PutTDonDoneQueue(pTd);
-		++indexInQueue;
+		indexInQueue = pTd->lastTrbIndex + 1;
 		if (indexInQueue >= static_cast<int32_t>(pRing->numTRBs) - 1)
 			indexInQueue = 0;
+		updateDequeueIndex = true;
+		PutTDonDoneQueue(pTd);
 		pTd = scheduledHead;
-		foundSome = true;
 	}
-	if (foundSome)
+	switch (updateDequeueOption) {
+		case 0:
+			return;
+		case 1:
+			if (scheduledHead)
+				return;
+			break;
+	}
+	if (updateDequeueIndex)
 		provider->SetTRDQPtr(pRing->slot, pRing->endpoint, streamId, indexInQueue);
 }
 
@@ -978,19 +1022,11 @@ void XHCIAsyncEndpoint::MoveTDsFromReadyQToDoneQ(IOUSBCommand* command)
 {
 	XHCIAsyncTD* pTd;
 	while (queuedHead) {
-		pTd = GetTD(&queuedHead, &queuedTail, &numTDsQueued);
-		if (!pTd)
-			continue;
-		if (command && command != pTd->command) {
-			if (queuedHead)
-				pTd->next = queuedHead;
-			else
-				queuedTail = pTd;
-			queuedHead = pTd;
-			++numTDsQueued;
+		if (command && command != queuedHead->command)
 			break;
-		}
-		PutTDonDoneQueue(pTd);
+		pTd = GetTD(&queuedHead, &queuedTail, &numTDsQueued);
+		if (pTd)
+			PutTDonDoneQueue(pTd);
 	}
 }
 
@@ -1068,12 +1104,12 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 	XHCIAsyncTD* pTd;
 	IOUSBCommand* command;
 	IOReturn passthruReturnCode;
-	uint32_t transferLength, ndto, cto, bytesTransferred, firstSeen, TRTime;
+	uint32_t shortfall, ndto, cto, bytesTransferred, firstSeen, TRTime;
 	int32_t next;
 	bool returnATransfer;
 
 	addr = GenericUSBXHCI::GetTRBAddr64(&pRing->stopTrb);
-	transferLength = XHCI_TRB_2_REM_GET(pRing->stopTrb.c);
+	shortfall = XHCI_TRB_2_REM_GET(pRing->stopTrb.c);
 	trbIndex64 = GenericUSBXHCI::DiffTRBIndex(addr, pRing->physAddr);
 	if (trbIndex64 < 0 || trbIndex64 >= pRing->numTRBs - 1U)
 		trbIndex64 = pRing->dequeueIndex;
@@ -1093,7 +1129,7 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 		}
 		returnATransfer = false;
 		if (cto && frameNumber - firstSeen > cto) {
-			pTd->shortfall = pTd->bytesThisTD - transferLength;
+			pTd->shortfall = pTd->bytesThisTD - shortfall;
 			returnATransfer = true;
 		}
 		if (ndto) {
@@ -1101,9 +1137,9 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 			TRTime = command->GetUIMScratch(6U);
 			if (!TRTime ||
 				command->GetUIMScratch(3U) != static_cast<uint32_t>(trbIndex64) ||
-				bytesTransferred != transferLength) {
+				bytesTransferred != shortfall) {
 				command->SetUIMScratch(3U, static_cast<uint32_t>(trbIndex64));
-				command->SetUIMScratch(4U, transferLength);
+				command->SetUIMScratch(4U, shortfall);
 				command->SetUIMScratch(6U, frameNumber);
 			} else if (frameNumber - TRTime > ndto) {
 				pTd->shortfall = pTd->bytesThisTD - bytesTransferred;
@@ -1114,7 +1150,7 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 			return;
 		passthruReturnCode = kIOUSBTransactionTimeout;
 	} else {
-		pTd->shortfall = pTd->bytesThisTD - transferLength;
+		pTd->shortfall = pTd->bytesThisTD - shortfall;
 		passthruReturnCode = kIOReturnNotResponding;
 	}
 	next = pTd->lastTrbIndex + 1;

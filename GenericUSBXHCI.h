@@ -562,7 +562,7 @@ public:
 	void RestartStreams(int32_t, int32_t, uint32_t);
 	IOReturn CreateStream(ringStruct*, uint16_t);
 	void CleanupPartialStreamAllocations(ringStruct*, uint16_t);
-	ringStruct* FindStream(int32_t, int32_t, uint64_t, int32_t*, bool);
+	ringStruct* FindStream(int32_t, int32_t, uint64_t, int32_t*);
 	void DeleteStreams(int32_t, int32_t);
 	/*
 	 * Transfers
@@ -586,7 +586,7 @@ public:
 	ringStruct* GetRing(int32_t, int32_t, uint32_t);
 	IOReturn AllocRing(ringStruct*, int32_t);
 	static void DeallocRing(ringStruct*);
-	static int32_t CountRingToED(ringStruct*, int32_t, uint32_t*, bool);
+	static int32_t CountRingToED(ringStruct*, int32_t, uint32_t*);
 	void ParkRing(ringStruct*);
 	IOReturn ReturnAllTransfersAndReinitRing(int32_t, int32_t, uint32_t);
 	IOReturn ReinitTransferRing(int32_t, int32_t, uint32_t);

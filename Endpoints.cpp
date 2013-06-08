@@ -535,7 +535,7 @@ void CLASS::CleanupPartialStreamAllocations(ringStruct* pRing, uint16_t lastStre
 }
 
 __attribute__((visibility("hidden")))
-ringStruct* CLASS::FindStream(int32_t slot, int32_t endpoint, uint64_t addr, int32_t* pTrbIndexInRingQueue, bool)
+ringStruct* CLASS::FindStream(int32_t slot, int32_t endpoint, uint64_t addr, int32_t* pTrbIndexInRingQueue)
 {
 	int64_t diffIdx64;
 	SlotStruct* pSlot = SlotPtr(slot);

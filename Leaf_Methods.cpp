@@ -584,10 +584,9 @@ void CLASS::CheckSlotForTimeouts(int32_t slot, uint32_t frameNumber)
 	if (pSlot->isInactive())
 		return;
 	for (int32_t endpoint = 1; endpoint != kUSBMaxPipes; ++endpoint) {
-		if (IsIsocEP(slot, endpoint))
-			continue;
 		ringStruct* pRing = pSlot->ringArrayForEndpoint[endpoint];
-		if (pRing->isInactive())
+		if (pRing->isInactive() ||
+			(pRing->epType | CTRL_EP) == ISOC_IN_EP)
 			continue;
 		if (pSlot->IsStreamsEndpoint(endpoint)) {
 			bool stopped = false;
@@ -651,13 +650,15 @@ IOReturn CLASS::GatedGetFrameNumberWithTime(OSObject* owner, void* frameNumber, 
 }
 
 __attribute__((visibility("hidden")))
-int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uint32_t* pShortFall, bool updateDequeueIndex)
+int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uint32_t* pShortFall)
 {
 	int32_t next;
 	uint32_t trbType;
 	TRBStruct* pTrb = &pRing->ptr[trbIndexInRingQueue];
 
-	while (pTrb->d & XHCI_TRB_3_CHAIN_BIT) {
+	trbType = XHCI_TRB_3_TYPE_GET(pTrb->d);
+	while ((pTrb->d & XHCI_TRB_3_CHAIN_BIT) &&
+		   trbType != XHCI_TRB_TYPE_EVENT_DATA) {
 		next = trbIndexInRingQueue + 1;
 		if (next >= static_cast<int32_t>(pRing->numTRBs) - 1)
 			next = 0;
@@ -666,15 +667,9 @@ int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uin
 		trbIndexInRingQueue = next;
 		pTrb = &pRing->ptr[trbIndexInRingQueue];
 		trbType = XHCI_TRB_3_TYPE_GET(pTrb->d);
-		if (trbType == XHCI_TRB_TYPE_NORMAL) {
+		if (trbType == XHCI_TRB_TYPE_NORMAL)
 			*pShortFall += XHCI_TRB_2_BYTES_GET(pTrb->c);
-			continue;
-		}
-		if (trbType == XHCI_TRB_TYPE_EVENT_DATA)
-			break;
 	}
-	if (updateDequeueIndex)
-		pRing->dequeueIndex = static_cast<uint16_t>(trbIndexInRingQueue);
 	return trbIndexInRingQueue;
 }
 

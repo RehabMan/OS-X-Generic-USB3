@@ -34,14 +34,14 @@ struct XHCIAsyncEndpoint
 	GenericUSBXHCI* provider;	// 0x80
 								// sizeof 0x88
 
-	IOReturn CreateTDs(IOUSBCommand*, uint16_t, uint32_t, uint8_t, uint8_t*);
+	IOReturn CreateTDs(IOUSBCommand*, uint16_t, uint32_t, uint8_t, uint8_t const*);
 	void ScheduleTDs(void);
 	IOReturn Abort(void);
 	XHCIAsyncTD* GetTDFromActiveQueueWithIndex(uint16_t);
 	void RetireTDs(XHCIAsyncTD*, IOReturn, bool, bool);
 	XHCIAsyncTD* GetTDFromFreeQueue(bool);
 	void PutTDonDoneQueue(XHCIAsyncTD*);
-	void FlushTDsWithStatus(IOUSBCommand*);
+	void FlushTDs(IOUSBCommand*, int);
 	void MoveTDsFromReadyQToDoneQ(IOUSBCommand*);
 	void MoveAllTDsFromReadyQToDoneQ(void);
 	void Complete(IOReturn);
