@@ -630,6 +630,8 @@ XHCIAsyncEndpoint* XHCIAsyncEndpoint::withParameters(CLASS* provider, ringStruct
 	return obj;
 }
 
+#define kAsyncMaxFragmentSize (1U << 17)
+
 __attribute__((visibility("hidden")))
 void XHCIAsyncEndpoint::setParameters(uint32_t maxPacketSize, uint32_t maxBurst, uint32_t multiple)
 {
@@ -643,7 +645,9 @@ void XHCIAsyncEndpoint::setParameters(uint32_t maxPacketSize, uint32_t maxBurst,
 	 *  (Max Burst Payload)
 	 */
 	MBPMultiple = maxPacketSize * (1U + maxBurst) * (1U + multiple);
-	maxTDBytes = (1U << 17) - ((1U << 17) % MBPMultiple);
+	maxTDBytes = kAsyncMaxFragmentSize;
+	if (MBPMultiple && MBPMultiple < kAsyncMaxFragmentSize)
+		maxTDBytes -= (kAsyncMaxFragmentSize % MBPMultiple);
 }
 
 __attribute__((visibility("hidden")))
@@ -655,32 +659,29 @@ bool XHCIAsyncEndpoint::checkOwnership(CLASS* provider, ringStruct* pRing)
 __attribute__((visibility("hidden")))
 void XHCIAsyncEndpoint::release(void)
 {
-	XHCIAsyncTD* pTd;
-
 	aborting = true;
 	pRing->returnInProgress = true;
 	MoveAllTDsFromReadyQToDoneQ();
 	if (numTDsDone)
 		Complete(kIOReturnAborted);
-	while (freeHead) {
-		pTd = GetTDFromFreeQueue(false);
-		if (pTd)
-			pTd->release();
-	}
+	wipeAsyncList(freeHead, freeTail);
+	freeHead = 0;
+	freeTail = 0;
+	numTDsFree = 0U;
 	aborting = false;
 	pRing->returnInProgress = false;
 	IOFree(this, sizeof *this);
 }
 
-static
-void wipeAsyncList(XHCIAsyncTD* pHead, XHCIAsyncTD* pTail)
+__attribute__((visibility("hidden")))
+void XHCIAsyncEndpoint::wipeAsyncList(XHCIAsyncTD* pHead, XHCIAsyncTD* pTail)
 {
-	XHCIAsyncTD* pTd;
+	XHCIAsyncTD* pNextTd;
 
 	while (pHead) {
-		pTd = (pHead != pTail) ? pHead->next : 0;
+		pNextTd = (pHead != pTail) ? pHead->next : 0;
 		pHead->release();
-		pHead = pTd;
+		pHead = pNextTd;
 	}
 }
 
@@ -752,12 +753,7 @@ IOReturn XHCIAsyncEndpoint::CreateTDs(IOUSBCommand* command, uint16_t streamId, 
 			if (immediateDataSize)
 				bcopy(pImmediateData, &pTd->immediateData[0], immediateDataSize);
 		}
-		if (queuedHead)
-			queuedTail->next = pTd;
-		else
-			queuedHead = pTd;
-		queuedTail = pTd;
-		++numTDsQueued;
+		PutTD(&queuedHead, &queuedTail, pTd, &numTDsQueued);
 		bytesDone += currentTDBytes;
 		if (bytesDone >= transferRequestBytes)
 			break;
@@ -808,22 +804,10 @@ void XHCIAsyncEndpoint::ScheduleTDs(void)
 		if (rc != kIOReturnSuccess) {
 			if (provider)
 				++provider->_diagCounters[DIAGCTR_XFERLAYOUT];
-			if (queuedHead) {
-				pTd->next = queuedHead;
-				queuedHead = pTd;
-			} else {
-				queuedHead = pTd;
-				queuedTail = pTd;
-			}
-			++numTDsQueued;
+			PutTDAtHead(&queuedHead, &queuedTail, pTd, &numTDsQueued);
 			break;
 		}
-		if (scheduledHead)
-			scheduledTail->next = pTd;
-		else
-			scheduledHead = pTd;
-		scheduledTail = pTd;
-		++numTDsScheduled;
+		PutTD(&scheduledHead, &scheduledTail, pTd, &numTDsScheduled);
 		if (pRing->returnInProgress)
 			pRing->schedulingPending = true;
 		else
@@ -856,29 +840,49 @@ IOReturn XHCIAsyncEndpoint::Abort(void)
 __attribute__((visibility("hidden")))
 struct XHCIAsyncTD* XHCIAsyncEndpoint::GetTDFromActiveQueueWithIndex(uint16_t indexInQueue)
 {
-	XHCIAsyncTD *prev, *pTd;
-	pTd = prev = scheduledHead;
+	XHCIAsyncTD *pPrevTd, *pTd;
+	uint32_t orphanCount = 0U;
+	pTd = pPrevTd = scheduledHead;
 	while (pTd) {
 		if (pTd->lastTrbIndex == indexInQueue)
 			break;
 		if (pTd == scheduledTail)
 			return 0;
-		prev = pTd;
+		++orphanCount;
+		pPrevTd = pTd;
 		pTd = pTd->next;
 	}
 	if (!pTd)
 		return 0;
+#if 0
 	if (pTd == scheduledTail) {
 		if (pTd == scheduledHead) {
 			scheduledTail = 0;
 			scheduledHead = 0;
 		} else
-			scheduledTail = prev;
+			scheduledTail = pPrevTd;
 	} else if (pTd == scheduledHead)
 		scheduledHead = pTd->next;
 	else
-		prev->next = pTd->next;
+		pPrevTd->next = pTd->next;
 	--numTDsScheduled;
+#else
+	if (orphanCount) {
+		/*
+		 * Flush all scheduled TDs prior to pTd
+		 */
+		if (doneHead)
+			doneTail->next = scheduledHead;
+		else
+			doneHead = scheduledHead;
+		doneTail = pPrevTd;
+		numTDsDone += orphanCount;
+		scheduledHead = pTd;
+		numTDsScheduled -= orphanCount;
+		Complete(kIOReturnSuccess);
+	}
+	GetTD(&scheduledHead, &scheduledTail, &numTDsScheduled);
+#endif
 	return pTd;
 }
 
@@ -930,17 +934,8 @@ XHCIAsyncTD* XHCIAsyncEndpoint::GetTDFromFreeQueue(bool newOneOk)
 {
 	XHCIAsyncTD* pTd;
 
-	if (!freeHead && newOneOk) {
-		pTd = XHCIAsyncTD::ForEndpoint(this);
-		if (pTd) {
-			if (freeHead)
-				freeTail->next = pTd;
-			else
-				freeHead = pTd;
-			freeTail = pTd;
-			++numTDsFree;
-		}
-	}
+	if (!freeHead)
+		return newOneOk ? XHCIAsyncTD::ForEndpoint(this) : 0;
 	pTd = GetTD(&freeHead, &freeTail, &numTDsFree);
 	if (pTd)
 		pTd->reinit();
@@ -962,12 +957,7 @@ void XHCIAsyncEndpoint::PutTDonDoneQueue(XHCIAsyncTD* pTd)
 		}
 		doneTail = pLastTd;
 	}
-	if (doneHead)
-		doneTail->next = pTd;
-	else
-		doneHead = pTd;
-	doneTail = pTd;
-	++numTDsDone;
+	PutTD(&doneHead, &doneTail, pTd, &numTDsDone);
 }
 
 /*
@@ -991,12 +981,7 @@ void XHCIAsyncEndpoint::FlushTDs(IOUSBCommand* command, int updateDequeueOption)
 	indexInQueue = 0;
 	streamId = 0U;
 	while (pTd && pTd->command == command) {
-		if (pTd == scheduledTail) {
-			scheduledTail = 0;
-			scheduledHead = 0;
-		} else if (pTd == scheduledHead)
-			scheduledHead = pTd->next;
-		--numTDsScheduled;
+		GetTD(&scheduledHead, &scheduledTail, &numTDsScheduled);
 		streamId = pTd->streamId;
 		indexInQueue = pTd->lastTrbIndex + 1;
 		if (indexInQueue >= static_cast<int32_t>(pRing->numTRBs) - 1)
@@ -1065,12 +1050,7 @@ void XHCIAsyncEndpoint::Complete(IOReturn passthruReturnCode)
 			}
 			pTd->interruptThisTD = false;
 		}
-		if (freeHead)
-			freeTail->next = pTd;
-		else
-			freeHead = pTd;
-		freeTail = pTd;
-		++numTDsFree;
+		PutTD(&freeHead, &freeTail, pTd, &numTDsFree);
 	}
 }
 
@@ -1109,7 +1089,10 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 	bool returnATransfer;
 
 	addr = GenericUSBXHCI::GetTRBAddr64(&pRing->stopTrb);
-	shortfall = XHCI_TRB_2_REM_GET(pRing->stopTrb.c);
+	if (XHCI_TRB_2_ERROR_GET(pRing->stopTrb.c) == XHCI_TRB_ERROR_LENGTH)
+		shortfall = 0U;
+	else
+		shortfall = XHCI_TRB_2_REM_GET(pRing->stopTrb.c);
 	trbIndex64 = GenericUSBXHCI::DiffTRBIndex(addr, pRing->physAddr);
 	if (trbIndex64 < 0 || trbIndex64 >= pRing->numTRBs - 1U)
 		trbIndex64 = pRing->dequeueIndex;
@@ -1153,6 +1136,7 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 		pTd->shortfall = pTd->bytesThisTD - shortfall;
 		passthruReturnCode = kIOReturnNotResponding;
 	}
+	GetTD(&scheduledHead, &scheduledTail, &numTDsScheduled);
 	next = pTd->lastTrbIndex + 1;
 	if (next >= static_cast<int32_t>(pRing->numTRBs) - 1)
 		next = 0;
@@ -1177,6 +1161,28 @@ XHCIAsyncTD* XHCIAsyncEndpoint::GetTD(XHCIAsyncTD** pHead, XHCIAsyncTD** pTail, 
 		*pHead = res->next;
 	--*pNumTDs;
 	return res;
+}
+
+__attribute__((visibility("hidden")))
+void XHCIAsyncEndpoint::PutTD(XHCIAsyncTD** pHead, XHCIAsyncTD** pTail, XHCIAsyncTD* pTd, uint32_t* pNumTDs)
+{
+	if (*pHead)
+		(*pTail)->next = pTd;
+	else
+		*pHead = pTd;
+	*pTail = pTd;
+	++*pNumTDs;
+}
+
+__attribute__((visibility("hidden")))
+void XHCIAsyncEndpoint::PutTDAtHead(XHCIAsyncTD** pHead, XHCIAsyncTD** pTail, XHCIAsyncTD* pTd, uint32_t* pNumTDs)
+{
+	if (*pHead)
+		pTd->next = *pHead;
+	else
+		*pTail = pTd;
+	*pHead = pTd;
+	++*pNumTDs;
 }
 
 #pragma mark -

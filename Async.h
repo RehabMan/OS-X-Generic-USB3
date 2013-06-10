@@ -48,6 +48,9 @@ struct XHCIAsyncEndpoint
 	bool NeedTimeouts(void);
 	void UpdateTimeouts(bool, uint32_t, bool);
 	static XHCIAsyncTD* GetTD(XHCIAsyncTD**, XHCIAsyncTD**, uint32_t*);
+	static void PutTD(XHCIAsyncTD**, XHCIAsyncTD**, XHCIAsyncTD*, uint32_t*);
+	static void PutTDAtHead(XHCIAsyncTD**, XHCIAsyncTD**, XHCIAsyncTD*, uint32_t*);
+	static void wipeAsyncList(XHCIAsyncTD*, XHCIAsyncTD*);
 	static XHCIAsyncEndpoint* withParameters(GenericUSBXHCI*, ringStruct*, uint32_t, uint32_t, uint32_t);
 	void setParameters(uint32_t, uint32_t, uint32_t);
 	bool checkOwnership(GenericUSBXHCI*, ringStruct*);
