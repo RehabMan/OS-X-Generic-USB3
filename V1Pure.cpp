@@ -344,17 +344,18 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 	slot = GetSlotID(functionNumber);
 	if (!slot)
 		return functionNumber ? kIOReturnBadArgument : kIOReturnSuccess;
+	pSlot = SlotPtr(slot);
 	if (endpointNumber) {
 		endpoint = TranslateEndpoint(endpointNumber, direction);
-		if (!endpoint || endpoint >= kUSBMaxPipes)
+		if (!endpoint || endpoint >= kUSBMaxPipes || pSlot->isInactive())
 			return kIOReturnBadArgument;
 	} else
 		endpoint = 1U;
-	pSlot = SlotPtr(slot);
 	pRing = pSlot->ringArrayForEndpoint[endpoint];
 	if (pRing)
 		pRing->deleteInProgress = true;
-	if (!pRing->isInactive()) {
+	if (!pSlot->isInactive() &&
+		!pRing->isInactive()) {
 		UIMAbortEndpoint(functionNumber, endpointNumber, direction);
 		if (_errataBits & kErrataParkRing)
 			ParkRing(pRing);
@@ -443,7 +444,8 @@ IOReturn CLASS::UIMClearEndpointStall(short functionNumber, short endpointNumber
 	ContextStruct* pContext;
 
 	slot = GetSlotID(functionNumber);
-	if (!slot)
+	if (!slot ||
+		ConstSlotPtr(slot)->isInactive())
 		return kIOReturnInternalError;
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (!endpoint || endpoint >= kUSBMaxPipes)
@@ -878,6 +880,11 @@ void CLASS::PollInterrupts(IOUSBCompletionAction safeAction)
 	if (sts & XHCI_STS_PCD) {
 		Write32Reg(&_pXHCIOperationalRegisters->USBSts, XHCI_STS_PCD);
 		EnsureUsability();
+		/*
+		 * Note:
+		 *   RHCheckForPortResumes may be limited to the ports flagged
+		 *   by _rhPortStatusChangeBitmap | _rhPortStatusChangeBitmapGated
+		 */
 		if (_myPowerState == kUSBPowerStateOn)
 			RHCheckForPortResumes();
 	}

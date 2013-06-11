@@ -717,7 +717,7 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 #if 0
 	PrintEventTRB(pTrb, interrupter, false, pRing);
 #endif
-	if (IsIsocEP(slot, endpoint)) {
+	if ((pRing->epType | CTRL_EP) == ISOC_IN_EP) {
 	update_dq_and_done:
 		next = static_cast<uint16_t>(trbIndexInRingQueue + 1);
 		if (next >= pRing->numTRBs - 1U)

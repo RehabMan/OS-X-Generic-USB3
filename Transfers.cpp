@@ -22,7 +22,8 @@ __attribute__((visibility("hidden")))
 IOReturn CLASS::CreateTransfer(IOUSBCommand* command, uint32_t streamId)
 {
 	uint8_t slot = GetSlotID(command->GetAddress());
-	if (!slot)
+	if (!slot ||
+		ConstSlotPtr(slot)->isInactive())
 		return kIOUSBEndpointNotFound;
 	uint8_t endpoint = TranslateEndpoint(command->GetEndpoint(), command->GetDirection());
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)
@@ -59,7 +60,7 @@ IOReturn CLASS::ReturnAllTransfersAndReinitRing(int32_t slot, int32_t endpoint, 
 		return kIOReturnBadArgument;
 	if (!pRing->ptr)
 		return kIOReturnNoMemory;
-	if (IsIsocEP(slot, endpoint)) {
+	if ((pRing->epType | CTRL_EP) == ISOC_IN_EP) {
 		GenericUSBXHCIIsochEP* pIsochEp = pRing->isochEndpoint;
 		if (pIsochEp) {
 			for (int32_t count = 0; count < 120 && pIsochEp->tdsScheduled; ++count)
@@ -101,7 +102,7 @@ IOReturn CLASS::ReinitTransferRing(int32_t slot, int32_t endpoint, uint32_t stre
 	}
 	retFromCMD = SetTRDQPtr(slot, endpoint, streamId, pRing->dequeueIndex);
 	if (pRing->schedulingPending) {
-		if (!IsIsocEP(slot, endpoint)) {
+		if ((pRing->epType | CTRL_EP) != ISOC_IN_EP) {
 			XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
 			if (pAsyncEp)
 				pAsyncEp->ScheduleTDs();
@@ -906,7 +907,7 @@ void XHCIAsyncEndpoint::RetireTDs(XHCIAsyncTD* pTd, IOReturn passthruReturnCode,
 		 *     to set TRDQPtr since the xHC may have advanced past the flushed transaction.  Let the
 		 *     EP continue to run.  Any events for flushed TDs are safely discarded in processTransferEvent2.
 		 *   - otherwise, EP will safely idle after finishing flushed transaction, so can let
-		 *     it run.
+		 *     it run. (TBD: what if dequeueIndex doesn't get updated when ring empties?)
 		 */
 		if ((!queuedHead || queuedHead->command != pTd->command) &&
 			XHCI_EPCTX_0_EPSTATE_GET(provider->GetSlotContext(slot, endpoint)->_e.dwEpCtx0) == EP_STATE_RUNNING) {

@@ -25,7 +25,8 @@ IOReturn CLASS::CreateBulkEndpoint(uint8_t functionNumber, uint8_t endpointNumbe
 	uint8_t slot, endpoint;
 
 	slot = GetSlotID(functionNumber);
-	if (!slot)
+	if (!slot ||
+		ConstSlotPtr(slot)->isInactive())
 		return kIOReturnInternalError;
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)
@@ -46,7 +47,8 @@ IOReturn CLASS::CreateInterruptEndpoint(int16_t functionAddress, int16_t endpoin
 	if (!functionAddress)
 		return kIOReturnInternalError;
 	slot = GetSlotID(functionAddress);
-	if (!slot)
+	if (!slot ||
+		ConstSlotPtr(slot)->isInactive())
 		return kIOReturnInternalError;
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)
