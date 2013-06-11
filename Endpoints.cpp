@@ -96,6 +96,9 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 	uint8_t epState;
 	TRBStruct localTrb = { 0 };
 
+	if (gux_log_level >= 2)
+		IOLog("%s: slot %d ep %d maxPacketSize %u interval %d epType %d maxStream %u maxBurst %u multiple %u\n", __FUNCTION__,
+			  slot, endpoint, maxPacketSize, intervalExponent, endpointType, maxStream, maxBurst, multiple);
 	_pIsochEndpoint = (endpointType | CTRL_EP) == ISOC_IN_EP ? static_cast<GenericUSBXHCIIsochEP*>(pIsochEndpoint) : 0;
 	numPagesInRingQueue = _pIsochEndpoint ? _pIsochEndpoint->numPagesInRingQueue : 1U;
 	/*
@@ -343,21 +346,18 @@ uint32_t CLASS::QuiesceEndpoint(int32_t slot, int32_t endpoint)
 }
 
 __attribute__((visibility("hidden")))
-bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId, uint32_t frameNumber)
+bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId, uint32_t frameNumber, bool abortAll)
 {
 	ringStruct* pRing;
-	XHCIAsyncEndpoint* pEp;
+	XHCIAsyncEndpoint* pAsyncEp;
 	ContextStruct* pEpContext;
 	uint32_t ndto;
 	uint16_t dq;
-	bool abortAll, stopped = false;
+	bool stopped = false;
 
 	pRing = GetRing(slot, endpoint, streamId);
 	if (!pRing)
 		return false;
-	abortAll = true;
-	if (!GetNeedsReset(slot))
-		abortAll = !IsStillConnectedAndEnabled(slot);
 	dq = pRing->dequeueIndex;
 	if (!abortAll && (pRing->lastSeenDequeueIndex != dq || pRing->enqueueIndex == dq)) {
 		pRing->lastSeenDequeueIndex = dq;
@@ -366,12 +366,12 @@ bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId
 	/*
 	 * Note: Isoch Endpoints are ruled out in CheckSlotForTimeouts
 	 */
-	pEp = pRing->asyncEndpoint;
-	if (!pEp)
+	pAsyncEp = pRing->asyncEndpoint;
+	if (!pAsyncEp)
 		return false;
 	if (abortAll)
 		pEpContext = GetSlotContext(slot, endpoint);
-	else if (pEp->NeedTimeouts()) {
+	else if (pAsyncEp->NeedTimeouts()) {
 		pEpContext = GetSlotContext(slot, endpoint);
 		switch (XHCI_EPCTX_1_EPTYPE_GET(pEpContext->_e.dwEpCtx1)) {
 			case BULK_OUT_EP:
@@ -384,10 +384,10 @@ bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId
 	} else
 		return false;
 	ClearStopTDs(slot, endpoint);
-	if (!pEp->scheduledHead)
+	if (!pAsyncEp->scheduledHead)
 		return false;
-	if (pEp->scheduledHead->command)
-		ndto = pEp->scheduledHead->command->GetNoDataTimeout();
+	if (pAsyncEp->scheduledHead->command)
+		ndto = pAsyncEp->scheduledHead->command->GetNoDataTimeout();
 	else
 		ndto = 0U;
 	if (ndto)
@@ -408,7 +408,7 @@ bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId
 #endif
 				break;
 		}
-	pEp->UpdateTimeouts(abortAll, frameNumber, stopped);
+	pAsyncEp->UpdateTimeouts(abortAll, frameNumber, stopped);
 	return stopped;
 }
 
@@ -474,28 +474,25 @@ uint8_t CLASS::TranslateEndpoint(int16_t endpointNumber, int16_t direction)
 __attribute__((visibility("hidden")))
 void CLASS::RestartStreams(int32_t slot, int32_t endpoint, uint32_t streamId)
 {
-	ringStruct* pRing;
-	uint16_t lastStream = GetLastStreamForEndpoint(slot, endpoint);
+	SlotStruct* pSlot = SlotPtr(slot);
+	ringStruct* pRing = pSlot->ringArrayForEndpoint[endpoint];
+	if (!pRing)
+		return;
+	uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
 	if (lastStream < 2U)
 		return;
-	for (uint16_t sid = 1U; sid <= lastStream; ++sid) {
-		if (sid == streamId)
-			continue;
-		pRing = GetRing(slot, endpoint, sid);
-		if (!pRing || pRing->dequeueIndex == pRing->enqueueIndex)
-			continue;
-		StartEndpoint(slot, endpoint, sid);
-	}
+	for (uint16_t sid = 1U; sid <= lastStream; ++sid)
+		if (sid != streamId &&
+			pRing[sid].dequeueIndex != pRing[sid].enqueueIndex)
+			StartEndpoint(slot, endpoint, sid);
 }
 
 __attribute__((visibility("hidden")))
-IOReturn CLASS::CreateStream(int32_t slot, int32_t endpoint, uint32_t streamId)
+IOReturn CLASS::CreateStream(ringStruct* pRing, uint16_t streamId)
 {
-	ringStruct* pRing = GetRing(slot, endpoint, 0U);
 	if (!pRing ||
 		streamId >= pRing->numTRBs ||
-		!pRing->ptr ||
-		streamId > GetLastStreamForEndpoint(slot, endpoint))
+		!pRing->ptr)
 		return kIOReturnBadArgument;
 	ringStruct* pStreamRing = &pRing[streamId];
 	pStreamRing->nextIsocFrame = 0ULL;
@@ -507,11 +504,11 @@ IOReturn CLASS::CreateStream(int32_t slot, int32_t endpoint, uint32_t streamId)
 	if (kIOReturnSuccess != AllocRing(pStreamRing, 1))
 		return kIOReturnNoMemory;
 	pStreamRing->epType = pRing->epType;
-	XHCIAsyncEndpoint* pEp = pRing->asyncEndpoint;
+	XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
 	pStreamRing->asyncEndpoint = XHCIAsyncEndpoint::withParameters(this, pStreamRing,
-																   pEp->maxPacketSize,
-																   pEp->maxBurst,
-																   pEp->multiple);
+																   pAsyncEp->maxPacketSize,
+																   pAsyncEp->maxBurst,
+																   pAsyncEp->multiple);
 	if (!pStreamRing->asyncEndpoint)
 		return kIOReturnNoMemory;
 	uint64_t strm_dqptr = pStreamRing->physAddr & ~15ULL;
@@ -523,13 +520,24 @@ IOReturn CLASS::CreateStream(int32_t slot, int32_t endpoint, uint32_t streamId)
 }
 
 __attribute__((visibility("hidden")))
-ringStruct* CLASS::FindStream(int32_t slot, int32_t endpoint, uint64_t addr, int32_t* pTrbIndexInRingQueue, bool)
+void CLASS::CleanupPartialStreamAllocations(ringStruct* pRing, uint16_t lastStream)
+{
+	for (uint16_t i = 1U; i <= lastStream; ++i) {
+		if (pRing[i].asyncEndpoint) {
+			pRing[i].asyncEndpoint->release();
+			pRing[i].asyncEndpoint = 0;
+		}
+		DeallocRing(&pRing[i]);
+	}
+}
+
+__attribute__((visibility("hidden")))
+ringStruct* CLASS::FindStream(int32_t slot, int32_t endpoint, uint64_t addr, int32_t* pTrbIndexInRingQueue)
 {
 	int64_t diffIdx64;
-	ringStruct* pRing;
-
-	uint16_t lastStream = GetLastStreamForEndpoint(slot, endpoint);
-	pRing = SlotPtr(slot)->ringArrayForEndpoint[endpoint];
+	SlotStruct* pSlot = SlotPtr(slot);
+	ringStruct* pRing = pSlot->ringArrayForEndpoint[endpoint];
+	uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
 	for (uint16_t streamId = 1U; streamId <= lastStream; ++streamId) {
 		if (!pRing[streamId].md)
 			continue;
@@ -546,15 +554,17 @@ ringStruct* CLASS::FindStream(int32_t slot, int32_t endpoint, uint64_t addr, int
 __attribute__((visibility("hidden")))
 void CLASS::DeleteStreams(int32_t slot, int32_t endpoint)
 {
-	ringStruct* pRing = GetRing(slot, endpoint, 0U);
+	SlotStruct* pSlot = SlotPtr(slot);
+	ringStruct* pRing = pSlot->ringArrayForEndpoint[endpoint];
 	if (!pRing)
 		return;
-	uint16_t lastStream = GetLastStreamForEndpoint(slot, endpoint);
+	uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
 	for (uint16_t streamId = 1U; streamId <= lastStream; ++streamId) {
-		XHCIAsyncEndpoint* pEp = pRing[streamId].asyncEndpoint;
-		if (pEp) {
-			pEp->Abort();
-			pEp->release();
+		XHCIAsyncEndpoint* pAsyncEp = pRing[streamId].asyncEndpoint;
+		if (pAsyncEp) {
+			pAsyncEp->Abort();
+			pAsyncEp->release();
+			pRing[streamId].asyncEndpoint = 0;
 		}
 		DeallocRing(&pRing[streamId]);
 	}

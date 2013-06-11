@@ -344,11 +344,14 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 	slot = GetSlotID(functionNumber);
 	if (!slot)
 		return functionNumber ? kIOReturnBadArgument : kIOReturnSuccess;
-	endpoint = TranslateEndpoint(endpointNumber, direction);
-	if (!endpoint || endpoint >= kUSBMaxPipes)
-		return kIOReturnBadArgument;
-	pRing = GetRing(slot, endpoint, 0U);
+	if (endpointNumber) {
+		endpoint = TranslateEndpoint(endpointNumber, direction);
+		if (!endpoint || endpoint >= kUSBMaxPipes)
+			return kIOReturnBadArgument;
+	} else
+		endpoint = 1U;
 	pSlot = SlotPtr(slot);
+	pRing = pSlot->ringArrayForEndpoint[endpoint];
 	if (pRing)
 		pRing->deleteInProgress = true;
 	if (!pRing->isInactive()) {
@@ -358,10 +361,10 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 	}
 	if (!endpointNumber) {
 		if (pRing) {
-			XHCIAsyncEndpoint* pEp = pRing->asyncEndpoint;
-			if (pEp) {
-				pEp->Abort();
-				pEp->release();
+			XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
+			if (pAsyncEp) {
+				pAsyncEp->Abort();
+				pAsyncEp->release();
 				static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
 				pRing->asyncEndpoint = 0;
 			}
@@ -375,7 +378,7 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 		*pContext = *GetSlotContext(slot);
 		int32_t numCtx = static_cast<int32_t>(XHCI_SCTX_0_CTX_NUM_GET(pContext->_s.dwSctx0));
 		if (numCtx == endpoint) {
-			for (--numCtx; numCtx > 1 && GetRing(slot, numCtx, 0U)->isInactive(); --numCtx);
+			for (--numCtx; numCtx > 1 && pSlot->ringArrayForEndpoint[numCtx]->isInactive(); --numCtx);
 			pContext->_s.dwSctx0 &= ~XHCI_SCTX_0_CTX_NUM_SET(0x1FU);
 			pContext->_s.dwSctx0 |= XHCI_SCTX_0_CTX_NUM_SET(numCtx);
 		}
@@ -384,8 +387,8 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 		localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
 		WaitForCMD(&localTrb, XHCI_TRB_TYPE_CONFIGURE_EP, 0);
 		ReleaseInputContext();
-		DeleteStreams(slot, endpoint);
 		if (pRing) {
+			DeleteStreams(slot, endpoint);
 			if ((pRing->epType | CTRL_EP) == ISOC_IN_EP) {
 				if (pRing->isochEndpoint) {
 					DeleteIsochEP(pRing->isochEndpoint);
@@ -414,14 +417,16 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 		if (!pRing->isInactive())
 			return kIOReturnSuccess;
 	}
-	bzero(&localTrb, sizeof localTrb);
+	ClearTRB(&localTrb, true);
 	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
 	WaitForCMD(&localTrb, XHCI_TRB_TYPE_DISABLE_SLOT, 0);
 	pSlot->ctx = 0;
 	SetDCBAAAddr64(&_dcbaa.ptr[slot], 0ULL);
-	pSlot->md->complete();
-	pSlot->md->release();
-	pSlot->md = 0;
+	if (pSlot->md) {
+		pSlot->md->complete();
+		pSlot->md->release();
+		pSlot->md = 0;
+	}
 	pSlot->physAddr = 0U;
 	pSlot->deviceNeedsReset = false;
 	_addressMapper.HubAddress[functionNumber] = 0U;

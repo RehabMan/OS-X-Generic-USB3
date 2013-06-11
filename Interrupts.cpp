@@ -424,11 +424,7 @@ bool CLASS::DoStopCompletion(TRBStruct const* pTrb)
 		addr = GetTRBAddr64(pTrb);
 		if (!addr)
 			return false;	// save the trouble
-		pRing = FindStream(slot, endpoint, addr, &trbIndexInRingQueue, true);
-#if 0
-		if (!pRing)
-			pRing = FindStream(slot, endpoint, addr, &trbIndexInRingQueue, false);
-#endif
+		pRing = FindStream(slot, endpoint, addr, &trbIndexInRingQueue);
 	} else
 		pRing = GetRing(slot, endpoint, 0U);
 	if (pRing)
@@ -677,7 +673,7 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 	int32_t err = static_cast<int32_t>(XHCI_TRB_2_ERROR_GET(pTrb->c));
 	int32_t slot = static_cast<int32_t>(XHCI_TRB_3_SLOT_GET(pTrb->d));
 	int32_t endpoint = static_cast<int32_t>(XHCI_TRB_3_EP_GET(pTrb->d));
-	bool ED = ((pTrb->d) & XHCI_TRB_3_ISP_BIT) != 0U;
+	bool ED = ((pTrb->d) & XHCI_TRB_3_ED_BIT) != 0U;
 
 	if (err == XHCI_TRB_ERROR_STOPPED || err == XHCI_TRB_ERROR_LENGTH)
 		return DoStopCompletion(pTrb);
@@ -687,14 +683,9 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 	if (IsStreamsEndpoint(slot, endpoint)) {
 		if (!addr)
 			return false;	// save the trouble
-		pRing = FindStream(slot, endpoint, addr, &trbIndexInRingQueue, true);
-		if (!pRing) {
-#if 0
-			pRing = FindStream(slot, endpoint, addr, &trbIndexInRingQueue, false);
-			if (!pRing)
-#endif
-				return false;
-		}
+		pRing = FindStream(slot, endpoint, addr, &trbIndexInRingQueue);
+		if (!pRing)
+			return false;
 	} else {
 		pRing = GetRing(slot, endpoint, 0U);
 		if (!pRing)
@@ -702,10 +693,6 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 		switch (err) {
 			case XHCI_TRB_ERROR_RING_UNDERRUN:
 			case XHCI_TRB_ERROR_RING_OVERRUN:
-#if 0
-			case XHCI_TRB_ERROR_STOPPED:
-			case XHCI_TRB_ERROR_LENGTH:
-#endif
 				if ((pRing->epType | CTRL_EP) != ISOC_IN_EP ||
 					!pRing->isochEndpoint)
 					return true;
@@ -716,8 +703,7 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 				}
 				if (pIsochEp->schedulingDelayed) {
 					pIsochEp->schedulingDelayed = false;
-					if (err <= XHCI_TRB_ERROR_RING_OVERRUN)
-						AddIsocFramesToSchedule(pIsochEp);
+					AddIsocFramesToSchedule(pIsochEp);
 				}
 				return true;
 		}
@@ -732,6 +718,7 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 	PrintEventTRB(pTrb, interrupter, false, pRing);
 #endif
 	if (IsIsocEP(slot, endpoint)) {
+	update_dq_and_done:
 		next = static_cast<uint16_t>(trbIndexInRingQueue + 1);
 		if (next >= pRing->numTRBs - 1U)
 			next = 0U;
@@ -740,18 +727,27 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 	}
 	pAsyncEp = pRing->asyncEndpoint;
 	if (!pAsyncEp)
-		return true;
+		goto update_dq_and_done;
 	pAsyncTd = pAsyncEp->GetTDFromActiveQueueWithIndex(static_cast<uint16_t>(trbIndexInRingQueue));
 	if (!pAsyncTd) {
 		if (XHCI_EPCTX_0_EPSTATE_GET(GetSlotContext(slot, endpoint)->_e.dwEpCtx0) != EP_STATE_HALTED)
-			return true;
-		trbIndexInRingQueue = CountRingToED(pRing, trbIndexInRingQueue, &shortfall, true);
+			goto update_dq_and_done;
+		int32_t newIndex = CountRingToED(pRing, trbIndexInRingQueue, &shortfall);
+		if (newIndex == trbIndexInRingQueue)
+			goto update_dq_and_done;
+		trbIndexInRingQueue = newIndex;
 		pAsyncTd = pAsyncEp->GetTDFromActiveQueueWithIndex(static_cast<uint16_t>(trbIndexInRingQueue));
 		if (!pAsyncTd)
-			return true;
+			goto update_dq_and_done;
 	}
+	/*
+	 * This handles the case where xHC issues spurious
+	 *   success transfer event with duplicate addr
+	 *   after issuing a short-packet transfer event.
+	 *   (observed on Intel Series 7/C210)
+	 */
 	if (pRing->enqueueIndex == pRing->dequeueIndex)
-		return true;	// TBD: why skip RetireTDs here???
+		return true;
 	next = static_cast<uint16_t>(trbIndexInRingQueue + 1);
 	if (next >= pRing->numTRBs - 1U)
 		next = 0U;
@@ -760,12 +756,22 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 		shortfall = pAsyncTd->bytesThisTD - shortfall;
 	if (err != XHCI_TRB_ERROR_SUCCESS) {
 		callCompletion = true;
-		flush = pAsyncTd->multiTDTransaction;
+		flush = !pAsyncTd->finalTDInTransaction;
 		rc = TranslateXHCIStatus(err, (endpoint & 1) != 0, GetSlCtxSpeed(GetSlotContext(slot)), false);
 	} else {
 		callCompletion = pAsyncTd->interruptThisTD;
 		flush = false;
 		rc = kIOReturnSuccess;
+		/*
+		 * xHC sometimes reports a SUCCESS completion code
+		 *   even though shortfall != 0.  Track this for
+		 *   possible flushing.  Presently it's ignored,
+		 *   which may cause subsequent TDs in same
+		 *   transaction to be orphaned.
+		 *   (observed on Etron ASRock P67, Fresco Logic)
+		 */
+		if (shortfall)
+			++_diagCounters[DIAGCTR_SHORTSUCCESS];
 	}
 	pAsyncTd->shortfall = shortfall;
 	pAsyncEp->RetireTDs(pAsyncTd,

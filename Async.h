@@ -34,20 +34,23 @@ struct XHCIAsyncEndpoint
 	GenericUSBXHCI* provider;	// 0x80
 								// sizeof 0x88
 
-	IOReturn CreateTDs(IOUSBCommand*, uint16_t, uint32_t, uint8_t, uint8_t*);
+	IOReturn CreateTDs(IOUSBCommand*, uint16_t, uint32_t, uint8_t, uint8_t const*);
 	void ScheduleTDs(void);
 	IOReturn Abort(void);
 	XHCIAsyncTD* GetTDFromActiveQueueWithIndex(uint16_t);
 	void RetireTDs(XHCIAsyncTD*, IOReturn, bool, bool);
 	XHCIAsyncTD* GetTDFromFreeQueue(bool);
 	void PutTDonDoneQueue(XHCIAsyncTD*);
-	void FlushTDsWithStatus(IOUSBCommand*);
+	void FlushTDs(IOUSBCommand*, int);
 	void MoveTDsFromReadyQToDoneQ(IOUSBCommand*);
 	void MoveAllTDsFromReadyQToDoneQ(void);
 	void Complete(IOReturn);
 	bool NeedTimeouts(void);
 	void UpdateTimeouts(bool, uint32_t, bool);
 	static XHCIAsyncTD* GetTD(XHCIAsyncTD**, XHCIAsyncTD**, uint32_t*);
+	static void PutTD(XHCIAsyncTD**, XHCIAsyncTD**, XHCIAsyncTD*, uint32_t*);
+	static void PutTDAtHead(XHCIAsyncTD**, XHCIAsyncTD**, XHCIAsyncTD*, uint32_t*);
+	static void wipeAsyncList(XHCIAsyncTD*, XHCIAsyncTD*);
 	static XHCIAsyncEndpoint* withParameters(GenericUSBXHCI*, ringStruct*, uint32_t, uint32_t, uint32_t);
 	void setParameters(uint32_t, uint32_t, uint32_t);
 	bool checkOwnership(GenericUSBXHCI*, ringStruct*);

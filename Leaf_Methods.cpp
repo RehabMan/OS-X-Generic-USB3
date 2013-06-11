@@ -578,25 +578,26 @@ bool CLASS::IsStillConnectedAndEnabled(int32_t slot)
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::CheckSlotForTimeouts(int32_t slot, uint32_t frameNumber)
+void CLASS::CheckSlotForTimeouts(int32_t slot, uint32_t frameNumber, bool isAssociatedRHPortEnabled)
 {
-	if (ConstSlotPtr(slot)->isInactive())
+	SlotStruct* pSlot = SlotPtr(slot);
+	if (pSlot->isInactive())
 		return;
+	bool abortAll = pSlot->deviceNeedsReset || !isAssociatedRHPortEnabled;
 	for (int32_t endpoint = 1; endpoint != kUSBMaxPipes; ++endpoint) {
-		if (IsIsocEP(slot, endpoint))
+		ringStruct* pRing = pSlot->ringArrayForEndpoint[endpoint];
+		if (pRing->isInactive() ||
+			(pRing->epType | CTRL_EP) == ISOC_IN_EP)
 			continue;
-		ringStruct* pRing = GetRing(slot, endpoint, 0U);
-		if (pRing->isInactive())
-			continue;
-		if (IsStreamsEndpoint(slot, endpoint)) {
+		if (pSlot->IsStreamsEndpoint(endpoint)) {
 			bool stopped = false;
-			uint16_t lastStream = GetLastStreamForEndpoint(slot, endpoint);
+			uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
 			for (uint16_t streamId = 1U; streamId <= lastStream; ++streamId)
-				if (checkEPForTimeOuts(slot, endpoint, streamId, frameNumber))
+				if (checkEPForTimeOuts(slot, endpoint, streamId, frameNumber, abortAll))
 					stopped = true;
 			if (stopped)
 				RestartStreams(slot, endpoint, 0U);
-		} else if (checkEPForTimeOuts(slot, endpoint, 0U, frameNumber))
+		} else if (checkEPForTimeOuts(slot, endpoint, 0U, frameNumber, abortAll))
 			StartEndpoint(slot, endpoint, 0U);
 	}
 }
@@ -650,13 +651,15 @@ IOReturn CLASS::GatedGetFrameNumberWithTime(OSObject* owner, void* frameNumber, 
 }
 
 __attribute__((visibility("hidden")))
-int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uint32_t* pShortFall, bool updateDequeueIndex)
+int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uint32_t* pShortFall)
 {
 	int32_t next;
 	uint32_t trbType;
 	TRBStruct* pTrb = &pRing->ptr[trbIndexInRingQueue];
 
-	while (pTrb->d & XHCI_TRB_3_CHAIN_BIT) {
+	trbType = XHCI_TRB_3_TYPE_GET(pTrb->d);
+	while ((pTrb->d & XHCI_TRB_3_CHAIN_BIT) &&
+		   trbType != XHCI_TRB_TYPE_EVENT_DATA) {
 		next = trbIndexInRingQueue + 1;
 		if (next >= static_cast<int32_t>(pRing->numTRBs) - 1)
 			next = 0;
@@ -665,15 +668,9 @@ int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uin
 		trbIndexInRingQueue = next;
 		pTrb = &pRing->ptr[trbIndexInRingQueue];
 		trbType = XHCI_TRB_3_TYPE_GET(pTrb->d);
-		if (trbType == XHCI_TRB_TYPE_NORMAL) {
+		if (trbType == XHCI_TRB_TYPE_NORMAL)
 			*pShortFall += XHCI_TRB_2_BYTES_GET(pTrb->c);
-			continue;
-		}
-		if (trbType == XHCI_TRB_TYPE_EVENT_DATA)
-			break;
 	}
-	if (updateDequeueIndex)
-		pRing->dequeueIndex = static_cast<uint16_t>(trbIndexInRingQueue);
 	return trbIndexInRingQueue;
 }
 
@@ -730,11 +727,11 @@ IOReturn CLASS::TranslateXHCIStatus(int32_t xhci_err, bool direction, uint8_t sp
 		case XHCI_TRB_ERROR_SPLIT_XACT:
 			return kIOUSBHighSpeedSplitError;
 		case 193:	// Intel FORCE_HDR_USB2_NO_SUPPORT
-			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnInternalError : kIOReturnUnsupported;
+			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnUnsupported : kIOReturnInternalError;
 		case 199:	// Intel CMPL_WITH_EMPTY_CONTEXT
-			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnInternalError : kIOReturnNotOpen;
+			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnNotOpen : kIOReturnInternalError;
 		case 200:	// Intel VENDOR_CMD_FAILED
-			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnInternalError : kIOReturnNoBandwidth;
+			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnNoBandwidth : kIOReturnInternalError;
 		default:
 			return kIOReturnInternalError;
 	}

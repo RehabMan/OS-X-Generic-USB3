@@ -106,7 +106,7 @@ IOReturn CLASS::CommandAbort(void)
 __attribute__((visibility("hidden")))
 int32_t CLASS::WaitForCMD(TRBStruct* trb, int32_t trbType, TRBCallback callback)
 {
-	int32_t count;
+	int32_t count, prevIndex;
 	int32_t volatile ret = -1;
 	uint32_t sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace)
@@ -117,6 +117,7 @@ int32_t CLASS::WaitForCMD(TRBStruct* trb, int32_t trbType, TRBCallback callback)
 	}
 	if (isInactive() || !_controllerAvailable)
 		return ret;
+	prevIndex = _commandRing.enqueueIndex;
 	if (EnqueCMD(trb, trbType, callback ? : _CompleteSlotCommand, const_cast<int32_t*>(&ret)) != kIOReturnSuccess)
 		return ret;
 	for (count = 0; ret == -1 && count < 10000; ++count) {
@@ -130,6 +131,14 @@ int32_t CLASS::WaitForCMD(TRBStruct* trb, int32_t trbType, TRBCallback callback)
 		return ret;
 	IOLog("%s: Timeout waiting for command completion (opcode %#x), 100ms\n", __FUNCTION__, static_cast<uint32_t>(trbType));
 	CommandAbort();
+	if (ret == -1) {
+		/*
+		 * If command was still not completed, wipe its callback, so &ret
+		 *   does not get overrun.
+		 */
+		_commandRing.callbacks[prevIndex].func = 0;
+		_commandRing.callbacks[prevIndex].param = 0;
+	}
 	return ret;
 }
 
@@ -197,7 +206,8 @@ bool CLASS::DoCMDCompletion(TRBStruct trb)
 	if (newIdx >= _commandRing.numTRBs - 1U)
 		newIdx = 0U;
 	copy = _commandRing.callbacks[idx64];
-	bzero(&_commandRing.callbacks[idx64], sizeof *_commandRing.callbacks);
+	_commandRing.callbacks[idx64].func = 0;
+	_commandRing.callbacks[idx64].param = 0;
 	_commandRing.dequeueIndex = newIdx;
 	if (copy.func)
 		copy.func(this, &trb, copy.param);

@@ -56,6 +56,7 @@ void CLASS::UIMCheckForTimeouts(void)
 {
 	uint32_t frameNumber, sts, mfIndex;
 	uint8_t slot;
+	bool isAssociatedRHPortEnabled;
 
 	if (!_controllerAvailable || _wakingFromHibernation)
 		return;
@@ -63,7 +64,7 @@ void CLASS::UIMCheckForTimeouts(void)
 	sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace) {
 		for (slot = 1U; slot <= _numSlots; ++slot)
-			CheckSlotForTimeouts(slot, 0U);
+			CheckSlotForTimeouts(slot, 0U, false);
 		if (_expansionData) {
 			_watchdogTimerActive = false;
 			if (_watchdogUSBTimer)
@@ -75,9 +76,12 @@ void CLASS::UIMCheckForTimeouts(void)
 		IOLog("%s: HSE bit set:%x (1)\n", __FUNCTION__, sts);
 		_HSEDetected = true;
 	}
-	for (slot = 1U; slot <= _numSlots; ++slot)
-		if (!IsStillConnectedAndEnabled(slot))
-			CheckSlotForTimeouts(slot, frameNumber);
+	for (slot = 1U; slot <= _numSlots; ++slot) {
+		isAssociatedRHPortEnabled = IsStillConnectedAndEnabled(slot);
+		SlotPtr(slot)->oneBitCache = isAssociatedRHPortEnabled;
+		if (!isAssociatedRHPortEnabled)
+			CheckSlotForTimeouts(slot, frameNumber, false);
+	}
 	if (_powerStateChangingTo != kUSBPowerStateStable && _powerStateChangingTo < kUSBPowerStateOn)
 		return;
 	mfIndex = Read32Reg(&_pXHCIRuntimeRegisters->MFIndex);
@@ -87,7 +91,8 @@ void CLASS::UIMCheckForTimeouts(void)
 	if (!mfIndex)
 		return;
 	for (slot = 1U; slot <= _numSlots; ++slot)
-		CheckSlotForTimeouts(slot, frameNumber);
+		if (ConstSlotPtr(slot)->oneBitCache)
+			CheckSlotForTimeouts(slot, frameNumber, true);
 }
 
 IOReturn CLASS::UIMCreateControlTransfer(short functionNumber, short endpointNumber, IOUSBCommand* command,
@@ -114,10 +119,12 @@ IOReturn CLASS::UIMCreateControlTransfer(short functionNumber, short endpointNum
 		return AddDummyCommand(pRing, command);
 	if (pRing->deleteInProgress)
 		return kIOReturnNoDevice;
-	XHCIAsyncEndpoint* pEp = pRing->asyncEndpoint;
-	if (!pEp)
+	if (pRing->epType != CTRL_EP)
 		return kIOUSBEndpointNotFound;
-	if (pEp->aborting)
+	XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
+	if (!pAsyncEp)
+		return kIOUSBEndpointNotFound;
+	if (pAsyncEp->aborting)
 		return kIOReturnNotPermitted;
 	if (CBP && bufferSize) {
 		IODMACommand* dmac = command->GetDMACommand();
@@ -191,8 +198,8 @@ IOReturn CLASS::UIMCreateControlTransfer(short functionNumber, short endpointNum
 			mystery |= XHCI_TRB_3_DIR_IN;
 		immediateDataSize = 0U;
 	}
-	rc = pEp->CreateTDs(command, 0U, mystery, immediateDataSize, reinterpret_cast<uint8_t*>(&smallbuf1));
-	pEp->ScheduleTDs();
+	rc = pAsyncEp->CreateTDs(command, 0U, mystery, immediateDataSize, reinterpret_cast<uint8_t const*>(&smallbuf1));
+	pAsyncEp->ScheduleTDs();
 	return rc;
 }
 
@@ -209,21 +216,24 @@ IOReturn CLASS::UIMCreateInterruptTransfer(IOUSBCommand* command)
 	IOMemoryDescriptor* md;
 	USBDeviceAddress addr;
 	IODMACommand* dmac;
+	uint32_t speed, tag;
 
 	if (!command)
 		return kIOReturnBadArgument;
-	comp = command->GetUSLCompletion();
-	md = command->GetBuffer();
-	if (!md)
-		return kIOReturnInternalError;
 	addr = command->GetAddress();
 	if (addr == _hub3Address || addr == _hub2Address) {
+		comp = command->GetUSLCompletion();
 		dmac = command->GetDMACommand();
 		if (dmac && dmac->getMemoryDescriptor())
 				dmac->clearMemoryDescriptor();
 		if (command->GetEndpoint() == 1U) {
-			md->setTag(static_cast<uint32_t>(((addr << kUSBAddress_Shift) & kUSBAddress_Mask) |
-											 (addr == _hub3Address ? kUSBDeviceSpeedSuper : kUSBDeviceSpeedHigh)));
+			md = command->GetBuffer();
+			if (!md)
+				return kIOReturnInternalError;
+			speed = (addr == _hub3Address ? kUSBDeviceSpeedSuper : kUSBDeviceSpeedHigh);
+			tag = ((static_cast<uint32_t>(addr) << kUSBAddress_Shift) & kUSBAddress_Mask);
+			tag |= ((speed << kUSBSpeed_Shift) & kUSBSpeed_Mask);
+			md->setTag(tag);
 			return RootHubQueueInterruptRead(md, static_cast<uint32_t>(command->GetReqCount()), comp);
 		} else {
 			Complete(comp, kIOUSBEndpointNotFound, static_cast<uint32_t>(command->GetReqCount()));

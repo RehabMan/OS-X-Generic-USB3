@@ -175,7 +175,7 @@ IOReturn CLASS::AbortIsochEP(GenericUSBXHCIIsochEP* pIsochEp)
 			if (!pIsochTd && nextSlot != pIsochEp->inSlot)
 				pIsochEp->outSlot = nextSlot;
 			if (pIsochTd) {
-				bzero(&pIsochTd->eventTrb, sizeof pIsochTd->eventTrb);
+				ClearTRB(&pIsochTd->eventTrb, true);
 				pIsochTd->UpdateFrameList(reinterpret_cast<AbsoluteTime const&>(timeStamp));
 				static_cast<void>(__sync_fetch_and_sub(&pIsochEp->scheduledTDs, 1));
 				if (pIsochEp->scheduledTDs < 0)
@@ -323,7 +323,7 @@ void CLASS::AddIsocFramesToSchedule(GenericUSBXHCIIsochEP* pIsochEp)
 	if (!pIsochEp->continuousStream)
 		while (pIsochEp->toDoList->_frameNumber <= currFrame + _istKeepAwayFrames) {
 			pIsochTd = static_cast<GenericUSBXHCIIsochTD*>(GetTDfromToDoList(pIsochEp));
-			bzero(&pIsochTd->eventTrb, sizeof pIsochTd->eventTrb);
+			ClearTRB(&pIsochTd->eventTrb, true);
 			rc = pIsochTd->UpdateFrameList(reinterpret_cast<AbsoluteTime const&>(timeStamp));
 			if (pIsochEp->scheduledTDs > 0)
 				PutTDonDeferredQueue(pIsochEp, pIsochTd);
@@ -544,7 +544,7 @@ IOReturn GenericUSBXHCIIsochTD::UpdateFrameList(AbsoluteTime timeStamp)
 			uint8_t condCode = static_cast<uint8_t>(XHCI_TRB_2_ERROR_GET(eventTrb.c));
 			uint32_t eventLen = XHCI_TRB_2_REM_GET(eventTrb.c);
 			IOReturn frStatus = TranslateXHCIStatus(condCode);
-			bool edEvent = ((eventTrb.d) & XHCI_TRB_3_ISP_BIT) != 0U;
+			bool edEvent = ((eventTrb.d) & XHCI_TRB_3_ED_BIT) != 0U;
 			if (condCode == XHCI_TRB_ERROR_XACT) {
 				GenericUSBXHCIIsochEP* pIsochEp = static_cast<GenericUSBXHCIIsochEP*>(_pEndpoint);
 				if (pIsochEp->direction == kUSBIn &&

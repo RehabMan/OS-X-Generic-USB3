@@ -500,7 +500,7 @@ public:
 	IOUSBHubPolicyMaker* GetHubForProtocol(uint8_t protocol);
 	uint16_t GetCompanionRootPort(uint8_t, uint16_t);
 	bool IsStillConnectedAndEnabled(int32_t);
-	void CheckSlotForTimeouts(int32_t, uint32_t);
+	void CheckSlotForTimeouts(int32_t, uint32_t, bool);
 #ifdef DEBOUNCING
 	int32_t FindSlotFromPort(uint16_t);
 	IOReturn HandlePortDebouncing(uint16_t*, uint16_t*, uint16_t, uint16_t, uint8_t);
@@ -547,7 +547,7 @@ public:
 	void QuiesceAllEndpoints(void);
 	IOReturn CreateEndpoint(int32_t, int32_t, uint16_t, int16_t, int32_t, uint32_t, uint32_t, uint8_t, void*);
 	IOReturn StartEndpoint(int32_t, int32_t, uint16_t);
-	bool checkEPForTimeOuts(int32_t, int32_t, uint32_t, uint32_t);
+	bool checkEPForTimeOuts(int32_t, int32_t, uint32_t, uint32_t, bool);
 	uint32_t QuiesceEndpoint(int32_t, int32_t);
 	void StopEndpoint(int32_t, int32_t, bool = false);
 	void ResetEndpoint(int32_t, int32_t, bool = false);
@@ -559,11 +559,12 @@ public:
 	/*
 	 * Streams
 	 */
-	bool IsStreamsEndpoint(int32_t slot, int32_t endpoint) const { return ConstSlotPtr(slot)->maxStreamForEndpoint[endpoint] > 1U; }
+	bool IsStreamsEndpoint(int32_t slot, int32_t endpoint) const { return ConstSlotPtr(slot)->IsStreamsEndpoint(endpoint); }
 	uint16_t GetLastStreamForEndpoint(int32_t slot, int32_t endpoint) const { return ConstSlotPtr(slot)->lastStreamForEndpoint[endpoint]; }
 	void RestartStreams(int32_t, int32_t, uint32_t);
-	IOReturn CreateStream(int32_t, int32_t, uint32_t);
-	ringStruct* FindStream(int32_t, int32_t, uint64_t, int32_t*, bool);
+	IOReturn CreateStream(ringStruct*, uint16_t);
+	void CleanupPartialStreamAllocations(ringStruct*, uint16_t);
+	ringStruct* FindStream(int32_t, int32_t, uint64_t, int32_t*);
 	void DeleteStreams(int32_t, int32_t);
 	/*
 	 * Transfers
@@ -587,7 +588,7 @@ public:
 	ringStruct* GetRing(int32_t, int32_t, uint32_t);
 	IOReturn AllocRing(ringStruct*, int32_t);
 	static void DeallocRing(ringStruct*);
-	static int32_t CountRingToED(ringStruct*, int32_t, uint32_t*, bool);
+	static int32_t CountRingToED(ringStruct*, int32_t, uint32_t*);
 	void ParkRing(ringStruct*);
 	IOReturn ReturnAllTransfersAndReinitRing(int32_t, int32_t, uint32_t);
 	IOReturn ReinitTransferRing(int32_t, int32_t, uint32_t);
