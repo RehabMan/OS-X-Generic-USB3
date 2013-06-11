@@ -9,6 +9,7 @@
 #include "GenericUSBXHCI.h"
 #include "XHCITypes.h"
 #include <IOKit/IOFilterInterruptEventSource.h>
+#include <libkern/OSKextLib.h>
 
 #define CLASS GenericUSBXHCI
 #define super IOUSBControllerV3
@@ -216,9 +217,13 @@ __attribute__((visibility("hidden")))
 void CLASS::PrintCapRegs(PrintSink* pSink)
 {
 	uint32_t v;
+	char const* ver_str;
 
 	if (!pSink)
 		pSink = const_cast<PrintSink*>(&IOLogSink);
+	ver_str = OSKextGetCurrentVersionString();
+	if (ver_str)
+		pSink->print("Kext Version %s\n", ver_str);
 	pSink->print("Vendor %#x, Device %#x, Revision %#x\n", _vendorID, _deviceID, _revisionID);
 	pSink->print("CapLength  %u\n", Read8Reg(&_pXHCICapRegisters->CapLength));
 	pSink->print("HCIVersion %#x\n", Read16Reg(&_pXHCICapRegisters->HCIVersion));
@@ -358,6 +363,10 @@ void CLASS::PrintRuntimeRegs(PrintSink* pSink)
 		pSink->print("# Transfer Ring Keepaways %u\n", _diagCounters[DIAGCTR_XFERKEEPAWAY]);
 	if (_diagCounters[DIAGCTR_XFERLAYOUT])
 		pSink->print("# Transfer Layout Errors %u\n", _diagCounters[DIAGCTR_XFERLAYOUT]);
+	if (_diagCounters[DIAGCTR_ORPHANEDTDS])
+		pSink->print("# Orphaned Transfer Descriptors %u\n", _diagCounters[DIAGCTR_ORPHANEDTDS]);
+	if (_diagCounters[DIAGCTR_SHORTSUCCESS])
+		pSink->print("# Short Transfers with Success Code %u\n", _diagCounters[DIAGCTR_SHORTSUCCESS]);
 	if (_inTestMode)
 		pSink->print("Test Mode Active\n");
 	if (m_invalid_regspace)

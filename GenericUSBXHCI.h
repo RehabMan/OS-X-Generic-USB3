@@ -498,7 +498,7 @@ public:
 	IOUSBHubPolicyMaker* GetHubForProtocol(uint8_t protocol);
 	uint16_t GetCompanionRootPort(uint8_t, uint16_t);
 	bool IsStillConnectedAndEnabled(int32_t);
-	void CheckSlotForTimeouts(int32_t, uint32_t);
+	void CheckSlotForTimeouts(int32_t, uint32_t, bool);
 #ifdef DEBOUNCING
 	int32_t FindSlotFromPort(uint16_t);
 	IOReturn HandlePortDebouncing(uint16_t*, uint16_t*, uint16_t, uint16_t, uint8_t);
@@ -545,7 +545,7 @@ public:
 	void QuiesceAllEndpoints(void);
 	IOReturn CreateEndpoint(int32_t, int32_t, uint16_t, int16_t, int32_t, uint32_t, uint32_t, uint8_t, void*);
 	IOReturn StartEndpoint(int32_t, int32_t, uint16_t);
-	bool checkEPForTimeOuts(int32_t, int32_t, uint32_t, uint32_t);
+	bool checkEPForTimeOuts(int32_t, int32_t, uint32_t, uint32_t, bool);
 	uint32_t QuiesceEndpoint(int32_t, int32_t);
 	void StopEndpoint(int32_t, int32_t, bool = false);
 	void ResetEndpoint(int32_t, int32_t, bool = false);

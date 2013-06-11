@@ -880,6 +880,8 @@ struct XHCIAsyncTD* XHCIAsyncEndpoint::GetTDFromActiveQueueWithIndex(uint16_t in
 		scheduledHead = pTd;
 		numTDsScheduled -= orphanCount;
 		Complete(kIOReturnSuccess);
+		if (provider)
+			provider->_diagCounters[DIAGCTR_ORPHANEDTDS] += orphanCount;
 	}
 	GetTD(&scheduledHead, &scheduledTail, &numTDsScheduled);
 #endif
@@ -1086,10 +1088,11 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 	IOReturn passthruReturnCode;
 	uint32_t shortfall, ndto, cto, bytesTransferred, firstSeen, TRTime;
 	int32_t next;
-	bool returnATransfer;
+	bool returnATransfer, ED;
 
 	addr = GenericUSBXHCI::GetTRBAddr64(&pRing->stopTrb);
-	if (XHCI_TRB_2_ERROR_GET(pRing->stopTrb.c) == XHCI_TRB_ERROR_LENGTH)
+	ED = (pRing->stopTrb.d & XHCI_TRB_3_ED_BIT) != 0U;
+	if (!ED && XHCI_TRB_2_ERROR_GET(pRing->stopTrb.c) == XHCI_TRB_ERROR_LENGTH)
 		shortfall = 0U;
 	else
 		shortfall = XHCI_TRB_2_REM_GET(pRing->stopTrb.c);
@@ -1099,6 +1102,8 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 	pTd = scheduledHead;
 	if (!pTd)
 		return;
+	if (ED)
+		shortfall = pTd->bytesThisTD - shortfall;
 	if (!abortAll) {
 		command = pTd->command;
 		if (!command)

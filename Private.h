@@ -89,7 +89,7 @@ struct ringStruct
 	bool schedulingPending; // 0x5C
 
 	__attribute__((always_inline)) bool isInactive(void) const { return !this || !this->md; }
-};
+} __attribute__((aligned(128)));
 
 struct EventRingStruct
 {
@@ -123,10 +123,11 @@ struct SlotStruct
 	uint16_t lastStreamForEndpoint[kUSBMaxPipes]; // 160 - originally uint32_t[]
 	ringStruct* ringArrayForEndpoint[kUSBMaxPipes]; // 288
 	bool deviceNeedsReset;	// 544
+	bool oneBitCache;
 
 	__attribute__((always_inline)) bool isInactive(void) const { return !this->md; }
 	__attribute__((always_inline)) bool IsStreamsEndpoint(int32_t endpoint) const { return maxStreamForEndpoint[endpoint] > 1U; }
-};
+} __attribute__((aligned(512)));
 
 struct TRBCallbackEntry
 {
@@ -152,7 +153,9 @@ struct PrintSink
 #define DIAGCTR_XFERERR 4
 #define DIAGCTR_XFERKEEPAWAY 5
 #define DIAGCTR_XFERLAYOUT 6
-#define NUM_DIAGCTRS 7
+#define DIAGCTR_ORPHANEDTDS 7
+#define DIAGCTR_SHORTSUCCESS 8
+#define NUM_DIAGCTRS 9
 
 #ifdef __cplusplus
 extern "C" {

@@ -56,6 +56,7 @@ void CLASS::UIMCheckForTimeouts(void)
 {
 	uint32_t frameNumber, sts, mfIndex;
 	uint8_t slot;
+	bool isAssociatedRHPortEnabled;
 
 	if (!_controllerAvailable || _wakingFromHibernation)
 		return;
@@ -63,7 +64,7 @@ void CLASS::UIMCheckForTimeouts(void)
 	sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace) {
 		for (slot = 1U; slot <= _numSlots; ++slot)
-			CheckSlotForTimeouts(slot, 0U);
+			CheckSlotForTimeouts(slot, 0U, false);
 		if (_expansionData) {
 			_watchdogTimerActive = false;
 			if (_watchdogUSBTimer)
@@ -75,9 +76,12 @@ void CLASS::UIMCheckForTimeouts(void)
 		IOLog("%s: HSE bit set:%x (1)\n", __FUNCTION__, sts);
 		_HSEDetected = true;
 	}
-	for (slot = 1U; slot <= _numSlots; ++slot)
-		if (!IsStillConnectedAndEnabled(slot))
-			CheckSlotForTimeouts(slot, frameNumber);
+	for (slot = 1U; slot <= _numSlots; ++slot) {
+		isAssociatedRHPortEnabled = IsStillConnectedAndEnabled(slot);
+		SlotPtr(slot)->oneBitCache = isAssociatedRHPortEnabled;
+		if (!isAssociatedRHPortEnabled)
+			CheckSlotForTimeouts(slot, frameNumber, false);
+	}
 	if (_powerStateChangingTo != kUSBPowerStateStable && _powerStateChangingTo < kUSBPowerStateOn)
 		return;
 	mfIndex = Read32Reg(&_pXHCIRuntimeRegisters->MFIndex);
@@ -87,7 +91,8 @@ void CLASS::UIMCheckForTimeouts(void)
 	if (!mfIndex)
 		return;
 	for (slot = 1U; slot <= _numSlots; ++slot)
-		CheckSlotForTimeouts(slot, frameNumber);
+		if (ConstSlotPtr(slot)->oneBitCache)
+			CheckSlotForTimeouts(slot, frameNumber, true);
 }
 
 IOReturn CLASS::UIMCreateControlTransfer(short functionNumber, short endpointNumber, IOUSBCommand* command,

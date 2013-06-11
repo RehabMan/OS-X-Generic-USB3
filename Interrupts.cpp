@@ -673,7 +673,7 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 	int32_t err = static_cast<int32_t>(XHCI_TRB_2_ERROR_GET(pTrb->c));
 	int32_t slot = static_cast<int32_t>(XHCI_TRB_3_SLOT_GET(pTrb->d));
 	int32_t endpoint = static_cast<int32_t>(XHCI_TRB_3_EP_GET(pTrb->d));
-	bool ED = ((pTrb->d) & XHCI_TRB_3_ISP_BIT) != 0U;
+	bool ED = ((pTrb->d) & XHCI_TRB_3_ED_BIT) != 0U;
 
 	if (err == XHCI_TRB_ERROR_STOPPED || err == XHCI_TRB_ERROR_LENGTH)
 		return DoStopCompletion(pTrb);
@@ -744,6 +744,7 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 	 * This handles the case where xHC issues spurious
 	 *   success transfer event with duplicate addr
 	 *   after issuing a short-packet transfer event.
+	 *   (observed on Intel Series 7/C210)
 	 */
 	if (pRing->enqueueIndex == pRing->dequeueIndex)
 		return true;
@@ -761,6 +762,16 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 		callCompletion = pAsyncTd->interruptThisTD;
 		flush = false;
 		rc = kIOReturnSuccess;
+		/*
+		 * xHC sometimes reports a SUCCESS completion code
+		 *   even though shortfall != 0.  Track this for
+		 *   possible flushing.  Presently it's ignored,
+		 *   which may cause subsequent TDs in same
+		 *   transaction to be orphaned.
+		 *   (observed on Etron ASRock P67, Fresco Logic)
+		 */
+		if (shortfall)
+			++_diagCounters[DIAGCTR_SHORTSUCCESS];
 	}
 	pAsyncTd->shortfall = shortfall;
 	pAsyncEp->RetireTDs(pAsyncTd,

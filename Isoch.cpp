@@ -544,7 +544,7 @@ IOReturn GenericUSBXHCIIsochTD::UpdateFrameList(AbsoluteTime timeStamp)
 			uint8_t condCode = static_cast<uint8_t>(XHCI_TRB_2_ERROR_GET(eventTrb.c));
 			uint32_t eventLen = XHCI_TRB_2_REM_GET(eventTrb.c);
 			IOReturn frStatus = TranslateXHCIStatus(condCode);
-			bool edEvent = ((eventTrb.d) & XHCI_TRB_3_ISP_BIT) != 0U;
+			bool edEvent = ((eventTrb.d) & XHCI_TRB_3_ED_BIT) != 0U;
 			if (condCode == XHCI_TRB_ERROR_XACT) {
 				GenericUSBXHCIIsochEP* pIsochEp = static_cast<GenericUSBXHCIIsochEP*>(_pEndpoint);
 				if (pIsochEp->direction == kUSBIn &&

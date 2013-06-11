@@ -578,11 +578,12 @@ bool CLASS::IsStillConnectedAndEnabled(int32_t slot)
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::CheckSlotForTimeouts(int32_t slot, uint32_t frameNumber)
+void CLASS::CheckSlotForTimeouts(int32_t slot, uint32_t frameNumber, bool isAssociatedRHPortEnabled)
 {
 	SlotStruct* pSlot = SlotPtr(slot);
 	if (pSlot->isInactive())
 		return;
+	bool abortAll = pSlot->deviceNeedsReset || !isAssociatedRHPortEnabled;
 	for (int32_t endpoint = 1; endpoint != kUSBMaxPipes; ++endpoint) {
 		ringStruct* pRing = pSlot->ringArrayForEndpoint[endpoint];
 		if (pRing->isInactive() ||
@@ -592,11 +593,11 @@ void CLASS::CheckSlotForTimeouts(int32_t slot, uint32_t frameNumber)
 			bool stopped = false;
 			uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
 			for (uint16_t streamId = 1U; streamId <= lastStream; ++streamId)
-				if (checkEPForTimeOuts(slot, endpoint, streamId, frameNumber))
+				if (checkEPForTimeOuts(slot, endpoint, streamId, frameNumber, abortAll))
 					stopped = true;
 			if (stopped)
 				RestartStreams(slot, endpoint, 0U);
-		} else if (checkEPForTimeOuts(slot, endpoint, 0U, frameNumber))
+		} else if (checkEPForTimeOuts(slot, endpoint, 0U, frameNumber, abortAll))
 			StartEndpoint(slot, endpoint, 0U);
 	}
 }
@@ -726,11 +727,11 @@ IOReturn CLASS::TranslateXHCIStatus(int32_t xhci_err, bool direction, uint8_t sp
 		case XHCI_TRB_ERROR_SPLIT_XACT:
 			return kIOUSBHighSpeedSplitError;
 		case 193:	// Intel FORCE_HDR_USB2_NO_SUPPORT
-			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnInternalError : kIOReturnUnsupported;
+			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnUnsupported : kIOReturnInternalError;
 		case 199:	// Intel CMPL_WITH_EMPTY_CONTEXT
-			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnInternalError : kIOReturnNotOpen;
+			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnNotOpen : kIOReturnInternalError;
 		case 200:	// Intel VENDOR_CMD_FAILED
-			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnInternalError : kIOReturnNoBandwidth;
+			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnNoBandwidth : kIOReturnInternalError;
 		default:
 			return kIOReturnInternalError;
 	}

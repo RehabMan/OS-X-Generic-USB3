@@ -346,21 +346,18 @@ uint32_t CLASS::QuiesceEndpoint(int32_t slot, int32_t endpoint)
 }
 
 __attribute__((visibility("hidden")))
-bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId, uint32_t frameNumber)
+bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId, uint32_t frameNumber, bool abortAll)
 {
 	ringStruct* pRing;
 	XHCIAsyncEndpoint* pAsyncEp;
 	ContextStruct* pEpContext;
 	uint32_t ndto;
 	uint16_t dq;
-	bool abortAll, stopped = false;
+	bool stopped = false;
 
 	pRing = GetRing(slot, endpoint, streamId);
 	if (!pRing)
 		return false;
-	abortAll = true;
-	if (!GetNeedsReset(slot))
-		abortAll = !IsStillConnectedAndEnabled(slot);
 	dq = pRing->dequeueIndex;
 	if (!abortAll && (pRing->lastSeenDequeueIndex != dq || pRing->enqueueIndex == dq)) {
 		pRing->lastSeenDequeueIndex = dq;
