@@ -151,7 +151,8 @@ IOReturn CLASS::UIMAbortStream(UInt32 streamID, short functionNumber, short endp
 	if (gux_log_level >= 2)
 		IOLog("%s(%#x, %d, %d, %d)\n", __FUNCTION__, streamID, functionNumber, endpointNumber, direction);
 	slot = GetSlotID(functionNumber);
-	if (!slot)
+	if (!slot ||
+		ConstSlotPtr(slot)->isInactive())
 		return kIOReturnInternalError;
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (!endpoint || endpoint >= kUSBMaxPipes)

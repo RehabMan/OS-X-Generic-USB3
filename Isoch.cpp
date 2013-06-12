@@ -30,7 +30,8 @@ IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNum
 	uint8_t slot, endpoint, epType, speed, intervalExponent;
 
 	slot = GetSlotID(functionAddress);
-	if (!slot)
+	if (!slot ||
+		ConstSlotPtr(slot)->isInactive())
 		return kIOReturnInternalError;
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)
@@ -109,12 +110,12 @@ IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNum
 static
 void wipeIsochList(IOUSBControllerListElement* pHead, IOUSBControllerListElement* pTail)
 {
-	IOUSBControllerListElement* pTd;
+	IOUSBControllerListElement* pNextTd;
 
 	while (pHead) {
-		pTd = (pHead != pTail) ? pHead->_logicalNext : 0;
+		pNextTd = (pHead != pTail) ? pHead->_logicalNext : 0;
 		pHead->release();
-		pHead = pTd;
+		pHead = pNextTd;
 	}
 }
 

@@ -108,7 +108,8 @@ IOReturn CLASS::UIMCreateControlTransfer(short functionNumber, short endpointNum
 	SetupStageHeader smallbuf2;
 
 	slot = GetSlotID(functionNumber);
-	if (!slot)
+	if (!slot ||
+		ConstSlotPtr(slot)->isInactive())
 		return kIOUSBEndpointNotFound;
 	if (endpointNumber)
 		return kIOReturnBadArgument;
