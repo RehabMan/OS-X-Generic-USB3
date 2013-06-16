@@ -84,7 +84,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	_maxInterrupters = static_cast<uint16_t>(XHCI_HCS1_IRQ_MAX(hcp1));
 	_numSlots = static_cast<uint8_t>(XHCI_HCS1_DEVSLOT_MAX(hcp1));
 	_rootHubNumPorts = static_cast<uint8_t>(XHCI_HCS1_N_PORTS(hcp1));
-	if (!_rootHubNumPorts || _rootHubNumPorts > kMaxPorts) {
+	if (!_rootHubNumPorts || _rootHubNumPorts > kMaxRootPorts) {
 		IOLog("%s: Invalid number of root hub ports == %u\n", __FUNCTION__, _rootHubNumPorts);
 		UIMFinalize();
 		return kIOReturnDeviceError;
@@ -507,7 +507,7 @@ void CLASS::UIMRootHubStatusChange(void)
 		statusChangedBitmap |= statusBit;
 	}
 #else
-	uint16_t statusChangedBitmap = RHPortStatusChangeBitmapGrab();
+	uint32_t statusChangedBitmap = RHPortStatusChangeBitmapGrab();
 	if (gux_log_level >= 2 && statusChangedBitmap)
 		IOLog("%s: statusChangedBitmap == %#x\n", __FUNCTION__, statusChangedBitmap);
 	statusChangedBitmap |= _rhPortStatusChangeBitmapGated;
@@ -515,7 +515,15 @@ void CLASS::UIMRootHubStatusChange(void)
 	if (!_controllerAvailable || _wakingFromHibernation)
 		statusChangedBitmap = 0U;
 #endif
-	_rootHubStatusChangedBitmap = statusChangedBitmap;
+#if __LP64__
+	if (gux_options & GUX_OPTION_MAVERICKS) {
+		reinterpret_cast<uint32_t*>(&_v3ExpansionData->_wakingFromStandby)[1] = statusChangedBitmap;
+		if (_v3ExpansionData && _v3ExpansionData->_rootHubPollingRate32)
+			RootHubStartTimer32(_v3ExpansionData->_rootHubPollingRate32);
+		return;
+	}
+#endif
+	_rootHubStatusChangedBitmap = static_cast<uint16_t>(statusChangedBitmap);
 }
 
 IOReturn CLASS::GetRootHubDeviceDescriptor(IOUSBDeviceDescriptor* desc)

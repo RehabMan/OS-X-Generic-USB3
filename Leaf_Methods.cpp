@@ -432,8 +432,8 @@ IOReturn CLASS::AddressDevice(uint32_t deviceSlot, uint16_t maxPacketSize, bool 
 	for (int32_t depth = 0; depth < 5; ++depth) {
 		if (currentHubAddress == _hub3Address || currentHubAddress == _hub2Address)
 			break;
-		if (currentPortOnHub > kMaxPorts)
-			currentPortOnHub = kMaxPorts;
+		if (currentPortOnHub > kMaxExternalHubPorts)
+			currentPortOnHub = kMaxExternalHubPorts;
 		routeString = (routeString << 4) + currentPortOnHub;
 		addr = currentHubAddress;
 		currentHubAddress = _addressMapper.HubAddress[addr];
@@ -771,7 +771,7 @@ IOReturn CLASS::configureHub(uint32_t deviceAddress, uint32_t flags)
 		nop = (flags & kUSBHSHubFlagsNumPortsMask) >> kUSBHSHubFlagsNumPortsShift;
 	} else {
 		ttt = 3U;	// 32 FS bit times
-		nop = kMaxPorts;
+		nop = kMaxExternalHubPorts;
 	}
 	GetInputContext();
 	pContext = GetInputContextPtr();
@@ -918,8 +918,8 @@ IOReturn CLASS::GetPortBandwidth(uint8_t HubSlot, uint8_t speed, uint8_t* pBuffe
 		*pCount = _rootHubNumPorts;
 		return kIOReturnNoMemory;
 	}
-	if (HubSlot && *pCount < kMaxPorts) {
-		*pCount = kMaxPorts;
+	if (HubSlot && *pCount < kMaxExternalHubPorts) {
+		*pCount = kMaxExternalHubPorts;
 		return kIOReturnNoMemory;
 	}
 	switch (speed) {
@@ -953,8 +953,8 @@ IOReturn CLASS::GetPortBandwidth(uint8_t HubSlot, uint8_t speed, uint8_t* pBuffe
 		bcopy(reinterpret_cast<uint8_t const*>(GetInputContextPtr()) + 1, pBuffer, _rootHubNumPorts);
 		*pCount = _rootHubNumPorts;
 	} else {
-		bcopy(reinterpret_cast<uint8_t const*>(GetInputContextPtr()) + 1, pBuffer, kMaxPorts);
-		*pCount = kMaxPorts;
+		bcopy(reinterpret_cast<uint8_t const*>(GetInputContextPtr()) + 1, pBuffer, kMaxExternalHubPorts);
+		*pCount = kMaxExternalHubPorts;
 	}
 	ReleaseInputContext();
 	return kIOReturnSuccess;
