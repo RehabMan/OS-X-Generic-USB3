@@ -215,7 +215,7 @@ private:
 									// align 4-byte
 	thread_call_t _rhResumePortTimerThread[kMaxRootPorts];
 									// offset 0x23870
-	uint32_t _rhPortStatusChangeBitmap;	// Added
+	uint32_t volatile _rhPortStatusChangeBitmap;	// Added
 	uint32_t _rhPortStatusChangeBitmapGated; // Added
 #if 0
 	thread_call_t _rhResetPortThread[kMaxRootPorts];
@@ -660,6 +660,11 @@ public:
 	IOReturn XHCIRootHubSuspendPort(uint8_t, uint16_t, bool);
 	IOReturn XHCIRootHubClearPortConnectionChange(uint16_t);
 	IOReturn XHCIRootHubClearPortChangeBit(uint16_t, uint32_t);
+	/*
+	 * Accessors for _expansionData, _expansionDataV3
+	 */
+	void* getV1Ptr(intptr_t offset);
+	void* getV3Ptr(intptr_t offset);
 };
 
 #endif

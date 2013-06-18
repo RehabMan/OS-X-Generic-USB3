@@ -307,7 +307,7 @@ void CLASS::StopEndpoint(int32_t slot, int32_t endpoint, bool suspend)
 	if (suspend)
 		localTrb.d |= XHCI_TRB_3_SUSP_EP_BIT;
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_STOP_EP, 0);
-	if ((_errataBits & kErrataIntelPantherPoint) && retFromCMD == -1000 - 196)	// Intel CC_NOSTOP
+	if (_vendorID == kVendorIntel && retFromCMD == -1000 - 196)	// Intel CC_NOSTOP
 		SetNeedsReset(slot, true);
 }
 
@@ -515,7 +515,7 @@ IOReturn CLASS::CreateStream(ringStruct* pRing, uint16_t streamId)
 		return kIOReturnNoMemory;
 	uint64_t strm_dqptr = pStreamRing->physAddr & ~15ULL;
 	if (pStreamRing->cycleState)
-		strm_dqptr |= 1ULL;	// set DCS bit
+		strm_dqptr |= 1ULL;	// Note: set DCS bit
 	strm_dqptr |= 2ULL;	// Note: set SCT = 1 - Primary Transfer Ring
 	SetTRBAddr64(&pRing->ptr[streamId], strm_dqptr);
 	return kIOReturnSuccess;

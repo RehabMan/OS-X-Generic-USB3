@@ -233,7 +233,7 @@ IOReturn CLASS::RHResetPort(uint8_t protocol, uint16_t port)
 		return kIOReturnNoDevice;
 	Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, portSC | XHCI_PS_PR);
 #ifdef LONG_RESET
-	if (!(_errataBits & kErrataIntelPCIRoutingExtension) ||
+	if (!(_errataBits & kErrataIntelPortMuxing) ||
 		(gUSBStackDebugFlags & kUSBDisableMuxedPortsMask))
 		return kIOReturnSuccess;
 	for (count = 0U; count < 8U; ++count) {
@@ -589,6 +589,7 @@ IOReturn CLASS::HandlePortDebouncing(uint16_t* pStatusFlags, uint16_t* pChangeFl
 
 	/*
 	 * Insanity Now! Serenity Later.
+	 *   TBD: Mavericks A744 - B2E6
 	 */
 	if (protocol != kUSBDeviceSpeedSuper) {
 		if (_rhPortDebouncing[port])

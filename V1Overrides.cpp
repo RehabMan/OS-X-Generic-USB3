@@ -23,15 +23,13 @@ __attribute__((noinline))
 UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 {
 	ErrataListEntry const errataList[] = {
-		{ 0x1033U, 0x0194U, 0U, UINT16_MAX, kErrataRenesas },	// Renesas uPD720200
-		{ 0x1B73U, 0x1000U, 0U, UINT16_MAX, kErrataDisableMSI },	// Fresco Logic FL1000
-		{ 0x8086U, 0x1E31U, 0U, UINT16_MAX,
-			kErrataAllowControllerDoze |
-			kErrataParkRing | kErrataIntelPCIRoutingExtension |
-			kErrataEnableAutoCompliance | kErrataIntelPantherPoint},	// Intel Series 7/C210
-		{ 0x1B21U, 0U, 0U, UINT16_MAX, kErrataASMedia },	// Any ASMedia
-		{ 0x1B73U, 0U, 0U, UINT16_MAX, kErrataFrescoLogic },	// Any Fresco Logic (FL1000, FL1009, FL1100)
-		{ 0x1B73U, 0x1100U, 0U, 0x10U, kErrataFL1100 }	// Fresco Logic FL1100
+		{ kVendorFrescoLogic, 0x1000U, 0U, UINT16_MAX, kErrataDisableMSI },	// Fresco Logic FL1000
+		{ kVendorIntel, 0x1E31U, 0U, UINT16_MAX,
+			kErrataSWAssistedIdle |
+			kErrataParkRing | kErrataIntelPortMuxing |
+			kErrataEnableAutoCompliance | kErrataIntelPantherPoint },	// Intel Series 7/C210
+		{ kVendorIntel, 0x8C31U, 0U, UINT16_MAX, kErrataSWAssistedIdle | kErrataEnableAutoCompliance | kErrataParkRing },	// Intel Series 8/C220
+		{ kVendorIntel, 0x9C31U, 0U, UINT16_MAX, kErrataSWAssistedIdle | kErrataEnableAutoCompliance | kErrataParkRing }	// Intel Lynx Point
 	};
 	ErrataListEntry const* entryPtr;
 	uint32_t i, errata = 0U;
@@ -41,14 +39,21 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 			revisionID >= entryPtr->revisionLo &&
 			revisionID <= entryPtr->revisionHi)
 			errata |= entryPtr->errata;
+	if (gux_options & GUX_OPTION_NO_INTEL_IDLE)
+		errata &= ~kErrataSWAssistedIdle;
+	if (gux_options & GUX_OPTION_NO_MSI)
+		errata |= kErrataDisableMSI;
+#if __LP64__
+	/*
+	 * Note: This is done in GetErrata64Bits in Mavericks
+	 */
+	if (gux_options & GUX_OPTION_MAVERICKS)
+		return errata;
+#endif
 	if (getProperty(kIOPCITunnelledKey, gIOServicePlane) == kOSBooleanTrue) {
 		_v3ExpansionData->_onThunderbolt = true;
 		requireMaxBusStall(25000U);
 	}
-	if (gux_options & GUX_OPTION_NO_INTEL_IDLE)
-		errata &= ~kErrataAllowControllerDoze;
-	if (gux_options & GUX_OPTION_NO_MSI)
-		errata |= kErrataDisableMSI;
 	return errata;
 }
 

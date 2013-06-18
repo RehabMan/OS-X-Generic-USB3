@@ -36,17 +36,19 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		return kIOReturnNoResources;
 	}
 	SetVendorInfo();
-	_errataBits = GetErrataBits(_vendorID, _deviceID, _revisionID);	// Note: originally |=
-#if 0
-	if (!(_errataBits & (kErrataASMedia | kErrataFrescoLogic | kErrataIntelPantherPoint))) {
-		OSBoolean* b = OSDynamicCast(OSBoolean, getProperty("AllowAnyXHCI"));
-		if (!(gUSBStackDebugFlags & kUSBEnableAllXHCIControllersMask) && (!b || !b->isTrue())) {
-			IOLog("%s: Unsupported xHC chipset\n", __FUNCTION__);
-			UIMFinalize();
-			return kIOReturnUnsupported;
+#if __LP64__
+	if (gux_options & GUX_OPTION_MAVERICKS) {
+		PGetErrata64Bits pFunc = (*reinterpret_cast<PGetErrata64Bits**>(this))[V3_GetErrata64Bits];
+		uint64_t errata64 = pFunc(this, _vendorID, _deviceID, _revisionID);
+		*static_cast<uint64_t*>(getV3Ptr(V3_errata64Bits)) = errata64;
+		if (errata64 & (1ULL << 34U)) {
+			/*
+			 * TBD: Mavericks 15517 - 156C7
+			 */
 		}
 	}
 #endif
+	_errataBits = GetErrataBits(_vendorID, _deviceID, _revisionID);	// Note: originally |=
 	if (!_v3ExpansionData->_onThunderbolt)
 		_expansionData->_isochMaxBusStall = 25000U;
 	_pXHCICapRegisters = reinterpret_cast<struct XHCICapRegisters volatile*>(_deviceBase->getVirtualAddress());
@@ -115,10 +117,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	}
 	DecodeExtendedCapability(hcc);
 	TakeOwnershipFromBios();
-	_maxNumEndpoints = (kUSBMaxPipes - 1) * 256;
 	EnableXHCIPorts();
-	if (_errataBits & kErrataIntelPantherPoint)
-		_maxNumEndpoints = 64;
 	uint32_t u = Read8Reg(&_pXHCICapRegisters->CapLength);
 	if (m_invalid_regspace) {
 		IOLog("%s: Invalid regspace (4)\n", __FUNCTION__);
@@ -175,6 +174,16 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	}
 	Write32Reg(&_pXHCIOperationalRegisters->Config, (u & ~XHCI_CONFIG_SLOTS_MASK) | _numSlots);
 	Write32Reg(&_pXHCIOperationalRegisters->DNCtrl, UINT16_MAX);
+	if (_errataBits & kErrataIntelPantherPoint)
+		_maxNumEndpoints = 96;
+	else
+		_maxNumEndpoints = static_cast<int16_t>(_numSlots) * kUSBMaxPipes;
+#if 0
+	if (_maxNumEndpoints < gXHCIEPlimit) {
+		_maxNumEndpoints = gXHCIEPlimit;
+		setProperty("Max XHCI EPs", gXHCIEPlimit, 16U);
+	}
+#endif
 	_slotArray = static_cast<SlotStruct*>(IOMalloc(static_cast<size_t>(_numSlots) * sizeof *_slotArray));
 	if (!_slotArray) {
 		IOLog("%s: Failed to allocate memory for slots\n", __FUNCTION__);
@@ -255,6 +264,9 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		UIMFinalize();
 		return rc;
 	}
+	/*
+	 * TBD: Additional MakeBuffer in Mavericks (16543 - 1657E)
+	 */
 	bzero(&_addressMapper, sizeof _addressMapper);
 	RHPortStatusChangeBitmapInit();
 	_isSleeping = false;
@@ -268,6 +280,9 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	_RenesasControllerVersion = 0U;
 	_debugCtr = 0U;
 	_debugPattern = 0xDEADBEEFU;
+	/*
+	 * TBD: Mavericks 166FE - 16782
+	 */
 	rc = AllocRHThreadCalls();
 	if (rc != kIOReturnSuccess) {
 		IOLog("%s: AllocRHThreadCalls failed, rc == %#x\n", __FUNCTION__, rc);
@@ -275,6 +290,11 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		return rc;
 	}
 	CheckSleepCapability();
+	/*
+	 * TBD: Mavericks 167EC - 169D3
+	 *   some code to create diagnostics
+	 *   more stuff
+	 */
 	SetPropsForBookkeeping();
 	_uimInitialized = true;
 	registerService();
@@ -487,6 +507,9 @@ void CLASS::UIMRootHubStatusChange(void)
 	statusBit <<= 1;
 	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port, statusBit <<= 1) {
 		if (_rhPortResetPending[port])
+			/*
+			 * Note: Mavericks calls RootHubStartTimer32(kUSBRootHubPollingRate) here
+			 */
 			continue;
 		portStatus.statusFlags = 0U;
 		portStatus.changeFlags = 0U;
@@ -518,8 +541,6 @@ void CLASS::UIMRootHubStatusChange(void)
 #if __LP64__
 	if (gux_options & GUX_OPTION_MAVERICKS) {
 		reinterpret_cast<uint32_t*>(&_v3ExpansionData->_wakingFromStandby)[1] = statusChangedBitmap;
-		if (_v3ExpansionData && _v3ExpansionData->_rootHubPollingRate32)
-			RootHubStartTimer32(_v3ExpansionData->_rootHubPollingRate32);
 		return;
 	}
 #endif
@@ -676,13 +697,12 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 
 	if (!pStatus)
 		return kIOReturnBadArgument;
-	/*
-	 * Note: Bus is never set to kUSBBusStateSuspended...
-	 */
-	if (_myBusState == kUSBBusStateSuspended)
+	if (_myBusState < kUSBBusStateRunning)
 		return kIOReturnNotResponding;
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
+	if (!_controllerAvailable)
+		return kIOReturnOffline;
 	/*
 	 * Note: "protocol" is actually the speed of the requesting IOUSBRootHubDevice
 	 *   which is either kUSBDeviceSpeedHigh (2) or kUSBDeviceSpeedSuper (3).
@@ -763,6 +783,10 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 		_rhPortStatusChangeBitmapGated &= ~(2U << _port);
 	pStatus->statusFlags = HostToUSBWord(statusFlags);
 	pStatus->changeFlags = HostToUSBWord(changeFlags);
+	/*
+	 * Note: Mavericks B3A6 - B407
+	 *   Has some code to zero a counter (referenced in DoSoftRetries).
+	 */
 	return kIOReturnSuccess;
 }
 
@@ -888,13 +912,21 @@ void CLASS::PollInterrupts(IOUSBCompletionAction safeAction)
 	if (sts & XHCI_STS_PCD) {
 		Write32Reg(&_pXHCIOperationalRegisters->USBSts, XHCI_STS_PCD);
 		EnsureUsability();
-		/*
-		 * Note:
-		 *   RHCheckForPortResumes may be limited to the ports flagged
-		 *   by _rhPortStatusChangeBitmap | _rhPortStatusChangeBitmapGated
-		 */
-		if (_myPowerState == kUSBPowerStateOn)
+		if (_myPowerState == kUSBPowerStateOn) {
+#if __LP64__
+			if ((gux_options & GUX_OPTION_MAVERICKS) &&
+				_rhPortStatusChangeBitmap &&
+				!isInactive() &&
+				_controllerAvailable)
+				RootHubStartTimer32(kUSBRootHubPollingRate);
+#endif
+			/*
+			 * Note:
+			 *   RHCheckForPortResumes may be limited to the ports flagged
+			 *   by _rhPortStatusChangeBitmap | _rhPortStatusChangeBitmapGated
+			 */
 			RHCheckForPortResumes();
+		}
 	}
 	for (int32_t interrupter = 0; interrupter < kMaxActiveInterrupters; ++interrupter)
 		while (PollEventRing2(interrupter));

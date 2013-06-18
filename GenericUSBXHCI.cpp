@@ -56,7 +56,7 @@ IOReturn CLASS::message(UInt32 type, IOService* provider, void* argument)
 				(gUSBStackDebugFlags & kUSBDisableMuxedPortsMask) ||
 				!_device ||
 				isInactive() ||
-				!(_errataBits & kErrataIntelPCIRoutingExtension))
+				!(_errataBits & kErrataIntelPortMuxing))
 				return rc;
 			HCSelectWithMethod(static_cast<char const*>(argument));
 			return rc;
@@ -73,7 +73,7 @@ IOReturn CLASS::message(UInt32 type, IOService* provider, void* argument)
 		(gUSBStackDebugFlags & kUSBDisableMuxedPortsMask) ||
 		!_device ||
 		isInactive() ||
-		!(_errataBits & kErrataIntelPCIRoutingExtension))
+		!(_errataBits & kErrataIntelPortMuxing))
 		return rc;
 	HCSelect(static_cast<uint8_t>(reinterpret_cast<size_t>(argument)), controller);
 	return rc;

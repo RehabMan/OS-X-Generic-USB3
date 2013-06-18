@@ -727,11 +727,11 @@ IOReturn CLASS::TranslateXHCIStatus(int32_t xhci_err, bool direction, uint8_t sp
 		case XHCI_TRB_ERROR_SPLIT_XACT:
 			return kIOUSBHighSpeedSplitError;
 		case 193:	// Intel FORCE_HDR_USB2_NO_SUPPORT
-			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnUnsupported : kIOReturnInternalError;
+			return _vendorID == kVendorIntel ? kIOReturnUnsupported : kIOReturnInternalError;
 		case 199:	// Intel CMPL_WITH_EMPTY_CONTEXT
-			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnNotOpen : kIOReturnInternalError;
+			return _vendorID == kVendorIntel ? kIOReturnNotOpen : kIOReturnInternalError;
 		case 200:	// Intel VENDOR_CMD_FAILED
-			return (_errataBits & kErrataIntelPantherPoint) ? kIOReturnNoBandwidth : kIOReturnInternalError;
+			return _vendorID == kVendorIntel ? kIOReturnNoBandwidth : kIOReturnInternalError;
 		default:
 			return kIOReturnInternalError;
 	}
@@ -978,4 +978,20 @@ void CLASS::CheckedSleep(uint32_t msec)
 		SleepWithGateReleased(_commandGate, msec);
 	else
 		IOSleep(msec);
+}
+
+__attribute__((visibility("hidden")))
+void* CLASS::getV1Ptr(intptr_t offset)
+{
+	if (_expansionData)
+		return reinterpret_cast<uint8_t*>(_expansionData) + offset;
+	return 0;
+}
+
+__attribute__((visibility("hidden")))
+void* CLASS::getV3Ptr(intptr_t offset)
+{
+	if (_v3ExpansionData)
+		return reinterpret_cast<uint8_t*>(_v3ExpansionData) + offset;
+	return 0;
 }

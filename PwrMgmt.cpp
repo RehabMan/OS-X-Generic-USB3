@@ -18,21 +18,19 @@
 __attribute__((visibility("hidden")))
 void CLASS::CheckSleepCapability(void)
 {
+	bool haveSleep = false;
+
 	if (!(gux_options & GUX_OPTION_NO_SLEEP) &&
 		_device->hasPCIPowerManagement(kPCIPMCPMESupportFromD3Cold) &&
-		kIOReturnSuccess == _device->enablePCIPowerManagement(kPCIPMCSPowerStateD3)) {
-		_expansionData->_controllerCanSleep = true;
-		setProperty("Card Type", "Built-in");
-#if 1
-		setProperty("ResetOnResume", false);
+		kIOReturnSuccess == _device->enablePCIPowerManagement(kPCIPMCSPowerStateD3))
+		haveSleep = true;
+	else
+		IOLog("%s: xHC will be unloaded across sleep\n", getName());
+	_expansionData->_controllerCanSleep = haveSleep;
+#if __LP64__
+	if (gux_options & GUX_OPTION_MAVERICKS)
+		*static_cast<bool*>(getV3Ptr(V3_hasPCIPwrMgmt)) = haveSleep;
 #endif
-		return;
-	}
-	IOLog("%s: xHC will be unloaded across sleep\n", getName());
-	_expansionData->_controllerCanSleep = false;
-#if 0
-	setProperty("Card Type", "PCI");
-#else
 	/*
 	 * Note:
 	 *   Always set the Card Type to Built-in, in order
@@ -40,8 +38,11 @@ void CLASS::CheckSleepCapability(void)
 	 *   if xHC does not support save/restore.
 	 * See IOUSBRootHubDevice::start
 	 */
+#if 0
+	setProperty("Card Type", haveSleep ? "Built-in" : "PCI");
+#else
 	setProperty("Card Type", "Built-in");
-	setProperty("ResetOnResume", true);
+	setProperty("ResetOnResume", !haveSleep);
 #endif
 }
 

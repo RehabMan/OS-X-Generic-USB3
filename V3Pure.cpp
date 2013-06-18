@@ -243,7 +243,7 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 IOReturn CLASS::DozeController(void)
 {
 	if (!_v3ExpansionData->_externalDeviceCount &&
-		(_errataBits & kErrataAllowControllerDoze)) {
+		(_errataBits & kErrataSWAssistedIdle)) {
 		uint16_t xhcc = _device->configRead16(PCI_XHCI_INTEL_XHCC);
 		if (xhcc == UINT16_MAX) {
 #if 0
@@ -267,7 +267,7 @@ IOReturn CLASS::DozeController(void)
 IOReturn CLASS::WakeControllerFromDoze(void)
 {
 	if (!_v3ExpansionData->_externalDeviceCount &&
-		(_errataBits & kErrataAllowControllerDoze)) {
+		(_errataBits & kErrataSWAssistedIdle)) {
 		uint16_t xhcc = _device->configRead16(PCI_XHCI_INTEL_XHCC);
 		/*
 		 * Clear SWAXHCI if it's still on

@@ -22,7 +22,7 @@ void CLASS::EnableXHCIPorts(void)
 {
 	uint32_t v1, v2, v3, v4;
 
-	if (!(_errataBits & kErrataIntelPCIRoutingExtension))
+	if (_vendorID != kVendorIntel)
 		return;
 	v1 = _device->configRead32(PCI_XHCI_INTEL_XUSB2PR);
 	if (v1 == UINT32_MAX) {
@@ -59,17 +59,22 @@ bool CLASS::DiscoverMuxedPorts(void)
 	uint8_t t;
 	char* string_buf;
 
-	if (_rootHubDeviceSS == 0)
+	if (!_rootHubDeviceSS)
 		goto done;
 	if (_muxedPortsExist)
 		goto done;
-	if (!(_errataBits & kErrataIntelPCIRoutingExtension))
+	if (!(_errataBits & kErrataIntelPortMuxing))
 		goto done;
 	o = _rootHubDeviceSS->getProperty(kUSBDevicePropertyLocationID);
 	if (!o)
 		goto done;
 	n = static_cast<OSNumber*>(o)->unsigned32BitValue();
-	_providerACPIDevice = CopyACPIDevice(_device);
+#if __LP64__
+	if (gux_options & GUX_OPTION_MAVERICKS)
+		_providerACPIDevice = _v3ExpansionData ? *static_cast<IOACPIPlatformDevice**>(getV3Ptr(V3_acpiDevice)) : 0;
+	else
+#endif
+		_providerACPIDevice = CopyACPIDevice(_device);
 	if (!_providerACPIDevice)
 		goto done;
 	string_buf = &_muxName[0];
@@ -94,7 +99,7 @@ done:
 __attribute__((noinline, visibility("hidden")))
 void CLASS::DisableComplianceMode(void)
 {
-	if ((_errataBits & (kErrataFrescoLogic | kErrataIntelPantherPoint)) &&
+	if ((_vendorID == kVendorFrescoLogic || _vendorID == kVendorIntel) &&
 		!(_errataBits & kErrataEnableAutoCompliance)) {
 		_pXHCIPPTChickenBits = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80EC);
 		*_pXHCIPPTChickenBits |= 1U;
@@ -104,7 +109,7 @@ void CLASS::DisableComplianceMode(void)
 __attribute__((noinline, visibility("hidden")))
 void CLASS::EnableComplianceMode(void)
 {
-	if ((_errataBits & (kErrataFrescoLogic | kErrataIntelPantherPoint)) &&
+	if ((_vendorID == kVendorFrescoLogic || _vendorID == kVendorIntel) &&
 		!(_errataBits & kErrataEnableAutoCompliance)) {
 		_pXHCIPPTChickenBits = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80EC);
 		*_pXHCIPPTChickenBits &= ~1U;

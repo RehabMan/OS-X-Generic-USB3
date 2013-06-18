@@ -301,7 +301,7 @@ void CLASS::PrintCapRegs(PrintSink* pSink)
 		pSink->print("Will Reset on Resume\n");
 	if (_filterInterruptSource && !_filterInterruptSource->getAutoDisable())
 		pSink->print("Using MSI\n");
-	if ((_errataBits & (kErrataIntelPantherPoint | kErrataAllowControllerDoze)) == kErrataIntelPantherPoint)
+	if (_vendorID == kVendorIntel && !(_errataBits & kErrataSWAssistedIdle))
 		pSink->print("Intel Doze Disabled\n");
 }
 

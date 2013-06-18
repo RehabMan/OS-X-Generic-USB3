@@ -71,30 +71,31 @@ uint64_t CLASS::Read64Reg(uint64_t volatile const* p)
 		return UINT64_MAX;
 	if (XHCI_HCC_AC64(_HCCLow)) {
 #if __LP64__
-		if (_errataBits & kErrataFrescoLogic) {
+		if (_vendorID == kVendorFrescoLogic) {
 #endif
 			lowv = *reinterpret_cast<uint32_t volatile const*>(p);
 			if (lowv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
-				return UINT64_MAX;
+				goto scrap;
 			highv = reinterpret_cast<uint32_t volatile const*>(p)[1];
 			if (highv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
-				return UINT64_MAX;
+				goto scrap;
 			return (static_cast<uint64_t>(highv) << 32) | lowv;
 #if __LP64__
 		} else {
 			v = *p;
-			if (v != UINT64_MAX)
-				return v;
+			if (v == UINT64_MAX && _v3ExpansionData->_onThunderbolt)
+				goto scrap;
+			return v;
 		}
 #endif
 	} else {
 		lowv = *reinterpret_cast<uint32_t volatile const*>(p);
 		if (lowv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
-			return UINT64_MAX;
+			goto scrap;
 		return lowv;
 	}
-	if (_v3ExpansionData->_onThunderbolt)
-		m_invalid_regspace = true;
+scrap:
+	m_invalid_regspace = true;
 	return UINT64_MAX;
 }
 
@@ -113,7 +114,7 @@ void CLASS::Write64Reg(uint64_t volatile* p, uint64_t v, bool)
 		return;
 	if (XHCI_HCC_AC64(_HCCLow)) {
 #if __LP64__
-		if (_errataBits & kErrataFrescoLogic) {
+		if (_vendorID == kVendorFrescoLogic) {
 #endif
 			*reinterpret_cast<uint32_t volatile*>(p) = static_cast<uint32_t>(v);
 			reinterpret_cast<uint32_t volatile*>(p)[1] = static_cast<uint32_t>(v >> 32);

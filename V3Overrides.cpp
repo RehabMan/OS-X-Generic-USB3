@@ -125,7 +125,7 @@ IOReturn CLASS::UIMDeviceToBeReset(short functionAddress)
 	uint8_t slot = GetSlotID(functionAddress);
 	if (!slot)
 		return kIOReturnBadArgument;
-	if (_errataBits & kErrataIntelPantherPoint)
+	if (_vendorID == kVendorIntel)
 		SetNeedsReset(slot, false);
 	return kIOReturnSuccess;
 }
