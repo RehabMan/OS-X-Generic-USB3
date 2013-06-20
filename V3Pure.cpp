@@ -23,7 +23,11 @@ IOReturn CLASS::ResetControllerState(void)
 	IOReturn rc = StopUSBBus();
 	EnableInterruptsFromController(false);
 	IOSleep(1U);	// drain primary interrupts
-	if (_expansionData &&
+	/*
+	 * Note: Mavericks does this in IOUSBControllerV3::ControllerOff
+	 */
+	if (!CHECK_FOR_MAVERICKS &&
+		_expansionData &&
 		_expansionData->_controllerCanSleep &&
 		_device) {
 		/*
@@ -79,6 +83,9 @@ IOReturn CLASS::RestartControllerFromReset(void)
 #endif
 	_millsecondCounter = 0ULL;
 	bzero(&_interruptCounters[0], sizeof _interruptCounters);
+	if (_wakingFromHibernation && _expansionData && _expansionData->_controllerCanSleep && _device &&
+		_device->hasPCIPowerManagement(kPCIPMCPMESupportFromD3Cold))
+		_device->enablePCIPowerManagement(kPCIPMCSPowerStateD3);
 	_uimInitialized = true;
 	return kIOReturnSuccess;
 }
@@ -127,6 +134,8 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 	uint32_t sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
+	if (CHECK_FOR_MAVERICKS && (_errataBits & kErrataFL1100))
+		FL1100Tricks(1);
 	if (sts & XHCI_STS_PCD) {
 		for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
 			uint32_t portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);
@@ -183,6 +192,9 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 		IOReturn rc = WaitForUSBSts(XHCI_STS_RSS, 0U);
 		if (rc == kIOReturnNoDevice)
 			return rc;
+		/*
+		 * Note: Mavericks _unknownMavBool = true;
+		 */
 		sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 		if (m_invalid_regspace)
 			return kIOReturnNoDevice;
@@ -194,8 +206,8 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 			rc = RestartControllerFromReset();
 			if (rc != kIOReturnSuccess)
 				IOLog("%s: RestartControllerFromReset failed with %#x\n", __FUNCTION__, rc);
-			SantizePortsAfterPowerLoss();
 #if 0
+			SantizePortsAfterPowerLoss();
 			NotifyRootHubsOfPowerLoss();
 #endif
 			return kIOReturnSuccess;

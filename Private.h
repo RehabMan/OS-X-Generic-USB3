@@ -49,6 +49,7 @@ UInt32 gUSBStackDebugFlags;	// Note: defined in IOUSBFamily/Classes/IOUSBControl
 #define kErrataEnableAutoCompliance 0x10U
 #define kErrataIntelPortMuxing 0x20U
 #define kErrataParkRing 0x100U
+#define kErrataFL1100 0x200U
 #define kErrataSWAssistedIdle (1U << 25)
 
 #pragma mark -
@@ -177,6 +178,12 @@ struct PrintSink
 #define V3_acpiDevice 0x110
 #define V3_minimumIdlePowerStateValid 0x129
 #define V3_GetErrata64Bits 418
+
+#ifdef __LP64__
+#define CHECK_FOR_MAVERICKS ((gux_options & GUX_OPTION_MAVERICKS) != 0U)
+#else
+#define CHECK_FOR_MAVERICKS false
+#endif
 
 #ifdef __cplusplus
 extern "C" {

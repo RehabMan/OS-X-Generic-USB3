@@ -36,7 +36,7 @@ IOReturn CLASS::XHCIRootHubPowerPort(uint16_t port, bool state)
 		return kIOReturnNoDevice;
 	pPortSC = &_pXHCIOperationalRegisters->prs[port].PortSC;
 	if (state)
-		portSC |= XHCI_PS_PP | XHCI_PS_WAKEBITS;
+		portSC |= XHCI_PS_PP;
 	else {
 		/*
 		 * Clear any pending change flags while powering down port.

@@ -30,6 +30,9 @@ void CLASS::ControllerSleep(void)
 	 */
 	QuiesceAllEndpoints();
 	CompleteSuspendOnAllPorts();
+	/*
+	 * Note: Mavericks calls ExecuteGetPortBandwidthWorkaround() here
+	 */
 	CommandStop();
 	EnableInterruptsFromController(false);
 	IOSleep(1U);	// drain primary interrupts

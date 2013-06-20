@@ -36,8 +36,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		return kIOReturnNoResources;
 	}
 	SetVendorInfo();
-#if __LP64__
-	if (gux_options & GUX_OPTION_MAVERICKS) {
+	if (CHECK_FOR_MAVERICKS) {
 		PGetErrata64Bits pFunc = (*reinterpret_cast<PGetErrata64Bits**>(this))[V3_GetErrata64Bits];
 		uint64_t errata64 = pFunc(this, _vendorID, _deviceID, _revisionID);
 		*static_cast<uint64_t*>(getV3Ptr(V3_errata64Bits)) = errata64;
@@ -47,7 +46,6 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 			 */
 		}
 	}
-#endif
 	_errataBits = GetErrataBits(_vendorID, _deviceID, _revisionID);	// Note: originally |=
 	if (!_v3ExpansionData->_onThunderbolt)
 		_expansionData->_isochMaxBusStall = 25000U;
@@ -538,12 +536,10 @@ void CLASS::UIMRootHubStatusChange(void)
 	if (!_controllerAvailable || _wakingFromHibernation)
 		statusChangedBitmap = 0U;
 #endif
-#if __LP64__
-	if (gux_options & GUX_OPTION_MAVERICKS) {
+	if (CHECK_FOR_MAVERICKS) {
 		reinterpret_cast<uint32_t*>(&_v3ExpansionData->_wakingFromStandby)[1] = statusChangedBitmap;
 		return;
 	}
-#endif
 	_rootHubStatusChangedBitmap = static_cast<uint16_t>(statusChangedBitmap);
 }
 
@@ -795,6 +791,8 @@ IOReturn CLASS::SetRootHubPortFeature(UInt16 wValue, UInt16 port)
 	uint16_t _port;
 	uint8_t protocol;
 
+	if (!_controllerAvailable)
+		return kIOReturnOffline;
 	protocol = static_cast<uint8_t>((wValue & kUSBSpeed_Mask) >> kUSBSpeed_Shift);
 	wValue = (wValue & kUSBAddress_Mask) >> kUSBAddress_Shift;
 	_port = PortNumberProtocolToCanonical(port & UINT8_MAX, protocol);
@@ -831,6 +829,8 @@ IOReturn CLASS::ClearRootHubPortFeature(UInt16 wValue, UInt16 port)
 	uint16_t _port;
 	uint8_t protocol;
 
+	if (!_controllerAvailable)
+		return kIOReturnOffline;
 	protocol = static_cast<uint8_t>((wValue & kUSBSpeed_Mask) >> kUSBSpeed_Shift);
 	wValue = (wValue & kUSBAddress_Mask) >> kUSBAddress_Shift;
 	_port = PortNumberProtocolToCanonical(port, protocol);
@@ -913,13 +913,11 @@ void CLASS::PollInterrupts(IOUSBCompletionAction safeAction)
 		Write32Reg(&_pXHCIOperationalRegisters->USBSts, XHCI_STS_PCD);
 		EnsureUsability();
 		if (_myPowerState == kUSBPowerStateOn) {
-#if __LP64__
-			if ((gux_options & GUX_OPTION_MAVERICKS) &&
+			if (CHECK_FOR_MAVERICKS &&
 				_rhPortStatusChangeBitmap &&
 				!isInactive() &&
 				_controllerAvailable)
 				RootHubStartTimer32(kUSBRootHubPollingRate);
-#endif
 			/*
 			 * Note:
 			 *   RHCheckForPortResumes may be limited to the ports flagged

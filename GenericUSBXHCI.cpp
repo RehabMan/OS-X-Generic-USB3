@@ -189,7 +189,7 @@ kern_return_t Startup(kmod_info_t* ki, void * d)
 		IOLog("OS 10.7.5 or later required for GenericUSBXHCI\n");
 		return KERN_FAILURE;
 	}
-#if __LP64__
+#ifdef __LP64__
 	if (thisKernelVersion >= MakeKernelVersion(13, 0, 0))
 		gux_options |= GUX_OPTION_MAVERICKS;
 #endif

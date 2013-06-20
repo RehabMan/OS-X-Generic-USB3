@@ -70,30 +70,26 @@ uint64_t CLASS::Read64Reg(uint64_t volatile const* p)
 	if (m_invalid_regspace)
 		return UINT64_MAX;
 	if (XHCI_HCC_AC64(_HCCLow)) {
-#if __LP64__
-		if (_vendorID == kVendorFrescoLogic) {
-#endif
-			lowv = *reinterpret_cast<uint32_t volatile const*>(p);
-			if (lowv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
-				goto scrap;
-			highv = reinterpret_cast<uint32_t volatile const*>(p)[1];
-			if (highv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
-				goto scrap;
-			return (static_cast<uint64_t>(highv) << 32) | lowv;
-#if __LP64__
-		} else {
+#ifdef __LP64__
+		if (_vendorID != kVendorFrescoLogic) {
 			v = *p;
 			if (v == UINT64_MAX && _v3ExpansionData->_onThunderbolt)
 				goto scrap;
 			return v;
 		}
 #endif
-	} else {
 		lowv = *reinterpret_cast<uint32_t volatile const*>(p);
 		if (lowv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
 			goto scrap;
-		return lowv;
+		highv = reinterpret_cast<uint32_t volatile const*>(p)[1];
+		if (highv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
+			goto scrap;
+		return (static_cast<uint64_t>(highv) << 32) | lowv;
 	}
+	lowv = *reinterpret_cast<uint32_t volatile const*>(p);
+	if (lowv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
+		goto scrap;
+	return lowv;
 scrap:
 	m_invalid_regspace = true;
 	return UINT64_MAX;
@@ -113,19 +109,18 @@ void CLASS::Write64Reg(uint64_t volatile* p, uint64_t v, bool)
 	if (m_invalid_regspace)
 		return;
 	if (XHCI_HCC_AC64(_HCCLow)) {
-#if __LP64__
-		if (_vendorID == kVendorFrescoLogic) {
-#endif
-			*reinterpret_cast<uint32_t volatile*>(p) = static_cast<uint32_t>(v);
-			reinterpret_cast<uint32_t volatile*>(p)[1] = static_cast<uint32_t>(v >> 32);
-#if __LP64__
-		} else
+#ifdef __LP64__
+		if (_vendorID != kVendorFrescoLogic) {
 			*p = v;
+			return;
+		}
 #endif
-	} else {
 		*reinterpret_cast<uint32_t volatile*>(p) = static_cast<uint32_t>(v);
-		reinterpret_cast<uint32_t volatile*>(p)[1] = 0U;
+		reinterpret_cast<uint32_t volatile*>(p)[1] = static_cast<uint32_t>(v >> 32);
+		return;
 	}
+	*reinterpret_cast<uint32_t volatile*>(p) = static_cast<uint32_t>(v);
+	reinterpret_cast<uint32_t volatile*>(p)[1] = 0U;
 }
 
 #pragma mark -

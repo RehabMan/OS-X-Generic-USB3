@@ -273,6 +273,10 @@ private:
 	bool _HSEDetected;				// offset 0x23B1A
 									// align 5-byte
 #if 0
+	bool _wakeEnabled;				// Added Mavericks (0x2CFA0)
+#endif
+	bool _unknownMavBool;			// Added Mavericks (0x2CFA1)
+#if 0
 	struct {
 		IOBufferMemoryDescriptor*md;// offset 0x23B20
 		uint64_t physAddr;			// offset 0x23B28
@@ -515,7 +519,11 @@ public:
 	void NukeSlot(uint8_t);
 	IOReturn CompleteSuspendOnAllPorts(void);
 	void NotifyRootHubsOfPowerLoss(void);
+#if 0
 	void SantizePortsAfterPowerLoss(void);
+	void DisableWakeBits(void);
+	void EnableWakeBits(void);
+#endif
 	static void SleepWithGateReleased(IOCommandGate*, uint32_t);
 	void CheckedSleep(uint32_t);
 	/*
@@ -593,6 +601,7 @@ public:
 	void EnableXHCIPorts(void);
 	void EnableComplianceMode(void) {}
 	void DisableComplianceMode(void) {}
+	IOReturn FL1100Tricks(int) { return kIOReturnSuccess; }
 	bool DiscoverMuxedPorts(void);
 	IOReturn HCSelect(uint8_t, uint8_t);
 	IOReturn HCSelectWithMethod(char const*);

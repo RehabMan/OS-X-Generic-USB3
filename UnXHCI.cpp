@@ -69,11 +69,9 @@ bool CLASS::DiscoverMuxedPorts(void)
 	if (!o)
 		goto done;
 	n = static_cast<OSNumber*>(o)->unsigned32BitValue();
-#if __LP64__
-	if (gux_options & GUX_OPTION_MAVERICKS)
+	if (CHECK_FOR_MAVERICKS)
 		_providerACPIDevice = _v3ExpansionData ? *static_cast<IOACPIPlatformDevice**>(getV3Ptr(V3_acpiDevice)) : 0;
 	else
-#endif
 		_providerACPIDevice = CopyACPIDevice(_device);
 	if (!_providerACPIDevice)
 		goto done;
@@ -114,6 +112,29 @@ void CLASS::EnableComplianceMode(void)
 		_pXHCIPPTChickenBits = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80EC);
 		*_pXHCIPPTChickenBits &= ~1U;
 	}
+}
+
+__attribute__((visibility("hidden")))
+IOReturn CLASS::FL1100Tricks(int choice)
+{
+	uint32_t volatile* pReg;
+	uint32_t v;
+
+	switch (choice) {
+		case 1:
+			pReg = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x8094);
+			v = Read32Reg(pReg);
+			if (m_invalid_regspace)
+				return kIOReturnNoDevice;
+			Write32Reg(pReg, v | 0x800000U);
+			pReg = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80EC);
+			v = Read32Reg(pReg);
+			if (m_invalid_regspace)
+				return kIOReturnNoDevice;
+			Write32Reg(pReg, v & 0xEFFFFFFFU);
+			break;
+	}
+	return kIOReturnSuccess;
 }
 #endif
 

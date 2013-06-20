@@ -24,6 +24,7 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 {
 	ErrataListEntry const errataList[] = {
 		{ kVendorFrescoLogic, 0x1000U, 0U, UINT16_MAX, kErrataDisableMSI },	// Fresco Logic FL1000
+		{ kVendorFrescoLogic, 0x1100U, 0U, 0x10U, kErrataFL1100 },	// Fresco Logic FL1100
 		{ kVendorIntel, 0x1E31U, 0U, UINT16_MAX,
 			kErrataSWAssistedIdle |
 			kErrataParkRing | kErrataIntelPortMuxing |
@@ -43,13 +44,11 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 		errata &= ~kErrataSWAssistedIdle;
 	if (gux_options & GUX_OPTION_NO_MSI)
 		errata |= kErrataDisableMSI;
-#if __LP64__
 	/*
 	 * Note: This is done in GetErrata64Bits in Mavericks
 	 */
-	if (gux_options & GUX_OPTION_MAVERICKS)
+	if (CHECK_FOR_MAVERICKS)
 		return errata;
-#endif
 	if (getProperty(kIOPCITunnelledKey, gIOServicePlane) == kOSBooleanTrue) {
 		_v3ExpansionData->_onThunderbolt = true;
 		requireMaxBusStall(25000U);
