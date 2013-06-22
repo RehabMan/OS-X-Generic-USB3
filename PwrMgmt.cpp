@@ -45,7 +45,7 @@ void CLASS::CheckSleepCapability(void)
 }
 
 __attribute__((visibility("hidden")))
-IOReturn CLASS::CompleteSuspendOnAllPorts(void)
+IOReturn CLASS::RHCompleteSuspendOnAllPorts(void)
 {
 	uint32_t wait, portSC, changePortSC, idbmp, wantedWakeBits;
 

@@ -29,8 +29,8 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 			kErrataSWAssistedIdle |
 			kErrataParkRing | kErrataIntelPortMuxing |
 			kErrataEnableAutoCompliance | kErrataIntelPantherPoint },	// Intel Series 7/C210
-		{ kVendorIntel, 0x8C31U, 0U, UINT16_MAX, kErrataSWAssistedIdle | kErrataEnableAutoCompliance | kErrataParkRing },	// Intel Series 8/C220
-		{ kVendorIntel, 0x9C31U, 0U, UINT16_MAX, kErrataSWAssistedIdle | kErrataEnableAutoCompliance | kErrataParkRing }	// Intel Lynx Point
+		{ kVendorIntel, 0x8C31U, 0U, UINT16_MAX, kErrataSWAssistedIdle | kErrataEnableAutoCompliance | kErrataParkRing | kErrataIntelLynxPoint },	// Intel Series 8/C220
+		{ kVendorIntel, 0x9C31U, 0U, UINT16_MAX, kErrataSWAssistedIdle | kErrataEnableAutoCompliance | kErrataParkRing | kErrataIntelLynxPoint }	// Intel Lynx Point
 	};
 	ErrataListEntry const* entryPtr;
 	uint32_t i, errata = 0U;
@@ -86,7 +86,7 @@ void CLASS::UIMCheckForTimeouts(void)
 		if (!isAssociatedRHPortEnabled)
 			CheckSlotForTimeouts(slot, frameNumber, false);
 	}
-	if (_powerStateChangingTo != kUSBPowerStateStable && _powerStateChangingTo < kUSBPowerStateOn)
+	if (_powerStateChangingTo != kUSBPowerStateStable && _powerStateChangingTo < kUSBPowerStateOn && _powerStateChangingTo > kUSBPowerStateRestart)
 		return;
 	mfIndex = Read32Reg(&_pXHCIRuntimeRegisters->MFIndex);
 	if (m_invalid_regspace)

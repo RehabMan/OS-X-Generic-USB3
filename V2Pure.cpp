@@ -33,12 +33,37 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 		return kIOReturnSuccess;
 	packetSize = maxPacketSize != 9U ? maxPacketSize : 512U;
 	if (!functionNumber) {
+		/*
+		 * Note: Mavericks tests for availability of 2 endpoints
+		 */
 		if (_numEndpoints >= _maxNumEndpoints)
 			return kIOUSBEndpointCountExceeded;
 		retFromCMD = WaitForCMD(&trb, XHCI_TRB_TYPE_ENABLE_SLOT, 0);
 		if (retFromCMD == -1 || retFromCMD <= -1000)
 			return retFromCMD == (-1000 - XHCI_TRB_ERROR_NO_SLOTS) ? kIOUSBDeviceCountExceeded : kIOReturnInternalError;
 		slot = static_cast<uint8_t>(retFromCMD);
+#if 0
+		/*
+		 * Note: Added Mavericks
+		 */
+		if (_vendorID == kVendorIntel && _IntelSlotWorkaround && slot == _numSlots) {
+			_IntelSlotWorkaround = false;
+			ClearTRB(&trb, true);
+			trb.d = XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
+			retFromCMD = WaitForCMD(&trb, XHCI_TRB_TYPE_DISABLE_SLOT, 0);
+			_IntelSWSlot = slot;
+			if (retFromCMD == -1 || retFromCMD <= -1000)
+				return kIOReturnInternalError;
+			ClearTRB(&trb, true);
+			retFromCMD = WaitForCMD(&trb, XHCI_TRB_TYPE_ENABLE_SLOT, 0);
+			if (retFromCMD == -1 || retFromCMD <= -1000)
+				return retFromCMD == (-1000 - XHCI_TRB_ERROR_NO_SLOTS) ? kIOUSBDeviceCountExceeded : kIOReturnInternalError;
+			slot = static_cast<uint8_t>(retFromCMD);
+			if (slot == _numSlots)
+				ExecuteGetPortBandwidthWorkaround();
+		}
+		_IntelSlotWorkaround = false;
+#endif
 		if (!slot || slot > _numSlots) {
 			/*
 			 * Sanity check.  Bail out, 'cause UIMDeleteEndpoint
@@ -75,6 +100,9 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 				DeallocRing(pRing);
 				return kIOReturnNoMemory;
 			}
+			/*
+			 * Note: Mavericks adds 2
+			 */
 			static_cast<void>(__sync_fetch_and_add(&_numEndpoints, 1));
 		}
 		SetDCBAAAddr64(&_dcbaa.ptr[slot], ConstSlotPtr(slot)->physAddr);

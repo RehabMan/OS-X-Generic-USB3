@@ -435,6 +435,26 @@ void CLASS::RHCheckForPortResumes(void)
 }
 
 #pragma mark -
+#pragma mark RH Port Misc
+#pragma mark -
+
+__attribute__((visibility("hidden")))
+void CLASS::RHClearUnserviceablePorts(void)
+{
+	uint16_t mask = static_cast<uint16_t>(_rhPortStatusChangeBitmapGated >> 16);
+	uint8_t port = 15U;
+	for (; mask; mask >>= 1, ++port)
+		if (mask & 1U) {
+			uint32_t portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);
+			if (m_invalid_regspace)
+				break;
+			if (portSC & XHCI_PS_CHANGEBITS)
+				Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, (portSC & XHCI_PS_WRITEBACK_MASK) | XHCI_PS_CHANGEBITS);
+		}
+	_rhPortStatusChangeBitmapGated &= UINT16_MAX;
+}
+
+#pragma mark -
 #pragma mark RH Port Thread Calls
 #pragma mark -
 

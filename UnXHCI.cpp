@@ -138,6 +138,30 @@ IOReturn CLASS::FL1100Tricks(int choice)
 }
 #endif
 
+#if 0
+__attribute__((visibility("hidden")))
+uint32_t CLASS::CheckACPITablesForCaptiveRootHubPorts(uint8_t numPorts)
+{
+	IOReturn rc;
+	uint32_t v;
+	uint8_t connectorType;
+
+	if (!numPorts)
+		return 0U;
+	v = 0U;
+	for (uint8_t port = 1U; port <= numPorts; ++port) {
+		connectorType = 254U;
+		/*
+		 * IOReturn IOUSBControllerV3::GetConnectorType(IORegistryEntry* provider, UInt32 portNumber, UInt32 locationID, UInt8* connectorType);
+		 */
+		rc = GetConnectorType(_device, port, *static_cast<uint32_t const*>(getV1Ptr(V1_locationID)), &connectorType);
+		if (rc == kIOReturnSuccess && connectorType == kUSBProprietaryConnector)
+			v |= 1U << port;
+	}
+	return v;
+}
+#endif
+
 __attribute__((visibility("hidden")))
 IOReturn CLASS::HCSelect(uint8_t port, uint8_t controllerType)
 {

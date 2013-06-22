@@ -48,12 +48,7 @@ IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNum
 			intervalExponent = 3U;
 			break;
 		default:
-			if (interval > 16U)
-				intervalExponent = 15U;
-			else if (!interval)
-				intervalExponent = 0U;
-			else
-				intervalExponent = interval - 1U;
+			intervalExponent = interval > 15U ? 15U : (interval > 1U ? (interval - 1U) : 0U);
 			break;
 	}
 	oneMPS = maxPacketSize * (maxBurst + 1U) * (multiple + 1U);

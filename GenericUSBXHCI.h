@@ -274,9 +274,8 @@ private:
 									// align 5-byte
 #if 0
 	bool _wakeEnabled;				// Added Mavericks (0x2CFA0)
-#endif
-	bool _unknownMavBool;			// Added Mavericks (0x2CFA1)
-#if 0
+	bool _IntelSlotWorkaround;		// Added Mavericks (0x2CFA1)
+	uint32_t _IntelSWSlot;			// Added Mavericks (0x2CFA4)
 	struct {
 		IOBufferMemoryDescriptor*md;// offset 0x23B20
 		uint64_t physAddr;			// offset 0x23B28
@@ -300,7 +299,7 @@ public:
 	IOReturn DozeController(void);
 	IOReturn WakeControllerFromDoze(void);
 	IOReturn UIMEnableAddressEndpoints(USBDeviceAddress address, bool enable);
-	IOReturn UIMEnableAllEndpoints(bool enable) { return kIOReturnInternalError; }
+	IOReturn UIMEnableAllEndpoints(bool enable);
 	IOReturn EnableInterruptsFromController(bool enable);
 	/*
 	 * Overrides
@@ -476,6 +475,7 @@ public:
 	IOReturn RHCompleteResumeOnAllPorts(void);
 	bool RHCheckForPortResume(uint16_t, uint8_t, uint32_t);
 	void RHCheckForPortResumes(void);
+	void RHClearUnserviceablePorts(void);
 	IOReturn InitializePorts(void);
 	IOReturn AllocRHThreadCalls(void);
 	void FinalizeRHThreadCalls(void);
@@ -517,7 +517,7 @@ public:
 	int32_t SetLTV(uint32_t);
 	IOReturn GetPortBandwidth(uint8_t, uint8_t, uint8_t*, size_t*);
 	void NukeSlot(uint8_t);
-	IOReturn CompleteSuspendOnAllPorts(void);
+	IOReturn RHCompleteSuspendOnAllPorts(void);
 	void NotifyRootHubsOfPowerLoss(void);
 #if 0
 	void SantizePortsAfterPowerLoss(void);
@@ -605,6 +605,7 @@ public:
 	bool DiscoverMuxedPorts(void);
 	IOReturn HCSelect(uint8_t, uint8_t);
 	IOReturn HCSelectWithMethod(char const*);
+	uint32_t CheckACPITablesForCaptiveRootHubPorts(uint8_t) { return 0U; }
 	bool GetNeedsReset(uint8_t slot) const { return ConstSlotPtr(slot)->deviceNeedsReset; }
 	void SetNeedsReset(uint8_t slot, bool value) { SlotPtr(slot)->deviceNeedsReset = value; }
 	/*

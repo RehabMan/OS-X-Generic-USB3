@@ -46,6 +46,7 @@ UInt32 gUSBStackDebugFlags;	// Note: defined in IOUSBFamily/Classes/IOUSBControl
 
 #define kErrataDisableMSI 2U
 #define kErrataIntelPantherPoint 4U
+#define kErrataIntelLynxPoint 1U
 #define kErrataEnableAutoCompliance 0x10U
 #define kErrataIntelPortMuxing 0x20U
 #define kErrataParkRing 0x100U

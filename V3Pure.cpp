@@ -134,7 +134,7 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 	uint32_t sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
-	if (CHECK_FOR_MAVERICKS && (_errataBits & kErrataFL1100))
+	if (_errataBits & kErrataFL1100)
 		FL1100Tricks(1);
 	if (sts & XHCI_STS_PCD) {
 		for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
@@ -192,9 +192,9 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 		IOReturn rc = WaitForUSBSts(XHCI_STS_RSS, 0U);
 		if (rc == kIOReturnNoDevice)
 			return rc;
-		/*
-		 * Note: Mavericks _unknownMavBool = true;
-		 */
+#if 0
+		_IntelSlotWorkaround = true;
+#endif
 		sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 		if (m_invalid_regspace)
 			return kIOReturnNoDevice;
@@ -343,6 +343,18 @@ IOReturn CLASS::UIMEnableAddressEndpoints(USBDeviceAddress address, bool enable)
 		StopEndpoint(slot, endpoint);
 	}
 	_addressMapper.Active[address] = false;
+	return kIOReturnSuccess;
+}
+
+IOReturn CLASS::UIMEnableAllEndpoints(bool enable)
+{
+	if (!enable)
+		return kIOReturnBadArgument;
+	for (uint16_t addr = 0U; addr < kUSBMaxDevices; ++addr) {
+		if (_addressMapper.Active[addr] || !_addressMapper.Slot)
+			continue;
+		UIMEnableAddressEndpoints(addr, true);
+	}
 	return kIOReturnSuccess;
 }
 
