@@ -218,7 +218,7 @@ bool CLASS::FilterEventRing(int32_t interrupter, bool* pInvokeContinuation)
 			break;
 		case XHCI_TRB_EVENT_PORT_STS_CHANGE:
 			rhPort = static_cast<uint8_t>(localTrb.a >> 24);
-			if (rhPort && rhPort <= kMaxPorts)
+			if (rhPort && rhPort <= kMaxRootPorts)
 				RHPortStatusChangeBitmapSet(1U << rhPort);
 			if (pInvokeContinuation)	// Note: Invoke PollInterrupts to call EnsureUsability
 				*pInvokeContinuation = true;

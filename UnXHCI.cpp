@@ -74,7 +74,7 @@ bool CLASS::DiscoverMuxedPorts(void)
 		goto done;
 	string_buf = &_muxName[0];
 	t = 0U;
-	for (uint32_t port = 1U; port != kMaxPorts; ++port) {
+	for (uint32_t port = 1U; port != kMaxExternalHubPorts; ++port) {
 		if (IsPortMuxed(_device, port, n, string_buf))
 			++t;
 		string_buf += 5;
@@ -122,7 +122,7 @@ IOReturn CLASS::HCSelect(uint8_t port, uint8_t controllerType)
 		DiscoverMuxedPorts();
 	if (!_providerACPIDevice ||
 		!_muxedPortsExist ||
-		port > 14U)
+		port >= kMaxExternalHubPorts)
 		return kIOReturnNoMemory;
 	if (controllerType == 1U)
 		method = &xHCMuxedPorts[port * 5U];

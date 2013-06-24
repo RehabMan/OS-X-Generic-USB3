@@ -10,7 +10,8 @@
 #ifndef __GENERICUSBXHCI_H__
 #define __GENERICUSBXHCI_H__
 
-#define kMaxPorts 15U
+#define kMaxExternalHubPorts 15U
+#define kMaxRootPorts 30U
 #define kMaxStreamsAllowed 256U
 #define kMaxActiveInterrupters 1
 
@@ -201,44 +202,37 @@ private:
 	/*
 	 * Root Hub Ports
 	 */
-	/*
-	 * Note: IOUSBControllerV3 assumes _rootHubNumPorts <= kMaxPorts
-	 *   which is a flaw - even assuming 15 port maximum
-	 *   for USB2 or USB3 protocol each, an xHC can have 30 ports.
-	 * The spec allows for up to 255 root-hub ports.
-	 * Non-root hubs are limited to 15 due to the routeString.
-	 */
-	bool _rhPortEmulateCSC[kMaxPorts];
+	bool _rhPortEmulateCSC[kMaxRootPorts];
 									// offset 0x23821
 #if 0
-	bool _rhPortInU3[kMaxPorts];
+	bool _rhPortInU3[kMaxRootPorts];
 									// offset 0x23830
-	bool _rhPortSuspendChange[kMaxPorts];
+	bool _rhPortSuspendChange[kMaxRootPorts];
 									// offset 0x2383F
 #endif
-	bool _rhPortBeingResumed[kMaxPorts];
+	bool _rhPortBeingResumed[kMaxRootPorts];
 									// offset 0x2384E
-	bool _rhPortBeingReset[kMaxPorts];
+	bool _rhPortBeingReset[kMaxRootPorts];
 									// offset 0x2385D
 									// align 4-byte
-	thread_call_t _rhResumePortTimerThread[kMaxPorts];
+	thread_call_t _rhResumePortTimerThread[kMaxRootPorts];
 									// offset 0x23870
-	uint16_t _rhPortStatusChangeBitmap;	// Added
-	uint16_t _rhPortStatusChangeBitmapGated; // Added
+	uint32_t _rhPortStatusChangeBitmap;	// Added
+	uint32_t _rhPortStatusChangeBitmapGated; // Added
 #if 0
-	thread_call_t _rhResetPortThread[kMaxPorts];
+	thread_call_t _rhResetPortThread[kMaxRootPorts];
 									// offset 0x238E8
-	XHCIRootHubResetParams _rhResetParams[kMaxPorts];
+	XHCIRootHubResetParams _rhResetParams[kMaxRootPorts];
 									// offset 0x23960
 #endif
 #ifdef DEBOUNCING
-	bool _rhPortDebouncing[kMaxPorts];
+	bool _rhPortDebouncing[kMaxRootPorts];
 									// offset 0x239D8
-	bool _rhPortDebounceADisconnect[kMaxPorts];
+	bool _rhPortDebounceADisconnect[kMaxRootPorts];
 									// offset 0x239E7
 									// align 2-byte
-	uint64_t _rhDebounceNanoSeconds[kMaxPorts];// offset 0x239F8
-	bool _rhPortBeingWarmReset[kMaxPorts];
+	uint64_t _rhDebounceNanoSeconds[kMaxRootPorts];// offset 0x239F8
+	bool _rhPortBeingWarmReset[kMaxRootPorts];
 									// offset 0x23A70
 #endif
 #if 0
@@ -250,9 +244,9 @@ private:
 	uint32_t volatile _debugCtr;	// offset 0x23A88
 	uint32_t volatile _debugPattern;// offset 0x23A8C
 #if 0
-	uint16_t _rhPrevStatus[1U + kMaxPorts];
+	uint16_t _rhPrevStatus[1U + kMaxRootPorts];
 									// offset 0x23A90
-	uint16_t _rhChangeBits[1U + kMaxPorts];
+	uint16_t _rhChangeBits[1U + kMaxRootPorts];
 									// offset 0x23AB0
 #endif
 	uint16_t _RenesasControllerVersion;// offset 0x23AD2
@@ -287,7 +281,7 @@ private:
 		uint8_t cycleState;			// offset 0x23B30 - originally uint32_t
 	} _spareRing;
 #endif
-	char _muxName[kMaxPorts * 5U];	// offset 0x23B34
+	char _muxName[kMaxExternalHubPorts * 5U];	// offset 0x23B34
 									// sizeof 0x23B80
 
 public:
@@ -483,8 +477,8 @@ public:
 	IOReturn InitializePorts(void);
 	IOReturn AllocRHThreadCalls(void);
 	void FinalizeRHThreadCalls(void);
-	void RHPortStatusChangeBitmapSet(uint16_t v) { static_cast<void>(__sync_fetch_and_or(&_rhPortStatusChangeBitmap, v)); }
-	uint16_t RHPortStatusChangeBitmapGrab(void) { return __sync_lock_test_and_set(&_rhPortStatusChangeBitmap, 0U); }
+	void RHPortStatusChangeBitmapSet(uint32_t v) { static_cast<void>(__sync_fetch_and_or(&_rhPortStatusChangeBitmap, v)); }
+	uint32_t RHPortStatusChangeBitmapGrab(void) { return __sync_lock_test_and_set(&_rhPortStatusChangeBitmap, 0U); }
 	void RHPortStatusChangeBitmapInit(void) { _rhPortStatusChangeBitmap = 0U; _rhPortStatusChangeBitmapGated = 0U; }
 	/*
 	 * Assorted

@@ -182,12 +182,17 @@ int gux_options = 0;
 __attribute__((visibility("hidden")))
 kern_return_t Startup(kmod_info_t* ki, void * d)
 {
-	uint32_t v;
+	uint32_t v, thisKernelVersion;
 
-	if (MakeKernelVersion(version_major, version_minor, version_revision) < MakeKernelVersion(11, 4, 2)) {
+	thisKernelVersion = MakeKernelVersion(version_major, version_minor, version_revision);
+	if (thisKernelVersion < MakeKernelVersion(11, 4, 2)) {
 		IOLog("OS 10.7.5 or later required for GenericUSBXHCI\n");
 		return KERN_FAILURE;
-    }
+	}
+#if __LP64__
+	if (thisKernelVersion >= MakeKernelVersion(13, 0, 0))
+		gux_options |= GUX_OPTION_MAVERICKS;
+#endif
 	if (PE_parse_boot_argn("-gux_nosleep", &v, sizeof v))
 		gux_options |= GUX_OPTION_NO_SLEEP;
 	if (PE_parse_boot_argn("-gux_defer_usb2", &v, sizeof v))
