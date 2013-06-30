@@ -539,7 +539,7 @@ IOReturn GenericUSBXHCIIsochTD::UpdateFrameList(AbsoluteTime timeStamp)
 		if (i == frameForEvent) {
 			uint8_t condCode = static_cast<uint8_t>(XHCI_TRB_2_ERROR_GET(eventTrb.c));
 			uint32_t eventLen = XHCI_TRB_2_REM_GET(eventTrb.c);
-			IOReturn frStatus = TranslateXHCIStatus(condCode);
+			IOReturn frStatus = TranslateXHCIIsochTDStatus(condCode);
 			bool edEvent = ((eventTrb.d) & XHCI_TRB_3_ED_BIT) != 0U;
 			if (condCode == XHCI_TRB_ERROR_XACT) {
 				GenericUSBXHCIIsochEP* pIsochEp = static_cast<GenericUSBXHCIIsochEP*>(_pEndpoint);
@@ -614,12 +614,13 @@ GenericUSBXHCIIsochTD* GenericUSBXHCIIsochTD::ForEndpoint(GenericUSBXHCIIsochEP*
 }
 
 __attribute__((visibility("hidden")))
-IOReturn GenericUSBXHCIIsochTD::TranslateXHCIStatus(uint32_t xhci_err)
+IOReturn GenericUSBXHCIIsochTD::TranslateXHCIIsochTDStatus(uint32_t xhci_err)
 {
 	switch (xhci_err) {
 		case XHCI_TRB_ERROR_SUCCESS:
 			return kIOReturnSuccess;
 		case XHCI_TRB_ERROR_XACT:
+		case XHCI_TRB_ERROR_MISSED_SERVICE:
 			return kIOUSBNotSent1Err;
 		case XHCI_TRB_ERROR_STALL:
 			return kIOUSBPipeStalled;

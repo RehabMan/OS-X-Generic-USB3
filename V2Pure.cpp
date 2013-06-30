@@ -33,9 +33,6 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 		return kIOReturnSuccess;
 	packetSize = maxPacketSize != 9U ? maxPacketSize : 512U;
 	if (!functionNumber) {
-		/*
-		 * Note: Mavericks tests for availability of 2 endpoints
-		 */
 		if (_numEndpoints >= _maxNumEndpoints)
 			return kIOUSBEndpointCountExceeded;
 		retFromCMD = WaitForCMD(&trb, XHCI_TRB_TYPE_ENABLE_SLOT, 0);
@@ -100,9 +97,6 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 				DeallocRing(pRing);
 				return kIOReturnNoMemory;
 			}
-			/*
-			 * Note: Mavericks adds 2
-			 */
 			static_cast<void>(__sync_fetch_and_add(&_numEndpoints, 1));
 		}
 		SetDCBAAAddr64(&_dcbaa.ptr[slot], ConstSlotPtr(slot)->physAddr);

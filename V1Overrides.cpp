@@ -117,6 +117,13 @@ IOReturn CLASS::UIMCreateControlTransfer(short functionNumber, short endpointNum
 		return kIOUSBEndpointNotFound;
 	if (endpointNumber)
 		return kIOReturnBadArgument;
+#if 0
+	/*
+	 * Note: Added Mavericks
+	 */
+	if (!IsStillConnectedAndEnabled(slot))
+		return kIOReturnNoDevice;
+#endif
 	pRing = GetRing(slot, 1, 0U);
 	if (pRing->isInactive())
 		return kIOReturnBadArgument;
@@ -266,6 +273,13 @@ IOReturn CLASS::UIMCreateIsochTransfer(IOUSBIsocCommand* command)
 	if (!command)
 		return kIOReturnBadArgument;
 	curFrameNumber = GetFrameNumber();
+#if 0
+	/*
+	 * Note: Added Mavericks
+	 */
+	if (!IsStillConnectedAndEnabled(GetSlotID(command->GetAddress())))
+		return kIOReturnNoDevice;
+#endif
 	transferCount = command->GetNumFrames();
 	if (!transferCount || transferCount > 1000U)
 		return kIOReturnBadArgument;

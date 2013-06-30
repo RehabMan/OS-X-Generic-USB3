@@ -115,7 +115,10 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	}
 	DecodeExtendedCapability(hcc);
 	TakeOwnershipFromBios();
+	_maxNumEndpoints = (kUSBMaxPipes - 1) * 256;
 	EnableXHCIPorts();
+	if (_errataBits & kErrataIntelPantherPoint)
+		_maxNumEndpoints = 64;
 	uint32_t u = Read8Reg(&_pXHCICapRegisters->CapLength);
 	if (m_invalid_regspace) {
 		IOLog("%s: Invalid regspace (4)\n", __FUNCTION__);
@@ -172,10 +175,6 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	}
 	Write32Reg(&_pXHCIOperationalRegisters->Config, (u & ~XHCI_CONFIG_SLOTS_MASK) | _numSlots);
 	Write32Reg(&_pXHCIOperationalRegisters->DNCtrl, UINT16_MAX);
-	if (_errataBits & kErrataIntelPantherPoint)
-		_maxNumEndpoints = 96;
-	else
-		_maxNumEndpoints = static_cast<int16_t>(_numSlots) * kUSBMaxPipes;
 #if 0
 	if (_maxNumEndpoints < gXHCIEPlimit) {
 		_maxNumEndpoints = gXHCIEPlimit;
@@ -390,9 +389,6 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 			if (pAsyncEp) {
 				pAsyncEp->Abort();
 				pAsyncEp->release();
-				/*
-				 * Note: Mavericks reduces by 2
-				 */
 				static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
 				pRing->asyncEndpoint = 0;
 			}
@@ -977,10 +973,7 @@ void CLASS::PollInterrupts(IOUSBCompletionAction safeAction)
 		Write32Reg(&_pXHCIOperationalRegisters->USBSts, XHCI_STS_PCD);
 		EnsureUsability();
 		if (_myPowerState == kUSBPowerStateOn) {
-			if (CHECK_FOR_MAVERICKS &&
-				_rhPortStatusChangeBitmap &&
-				!isInactive() &&
-				_controllerAvailable)
+			if (CHECK_FOR_MAVERICKS && _rhPortStatusChangeBitmap)
 				RootHubStartTimer32(kUSBRootHubPollingRate);
 			/*
 			 * Note:

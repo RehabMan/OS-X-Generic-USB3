@@ -340,7 +340,11 @@ IOReturn CLASS::UIMEnableAddressEndpoints(USBDeviceAddress address, bool enable)
 		ringStruct* pRing = GetRing(slot, endpoint, 0U);
 		if (pRing->isInactive())
 			continue;
-		StopEndpoint(slot, endpoint);
+		/*
+		 * Note: This was changed from StopEndpoint -> QuiesceEndpoint
+		 *   in Mavericks.
+		 */
+		QuiesceEndpoint(slot, endpoint);
 	}
 	_addressMapper.Active[address] = false;
 	return kIOReturnSuccess;

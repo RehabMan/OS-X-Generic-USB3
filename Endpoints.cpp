@@ -317,6 +317,13 @@ uint32_t CLASS::QuiesceEndpoint(int32_t slot, int32_t endpoint)
 	uint32_t epState;
 	ContextStruct volatile* pContext;
 
+#if 0
+	/*
+	 * Note: Added Mavericks
+	 */
+	if (!_controllerAvailable)
+		return 0U;
+#endif
 	ClearStopTDs(slot, endpoint);
 	pContext = GetSlotContext(slot, endpoint);
 	epState = XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0);
