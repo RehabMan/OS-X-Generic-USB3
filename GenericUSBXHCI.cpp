@@ -190,7 +190,7 @@ kern_return_t Startup(kmod_info_t* ki, void * d)
 		return KERN_FAILURE;
 	}
 #ifdef __LP64__
-	if (thisKernelVersion >= MakeKernelVersion(13, 0, 0))
+	if (thisKernelVersion >= MakeKernelVersion(12, 5, 0))
 		gux_options |= GUX_OPTION_MAVERICKS;
 #endif
 	if (PE_parse_boot_argn("-gux_nosleep", &v, sizeof v))
