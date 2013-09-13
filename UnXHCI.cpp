@@ -22,7 +22,7 @@ void CLASS::EnableXHCIPorts(void)
 {
 	uint32_t v1, v2, v3, v4;
 
-	if (!(_errataBits & kErrataIntelPCIRoutingExtension))
+	if (_vendorID != kVendorIntel)
 		return;
 	v1 = _device->configRead32(PCI_XHCI_INTEL_XUSB2PR);
 	if (v1 == UINT32_MAX) {
@@ -59,17 +59,20 @@ bool CLASS::DiscoverMuxedPorts(void)
 	uint8_t t;
 	char* string_buf;
 
-	if (_rootHubDeviceSS == 0)
+	if (!_rootHubDeviceSS)
 		goto done;
 	if (_muxedPortsExist)
 		goto done;
-	if (!(_errataBits & kErrataIntelPCIRoutingExtension))
+	if (!(_errataBits & kErrataIntelPortMuxing))
 		goto done;
 	o = _rootHubDeviceSS->getProperty(kUSBDevicePropertyLocationID);
 	if (!o)
 		goto done;
 	n = static_cast<OSNumber*>(o)->unsigned32BitValue();
-	_providerACPIDevice = CopyACPIDevice(_device);
+	if (CHECK_FOR_MAVERICKS)
+		_providerACPIDevice = _v3ExpansionData ? *static_cast<IOACPIPlatformDevice**>(getV3Ptr(V3_acpiDevice)) : 0;
+	else
+		_providerACPIDevice = CopyACPIDevice(_device);
 	if (!_providerACPIDevice)
 		goto done;
 	string_buf = &_muxName[0];
@@ -94,7 +97,7 @@ done:
 __attribute__((noinline, visibility("hidden")))
 void CLASS::DisableComplianceMode(void)
 {
-	if ((_errataBits & (kErrataFrescoLogic | kErrataIntelPantherPoint)) &&
+	if ((_vendorID == kVendorFrescoLogic || _vendorID == kVendorIntel) &&
 		!(_errataBits & kErrataEnableAutoCompliance)) {
 		_pXHCIPPTChickenBits = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80EC);
 		*_pXHCIPPTChickenBits |= 1U;
@@ -104,11 +107,58 @@ void CLASS::DisableComplianceMode(void)
 __attribute__((noinline, visibility("hidden")))
 void CLASS::EnableComplianceMode(void)
 {
-	if ((_errataBits & (kErrataFrescoLogic | kErrataIntelPantherPoint)) &&
+	if ((_vendorID == kVendorFrescoLogic || _vendorID == kVendorIntel) &&
 		!(_errataBits & kErrataEnableAutoCompliance)) {
 		_pXHCIPPTChickenBits = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80EC);
 		*_pXHCIPPTChickenBits &= ~1U;
 	}
+}
+
+__attribute__((visibility("hidden")))
+IOReturn CLASS::FL1100Tricks(int choice)
+{
+	uint32_t volatile* pReg;
+	uint32_t v;
+
+	switch (choice) {
+		case 1:
+			pReg = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x8094);
+			v = Read32Reg(pReg);
+			if (m_invalid_regspace)
+				return kIOReturnNoDevice;
+			Write32Reg(pReg, v | 0x800000U);
+			pReg = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80EC);
+			v = Read32Reg(pReg);
+			if (m_invalid_regspace)
+				return kIOReturnNoDevice;
+			Write32Reg(pReg, v & 0xEFFFFFFFU);
+			break;
+	}
+	return kIOReturnSuccess;
+}
+#endif
+
+#if 0
+__attribute__((visibility("hidden")))
+uint32_t CLASS::CheckACPITablesForCaptiveRootHubPorts(uint8_t numPorts)
+{
+	IOReturn rc;
+	uint32_t v;
+	uint8_t connectorType;
+
+	if (!numPorts)
+		return 0U;
+	v = 0U;
+	for (uint8_t port = 1U; port <= numPorts; ++port) {
+		connectorType = 254U;
+		/*
+		 * IOReturn IOUSBControllerV3::GetConnectorType(IORegistryEntry* provider, UInt32 portNumber, UInt32 locationID, UInt8* connectorType);
+		 */
+		rc = GetConnectorType(_device, port, *static_cast<uint32_t const*>(getV1Ptr(V1_locationID)), &connectorType);
+		if (rc == kIOReturnSuccess && connectorType == kUSBProprietaryConnector)
+			v |= 1U << port;
+	}
+	return v;
 }
 #endif
 

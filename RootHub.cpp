@@ -36,7 +36,7 @@ IOReturn CLASS::XHCIRootHubPowerPort(uint16_t port, bool state)
 		return kIOReturnNoDevice;
 	pPortSC = &_pXHCIOperationalRegisters->prs[port].PortSC;
 	if (state)
-		portSC |= XHCI_PS_PP | XHCI_PS_WAKEBITS;
+		portSC |= XHCI_PS_PP;
 	else {
 		/*
 		 * Clear any pending change flags while powering down port.
@@ -233,7 +233,7 @@ IOReturn CLASS::RHResetPort(uint8_t protocol, uint16_t port)
 		return kIOReturnNoDevice;
 	Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, portSC | XHCI_PS_PR);
 #ifdef LONG_RESET
-	if (!(_errataBits & kErrataIntelPCIRoutingExtension) ||
+	if (!(_errataBits & kErrataIntelPortMuxing) ||
 		(gUSBStackDebugFlags & kUSBDisableMuxedPortsMask))
 		return kIOReturnSuccess;
 	for (count = 0U; count < 8U; ++count) {
@@ -435,6 +435,26 @@ void CLASS::RHCheckForPortResumes(void)
 }
 
 #pragma mark -
+#pragma mark RH Port Misc
+#pragma mark -
+
+__attribute__((visibility("hidden")))
+void CLASS::RHClearUnserviceablePorts(void)
+{
+	uint16_t mask = static_cast<uint16_t>(_rhPortStatusChangeBitmapGated >> 16);
+	uint8_t port = 15U;
+	for (; mask; mask >>= 1, ++port)
+		if (mask & 1U) {
+			uint32_t portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);
+			if (m_invalid_regspace)
+				break;
+			if (portSC & XHCI_PS_CHANGEBITS)
+				Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, (portSC & XHCI_PS_WRITEBACK_MASK) | XHCI_PS_CHANGEBITS);
+		}
+	_rhPortStatusChangeBitmapGated &= UINT16_MAX;
+}
+
+#pragma mark -
 #pragma mark RH Port Thread Calls
 #pragma mark -
 
@@ -589,6 +609,7 @@ IOReturn CLASS::HandlePortDebouncing(uint16_t* pStatusFlags, uint16_t* pChangeFl
 
 	/*
 	 * Insanity Now! Serenity Later.
+	 *   TBD: Mavericks A744 - B2E6
 	 */
 	if (protocol != kUSBDeviceSpeedSuper) {
 		if (_rhPortDebouncing[port])

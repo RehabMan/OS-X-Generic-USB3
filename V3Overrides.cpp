@@ -29,7 +29,10 @@ void CLASS::ControllerSleep(void)
 	 *   Following 2 calls serve as a watchdog.
 	 */
 	QuiesceAllEndpoints();
-	CompleteSuspendOnAllPorts();
+	RHCompleteSuspendOnAllPorts();
+	/*
+	 * Note: Mavericks calls ExecuteGetPortBandwidthWorkaround() here
+	 */
 	CommandStop();
 	EnableInterruptsFromController(false);
 	IOSleep(1U);	// drain primary interrupts
@@ -90,18 +93,30 @@ IOReturn CLASS::GetRootHub3Descriptor(IOUSB3HubDescriptor* desc)
 	uint32_t appleCaptive, i, numBytes;
 	uint8_t* dstPtr;
 	OSNumber* appleCaptiveProperty;
+	OSObject* obj;
 
 	hubDesc.length = sizeof hubDesc;
 	hubDesc.hubType = kUSB3HubDescriptorType;
 	hubDesc.numPorts = _v3ExpansionData->_rootHubNumPortsSS;
 	hubDesc.characteristics = HostToUSBWord(static_cast<uint16_t>(XHCI_HCC_PPC(_HCCLow) ? kPerPortSwitchingBit : 0U));
-	hubDesc.powerOnToGood = 50U;
+	hubDesc.powerOnToGood = 250U;
 	hubDesc.hubCurrent = 0U;
 	hubDesc.hubHdrDecLat = 0U;
 	hubDesc.hubDelay = 10U;
 	numBytes = ((hubDesc.numPorts + 1U) / 8U) + 1U;
-	appleCaptiveProperty = OSDynamicCast(OSNumber, _device->getProperty(kAppleInternalUSBDevice));
-	appleCaptive = appleCaptiveProperty ? appleCaptiveProperty->unsigned32BitValue() : 0U;
+	obj = _device->getProperty(kAppleInternalUSBDevice);
+	appleCaptive = 0U;
+	if (obj) {
+		appleCaptiveProperty = OSDynamicCast(OSNumber, obj);
+		if (appleCaptiveProperty)
+			appleCaptive = appleCaptiveProperty->unsigned32BitValue();
+	} else if (CHECK_FOR_MAVERICKS)
+		appleCaptive = CheckACPITablesForCaptiveRootHubPorts(_rootHubNumPorts);
+	if (appleCaptive) {
+		if (_v3ExpansionData->_rootHubPortsSSStartRange > 1U)
+			appleCaptive >>= (_v3ExpansionData->_rootHubPortsSSStartRange - 1U);
+		appleCaptive &= (2U << _v3ExpansionData->_rootHubNumPortsSS) - 2U;
+	}
 	dstPtr = &hubDesc.removablePortFlags[0];
 	for (i = 0U; i < numBytes; i++) {
 		*dstPtr++ = static_cast<uint8_t>(appleCaptive & 0xFFU);
@@ -125,7 +140,7 @@ IOReturn CLASS::UIMDeviceToBeReset(short functionAddress)
 	uint8_t slot = GetSlotID(functionAddress);
 	if (!slot)
 		return kIOReturnBadArgument;
-	if (_errataBits & kErrataIntelPantherPoint)
+	if (_vendorID == kVendorIntel)
 		SetNeedsReset(slot, false);
 	return kIOReturnSuccess;
 }
@@ -222,8 +237,10 @@ IOReturn CLASS::UIMCreateSSBulkEndpoint(UInt8 functionNumber, UInt8 endpointNumb
 	if (maxStream) {
 		if (!_maxPSASize)
 			return kIOUSBStreamsNotSupported;
-		if (maxStream >= kMaxStreamsAllowed)
+		if (maxStream >= kMaxStreamsAllowed || maxStream >= _maxPSASize)
 			return kIOReturnBadArgument;
+		if (maxStream == 1U)
+			maxStream = 0U;
 	}
 	if (maxStream & (maxStream + 1U))	// Note: checks if (maxStream + 1U) is a power of 2
 		return kIOReturnBadArgument;
@@ -292,12 +309,21 @@ IOReturn CLASS::GetRootHubPortErrorCount(UInt16 port, UInt16* count)
 {
 	if (!count)
 		return kIOReturnBadArgument;
+	if (!_controllerAvailable)
+		return kIOReturnOffline;
 	uint16_t _port = PortNumberProtocolToCanonical(port, kUSBDeviceSpeedSuper);
 	if (_port >= _rootHubNumPorts)
 		return kIOReturnBadArgument;
 	uint32_t portLi = Read32Reg(&_pXHCIOperationalRegisters->prs[_port].PortLi);
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
+#if 0
+	/*
+	 * TBD: ???
+	 */
+	if (_errataBits & kErrataIntelLynxPoint)
+		portLi >>= 16;
+#endif
 	*count = static_cast<uint16_t>(portLi);
 	return kIOReturnSuccess;
 }

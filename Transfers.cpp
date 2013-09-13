@@ -1001,6 +1001,15 @@ void XHCIAsyncEndpoint::FlushTDs(IOUSBCommand* command, int updateDequeueOption)
 				return;
 			break;
 	}
+#if 0
+	/*
+	 * Note: Added Mavericks
+	 */
+	if (updateDequeueIndex && !provider->_controllerAvailable) {
+		(&pRing->schedulingPending)[1] = true;
+		return;
+	}
+#endif
 	if (updateDequeueIndex)
 		provider->SetTRDQPtr(pRing->slot, pRing->endpoint, streamId, indexInQueue);
 }
@@ -1046,6 +1055,10 @@ void XHCIAsyncEndpoint::Complete(IOReturn passthruReturnCode)
 			pTd->finalTDInTransaction) {
 			comp = command->GetUSLCompletion();
 			if (comp.action) {
+				/*
+				 * Note: Mavericks updates a couple
+				 *   of diagnostic counters here.
+				 */
 				provider->Complete(comp,
 								   passthruReturnCode,
 								   command->GetUIMScratch(9U));
@@ -1143,11 +1156,15 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 		passthruReturnCode = kIOReturnNotResponding;
 	}
 	GetTD(&scheduledHead, &scheduledTail, &numTDsScheduled);
+	if (provider->GetNeedsReset(pRing->slot))
+		passthruReturnCode = kIOReturnNotResponding;
+	/*
+	 * Note: Mavericks updates a couple
+	 *   of diagnostic counters here.
+	 */
 	next = pTd->lastTrbIndex + 1;
 	if (next >= static_cast<int32_t>(pRing->numTRBs) - 1)
 		next = 0;
-	if (provider->GetNeedsReset(pRing->slot))
-		passthruReturnCode = kIOReturnNotResponding;
 	if (!stopped)
 		provider->QuiesceEndpoint(pRing->slot, pRing->endpoint);
 	provider->SetTRDQPtr(pRing->slot, pRing->endpoint, pTd->streamId, next);

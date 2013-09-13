@@ -56,7 +56,7 @@ IOReturn CLASS::message(UInt32 type, IOService* provider, void* argument)
 				(gUSBStackDebugFlags & kUSBDisableMuxedPortsMask) ||
 				!_device ||
 				isInactive() ||
-				!(_errataBits & kErrataIntelPCIRoutingExtension))
+				!(_errataBits & kErrataIntelPortMuxing))
 				return rc;
 			HCSelectWithMethod(static_cast<char const*>(argument));
 			return rc;
@@ -73,7 +73,7 @@ IOReturn CLASS::message(UInt32 type, IOService* provider, void* argument)
 		(gUSBStackDebugFlags & kUSBDisableMuxedPortsMask) ||
 		!_device ||
 		isInactive() ||
-		!(_errataBits & kErrataIntelPCIRoutingExtension))
+		!(_errataBits & kErrataIntelPortMuxing))
 		return rc;
 	HCSelect(static_cast<uint8_t>(reinterpret_cast<size_t>(argument)), controller);
 	return rc;
@@ -189,8 +189,8 @@ kern_return_t Startup(kmod_info_t* ki, void * d)
 		IOLog("OS 10.7.5 or later required for GenericUSBXHCI\n");
 		return KERN_FAILURE;
 	}
-#if __LP64__
-	if (thisKernelVersion >= MakeKernelVersion(13, 0, 0))
+#ifdef __LP64__
+	if (thisKernelVersion >= MakeKernelVersion(12, 5, 0))
 		gux_options |= GUX_OPTION_MAVERICKS;
 #endif
 	if (PE_parse_boot_argn("-gux_nosleep", &v, sizeof v))

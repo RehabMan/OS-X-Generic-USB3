@@ -217,7 +217,7 @@ private:
 									// align 4-byte
 	thread_call_t _rhResumePortTimerThread[kMaxRootPorts];
 									// offset 0x23870
-	uint32_t _rhPortStatusChangeBitmap;	// Added
+	uint32_t volatile _rhPortStatusChangeBitmap;	// Added
 	uint32_t _rhPortStatusChangeBitmapGated; // Added
 #if 0
 	thread_call_t _rhResetPortThread[kMaxRootPorts];
@@ -275,6 +275,9 @@ private:
 	bool _HSEDetected;				// offset 0x23B1A
 									// align 5-byte
 #if 0
+	bool _wakeEnabled;				// Added Mavericks (0x2CFA0)
+	bool _IntelSlotWorkaround;		// Added Mavericks (0x2CFA1)
+	uint32_t _IntelSWSlot;			// Added Mavericks (0x2CFA4)
 	struct {
 		IOBufferMemoryDescriptor*md;// offset 0x23B20
 		uint64_t physAddr;			// offset 0x23B28
@@ -298,7 +301,7 @@ public:
 	IOReturn DozeController(void);
 	IOReturn WakeControllerFromDoze(void);
 	IOReturn UIMEnableAddressEndpoints(USBDeviceAddress address, bool enable);
-	IOReturn UIMEnableAllEndpoints(bool enable) { return kIOReturnInternalError; }
+	IOReturn UIMEnableAllEndpoints(bool enable);
 	IOReturn EnableInterruptsFromController(bool enable);
 	/*
 	 * Overrides
@@ -474,6 +477,7 @@ public:
 	IOReturn RHCompleteResumeOnAllPorts(void);
 	bool RHCheckForPortResume(uint16_t, uint8_t, uint32_t);
 	void RHCheckForPortResumes(void);
+	void RHClearUnserviceablePorts(void);
 	IOReturn InitializePorts(void);
 	IOReturn AllocRHThreadCalls(void);
 	void FinalizeRHThreadCalls(void);
@@ -515,9 +519,13 @@ public:
 	int32_t SetLTV(uint32_t);
 	IOReturn GetPortBandwidth(uint8_t, uint8_t, uint8_t*, size_t*);
 	void NukeSlot(uint8_t);
-	IOReturn CompleteSuspendOnAllPorts(void);
+	IOReturn RHCompleteSuspendOnAllPorts(void);
 	void NotifyRootHubsOfPowerLoss(void);
+#if 0
 	void SantizePortsAfterPowerLoss(void);
+	void DisableWakeBits(void);
+	void EnableWakeBits(void);
+#endif
 	static void SleepWithGateReleased(IOCommandGate*, uint32_t);
 	void CheckedSleep(uint32_t);
 	/*
@@ -595,9 +603,11 @@ public:
 	void EnableXHCIPorts(void);
 	void EnableComplianceMode(void) {}
 	void DisableComplianceMode(void) {}
+	IOReturn FL1100Tricks(int) { return kIOReturnSuccess; }
 	bool DiscoverMuxedPorts(void);
 	IOReturn HCSelect(uint8_t, uint8_t);
 	IOReturn HCSelectWithMethod(char const*);
+	uint32_t CheckACPITablesForCaptiveRootHubPorts(uint8_t) { return 0U; }
 	bool GetNeedsReset(uint8_t slot) const { return ConstSlotPtr(slot)->deviceNeedsReset; }
 	void SetNeedsReset(uint8_t slot, bool value) { SlotPtr(slot)->deviceNeedsReset = value; }
 	/*
@@ -662,6 +672,11 @@ public:
 	IOReturn XHCIRootHubSuspendPort(uint8_t, uint16_t, bool);
 	IOReturn XHCIRootHubClearPortConnectionChange(uint16_t);
 	IOReturn XHCIRootHubClearPortChangeBit(uint16_t, uint32_t);
+	/*
+	 * Accessors for _expansionData, _expansionDataV3
+	 */
+	void* getV1Ptr(intptr_t offset);
+	void* getV3Ptr(intptr_t offset);
 };
 
 #endif

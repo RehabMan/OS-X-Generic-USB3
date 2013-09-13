@@ -23,7 +23,11 @@ IOReturn CLASS::ResetControllerState(void)
 	IOReturn rc = StopUSBBus();
 	EnableInterruptsFromController(false);
 	IOSleep(1U);	// drain primary interrupts
-	if (_expansionData &&
+	/*
+	 * Note: Mavericks does this in IOUSBControllerV3::ControllerOff
+	 */
+	if (!CHECK_FOR_MAVERICKS &&
+		_expansionData &&
 		_expansionData->_controllerCanSleep &&
 		_device) {
 		/*
@@ -79,6 +83,9 @@ IOReturn CLASS::RestartControllerFromReset(void)
 #endif
 	_millsecondCounter = 0ULL;
 	bzero(&_interruptCounters[0], sizeof _interruptCounters);
+	if (_wakingFromHibernation && _expansionData && _expansionData->_controllerCanSleep && _device &&
+		_device->hasPCIPowerManagement(kPCIPMCPMESupportFromD3Cold))
+		_device->enablePCIPowerManagement(kPCIPMCSPowerStateD3);
 	_uimInitialized = true;
 	return kIOReturnSuccess;
 }
@@ -127,6 +134,8 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 	uint32_t sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
+	if (_errataBits & kErrataFL1100)
+		FL1100Tricks(1);
 	if (sts & XHCI_STS_PCD) {
 		for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
 			uint32_t portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);
@@ -183,6 +192,9 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 		IOReturn rc = WaitForUSBSts(XHCI_STS_RSS, 0U);
 		if (rc == kIOReturnNoDevice)
 			return rc;
+#if 0
+		_IntelSlotWorkaround = true;
+#endif
 		sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 		if (m_invalid_regspace)
 			return kIOReturnNoDevice;
@@ -194,8 +206,8 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 			rc = RestartControllerFromReset();
 			if (rc != kIOReturnSuccess)
 				IOLog("%s: RestartControllerFromReset failed with %#x\n", __FUNCTION__, rc);
-			SantizePortsAfterPowerLoss();
 #if 0
+			SantizePortsAfterPowerLoss();
 			NotifyRootHubsOfPowerLoss();
 #endif
 			return kIOReturnSuccess;
@@ -243,7 +255,7 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 IOReturn CLASS::DozeController(void)
 {
 	if (!_v3ExpansionData->_externalDeviceCount &&
-		(_errataBits & kErrataAllowControllerDoze)) {
+		(_errataBits & kErrataSWAssistedIdle)) {
 		uint16_t xhcc = _device->configRead16(PCI_XHCI_INTEL_XHCC);
 		if (xhcc == UINT16_MAX) {
 #if 0
@@ -267,7 +279,7 @@ IOReturn CLASS::DozeController(void)
 IOReturn CLASS::WakeControllerFromDoze(void)
 {
 	if (!_v3ExpansionData->_externalDeviceCount &&
-		(_errataBits & kErrataAllowControllerDoze)) {
+		(_errataBits & kErrataSWAssistedIdle)) {
 		uint16_t xhcc = _device->configRead16(PCI_XHCI_INTEL_XHCC);
 		/*
 		 * Clear SWAXHCI if it's still on
@@ -328,9 +340,25 @@ IOReturn CLASS::UIMEnableAddressEndpoints(USBDeviceAddress address, bool enable)
 		ringStruct* pRing = GetRing(slot, endpoint, 0U);
 		if (pRing->isInactive())
 			continue;
-		StopEndpoint(slot, endpoint);
+		/*
+		 * Note: This was changed from StopEndpoint -> QuiesceEndpoint
+		 *   in Mavericks.
+		 */
+		QuiesceEndpoint(slot, endpoint);
 	}
 	_addressMapper.Active[address] = false;
+	return kIOReturnSuccess;
+}
+
+IOReturn CLASS::UIMEnableAllEndpoints(bool enable)
+{
+	if (!enable)
+		return kIOReturnBadArgument;
+	for (uint16_t addr = 0U; addr < kUSBMaxDevices; ++addr) {
+		if (_addressMapper.Active[addr] || !_addressMapper.Slot)
+			continue;
+		UIMEnableAddressEndpoints(addr, true);
+	}
 	return kIOReturnSuccess;
 }
 

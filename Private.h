@@ -31,19 +31,27 @@ extern
 UInt32 gUSBStackDebugFlags;	// Note: defined in IOUSBFamily/Classes/IOUSBController.cpp
 
 #pragma mark -
+#pragma mark Vendors
+#pragma mark -
+
+#define kVendorASMedia 0x1B21U
+#define kVendorEtron 0x1B6FU
+#define kVendorFrescoLogic 0x1B73U
+#define kVendorIntel 0x8086U
+#define kVendorRenesas 0x1033U
+
+#pragma mark -
 #pragma mark Errata
 #pragma mark -
 
-#define kErrataFrescoLogic 0x80U
-#define kErrataRenesas 8U
 #define kErrataDisableMSI 2U
 #define kErrataIntelPantherPoint 4U
+#define kErrataIntelLynxPoint 1U
 #define kErrataEnableAutoCompliance 0x10U
-#define kErrataIntelPCIRoutingExtension 0x20U
+#define kErrataIntelPortMuxing 0x20U
 #define kErrataParkRing 0x100U
 #define kErrataFL1100 0x200U
-#define kErrataASMedia 0x400U
-#define kErrataAllowControllerDoze (1U << 25)
+#define kErrataSWAssistedIdle (1U << 25)
 
 #pragma mark -
 #pragma mark Structures
@@ -59,6 +67,7 @@ struct XHCIAsyncEndpoint;
 union ContextStruct;
 
 typedef void (*TRBCallback)(GenericUSBXHCI*, TRBStruct*, int32_t*);
+typedef uint64_t (*PGetErrata64Bits)(void*, uint16_t, uint16_t, uint16_t);
 
 struct ringStruct
 {
@@ -157,6 +166,25 @@ struct PrintSink
 #define DIAGCTR_ORPHANEDTDS 7
 #define DIAGCTR_SHORTSUCCESS 8
 #define NUM_DIAGCTRS 9
+
+/*
+ * Mavericks Offsets
+ */
+#define V1_locationID 0xE0
+#define V1_ignoreDisconnectBitmap 0xE4
+#define V3_rootHubStatusChangedBitmapSS 0xCC
+#define V3_errata64Bits 0xD0
+#define V3_companionPort 0xD8
+#define V3_hasPCIPwrMgmt 0xF9
+#define V3_acpiDevice 0x110
+#define V3_minimumIdlePowerStateValid 0x129
+#define V3_GetErrata64Bits 418
+
+#ifdef __LP64__
+#define CHECK_FOR_MAVERICKS ((gux_options & GUX_OPTION_MAVERICKS) != 0U)
+#else
+#define CHECK_FOR_MAVERICKS false
+#endif
 
 #ifdef __cplusplus
 extern "C" {

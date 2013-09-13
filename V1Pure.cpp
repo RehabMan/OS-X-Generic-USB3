@@ -36,17 +36,17 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		return kIOReturnNoResources;
 	}
 	SetVendorInfo();
-	_errataBits = GetErrataBits(_vendorID, _deviceID, _revisionID);	// Note: originally |=
-#if 0
-	if (!(_errataBits & (kErrataASMedia | kErrataFrescoLogic | kErrataIntelPantherPoint))) {
-		OSBoolean* b = OSDynamicCast(OSBoolean, getProperty("AllowAnyXHCI"));
-		if (!(gUSBStackDebugFlags & kUSBEnableAllXHCIControllersMask) && (!b || !b->isTrue())) {
-			IOLog("%s: Unsupported xHC chipset\n", __FUNCTION__);
-			UIMFinalize();
-			return kIOReturnUnsupported;
+	if (CHECK_FOR_MAVERICKS) {
+		PGetErrata64Bits pFunc = (*reinterpret_cast<PGetErrata64Bits**>(this))[V3_GetErrata64Bits];
+		uint64_t errata64 = pFunc(this, _vendorID, _deviceID, _revisionID);
+		*static_cast<uint64_t*>(getV3Ptr(V3_errata64Bits)) = errata64;
+		if (errata64 & (1ULL << 34U)) {
+			/*
+			 * TBD: Mavericks 15517 - 156C7
+			 */
 		}
 	}
-#endif
+	_errataBits = GetErrataBits(_vendorID, _deviceID, _revisionID);	// Note: originally |=
 	if (!_v3ExpansionData->_onThunderbolt)
 		_expansionData->_isochMaxBusStall = 25000U;
 	_pXHCICapRegisters = reinterpret_cast<struct XHCICapRegisters volatile*>(_deviceBase->getVirtualAddress());
@@ -175,6 +175,12 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	}
 	Write32Reg(&_pXHCIOperationalRegisters->Config, (u & ~XHCI_CONFIG_SLOTS_MASK) | _numSlots);
 	Write32Reg(&_pXHCIOperationalRegisters->DNCtrl, UINT16_MAX);
+#if 0
+	if (_maxNumEndpoints < gXHCIEPlimit) {
+		_maxNumEndpoints = gXHCIEPlimit;
+		setProperty("Max XHCI EPs", gXHCIEPlimit, 16U);
+	}
+#endif
 	_slotArray = static_cast<SlotStruct*>(IOMalloc(static_cast<size_t>(_numSlots) * sizeof *_slotArray));
 	if (!_slotArray) {
 		IOLog("%s: Failed to allocate memory for slots\n", __FUNCTION__);
@@ -255,6 +261,9 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		UIMFinalize();
 		return rc;
 	}
+	/*
+	 * Note: Mavericks extra Makebuffer for use in ExecuteGetPortBandwidthWorkaround()
+	 */
 	bzero(&_addressMapper, sizeof _addressMapper);
 	RHPortStatusChangeBitmapInit();
 	_isSleeping = false;
@@ -268,6 +277,9 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	_RenesasControllerVersion = 0U;
 	_debugCtr = 0U;
 	_debugPattern = 0xDEADBEEFU;
+	/*
+	 * TBD: Mavericks 166FE - 16782
+	 */
 	rc = AllocRHThreadCalls();
 	if (rc != kIOReturnSuccess) {
 		IOLog("%s: AllocRHThreadCalls failed, rc == %#x\n", __FUNCTION__, rc);
@@ -275,6 +287,11 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		return rc;
 	}
 	CheckSleepCapability();
+	/*
+	 * TBD: Mavericks 167EC - 169D3
+	 *   some code to create diagnostics
+	 *   more stuff
+	 */
 	SetPropsForBookkeeping();
 	_uimInitialized = true;
 	registerService();
@@ -325,6 +342,9 @@ IOReturn CLASS::UIMFinalize(void)
 		_deviceBase = 0;
 	}
 	FinalizeRHThreadCalls();
+	/*
+	 * Note: Mavericks releases extra buffer used by ExecuteGetPortBandwidthWorkaround()
+	 */
 	_uimInitialized = false;
 	return kIOReturnSuccess;
 }
@@ -357,6 +377,9 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 	if (!pSlot->isInactive() &&
 		!pRing->isInactive()) {
 		UIMAbortEndpoint(functionNumber, endpointNumber, direction);
+		/*
+		 * Note: Mavericks checks _controllerAvailable
+		 */
 		if (_errataBits & kErrataParkRing)
 			ParkRing(pRing);
 	}
@@ -371,6 +394,13 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 			}
 		}
 	} else {
+#if 0
+		/*
+		 * Note: Mavericks
+		 */
+		if (!_controllerAvailable)
+			goto _DeleteStreams_below;
+#endif
 		GetInputContext();
 		ContextStruct* pContext = GetInputContextPtr();
 		pContext->_ic.dwInCtx0 = XHCI_INCTX_0_DROP_MASK(endpoint);
@@ -418,9 +448,22 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 		if (!pRing->isInactive())
 			return kIOReturnSuccess;
 	}
+#if 0
+	/*
+	 * Note: Mavericks
+	 */
+	if (!_controllerAvailable)
+		goto _Skip_Disable_Slot;
+#endif
 	ClearTRB(&localTrb, true);
 	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
 	WaitForCMD(&localTrb, XHCI_TRB_TYPE_DISABLE_SLOT, 0);
+#if 0
+	/*
+	 * Note: Mavericks
+	 */
+	_IntelSWSlot = slot;
+#endif
 	pSlot->ctx = 0;
 	SetDCBAAAddr64(&_dcbaa.ptr[slot], 0ULL);
 	if (pSlot->md) {
@@ -486,8 +529,11 @@ void CLASS::UIMRootHubStatusChange(void)
 		statusChangedBitmap |= statusBit;
 	statusBit <<= 1;
 	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port, statusBit <<= 1) {
-		if (_rhPortResetPending[port])
+		if (_rhPortResetPending[port]) {
+			if (CHECK_FOR_MAVERICKS)
+				RootHubStartTimer32(kUSBRootHubPollingRate);
 			continue;
+		}
 		portStatus.statusFlags = 0U;
 		portStatus.changeFlags = 0U;
 		portToCheck = PortNumberCanonicalToProtocol(port, reinterpret_cast<uint8_t*>(&portStatus.statusFlags));
@@ -515,14 +561,12 @@ void CLASS::UIMRootHubStatusChange(void)
 	if (!_controllerAvailable || _wakingFromHibernation)
 		statusChangedBitmap = 0U;
 #endif
-#if __LP64__
-	if (gux_options & GUX_OPTION_MAVERICKS) {
+	if (CHECK_FOR_MAVERICKS) {
 		reinterpret_cast<uint32_t*>(&_v3ExpansionData->_wakingFromStandby)[1] = statusChangedBitmap;
-		if (_v3ExpansionData && _v3ExpansionData->_rootHubPollingRate32)
-			RootHubStartTimer32(_v3ExpansionData->_rootHubPollingRate32);
 		return;
 	}
-#endif
+	if (static_cast<uint16_t>(statusChangedBitmap >> 16))
+		RHClearUnserviceablePorts();
 	_rootHubStatusChangedBitmap = static_cast<uint16_t>(statusChangedBitmap);
 }
 
@@ -582,16 +626,28 @@ IOReturn CLASS::GetRootHubDescriptor(IOUSBHubDescriptor* desc)
 	uint32_t appleCaptive, i, numBytes;
 	uint8_t* dstPtr;
 	OSNumber* appleCaptiveProperty;
+	OSObject* obj;
 
 	hubDesc.length = sizeof hubDesc;
 	hubDesc.hubType = kUSBHubDescriptorType;
 	hubDesc.numPorts = _v3ExpansionData->_rootHubNumPortsHS;
 	hubDesc.characteristics = HostToUSBWord(static_cast<uint16_t>(XHCI_HCC_PPC(_HCCLow) ? kPerPortSwitchingBit : 0U));
-	hubDesc.powerOnToGood = 50U;
+	hubDesc.powerOnToGood = 250U;
 	hubDesc.hubCurrent = 0U;
 	numBytes = ((hubDesc.numPorts + 1U) / 8U) + 1U;
-	appleCaptiveProperty = OSDynamicCast(OSNumber, _device->getProperty(kAppleInternalUSBDevice));
-	appleCaptive = appleCaptiveProperty ? appleCaptiveProperty->unsigned32BitValue() : 0U;
+	obj = _device->getProperty(kAppleInternalUSBDevice);
+	appleCaptive = 0U;
+	if (obj) {
+		appleCaptiveProperty = OSDynamicCast(OSNumber, obj);
+		if (appleCaptiveProperty)
+			appleCaptive = appleCaptiveProperty->unsigned32BitValue();
+	} else if (CHECK_FOR_MAVERICKS)
+		appleCaptive = CheckACPITablesForCaptiveRootHubPorts(_rootHubNumPorts);
+	if (appleCaptive) {
+		if (_v3ExpansionData->_rootHubPortsHSStartRange > 1U)
+			appleCaptive >>= (_v3ExpansionData->_rootHubPortsHSStartRange - 1U);
+		appleCaptive &= (2U << _v3ExpansionData->_rootHubNumPortsHS) - 2U;
+	}
 	dstPtr = &hubDesc.removablePortFlags[0];
 	for (i = 0U; i < numBytes; i++) {
 		*dstPtr++ = static_cast<uint8_t>(appleCaptive & 0xFFU);
@@ -673,16 +729,17 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 	uint32_t portSC;
 	uint16_t _port, statusFlags, changeFlags, linkState;
 	uint8_t protocol, speed;
+	bool didChange;
+	int32_t retries = 0;
 
 	if (!pStatus)
 		return kIOReturnBadArgument;
-	/*
-	 * Note: Bus is never set to kUSBBusStateSuspended...
-	 */
-	if (_myBusState == kUSBBusStateSuspended)
+	if (_myBusState < kUSBBusStateRunning)
 		return kIOReturnNotResponding;
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
+	if (!_controllerAvailable)
+		return kIOReturnOffline;
 	/*
 	 * Note: "protocol" is actually the speed of the requesting IOUSBRootHubDevice
 	 *   which is either kUSBDeviceSpeedHigh (2) or kUSBDeviceSpeedSuper (3).
@@ -692,9 +749,12 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 	_port = PortNumberProtocolToCanonical(port, protocol);
 	if (_port >= _rootHubNumPorts)
 		return kIOReturnBadArgument;
+retry:
 	portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[_port].PortSC);
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
+	++retries;
+	didChange = (portSC & XHCI_PS_CHANGEBITS) != 0U;
 	if (RHCheckForPortResume(_port, protocol, portSC))
 		portSC &= ~XHCI_PS_PLC;
 	/*
@@ -728,6 +788,11 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 		changeFlags = static_cast<uint16_t>((portSC >> 17) & 0x1BU);
 		if (portSC & XHCI_PS_PLC)
 			changeFlags |= kHubPortSuspend;
+		if (portSC & (XHCI_PS_WRC | XHCI_PS_CEC))
+		/*
+		 * Clear change bits a USB 2.0 port is not allowed to set
+		 */
+			Write32Reg(&_pXHCIOperationalRegisters->prs[_port].PortSC, (portSC & XHCI_PS_WRITEBACK_MASK) | XHCI_PS_WRC | XHCI_PS_CEC);
 	} else {
 		statusFlags |= ((linkState << kSSHubPortStatusLinkStateShift) & kSSHubPortStatusLinkStateMask);
 		if (portSC & XHCI_PS_PP)
@@ -738,13 +803,14 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 		 */
 		statusFlags |= ((kSSHubPortSpeed5Gbps << kSSHubPortStatusSpeedShift) & kSSHubPortStatusSpeedMask);
 #endif
-		/*
-		 * Note: PEC is always 0 for USB3 ports, but we report
-		 *   it just in case chip is non-conforming so it gets cleared.
-		 */
-		changeFlags = static_cast<uint16_t>(((portSC >> 17) & 0x1BU) |	// PRC, OCC, PEC, CSC as above
+		changeFlags = static_cast<uint16_t>(((portSC >> 17) & 0x19U) |	// PRC, OCC, CSC as above
 											((portSC >> 16) & 0xC0U) |	// CEC, PLC as above
 											((portSC >> 14) & kSSHubPortChangeBHResetMask));	// WRC
+		if (portSC & XHCI_PS_PEC)
+		/*
+		 * Clear change bit a superspeed port is not allowed to set
+		 */
+			Write32Reg(&_pXHCIOperationalRegisters->prs[_port].PortSC, (portSC & XHCI_PS_WRITEBACK_MASK) | XHCI_PS_PEC);
 	}
 #ifdef DEBOUNCING
 	if (_rhPortBeingWarmReset[_port]) {
@@ -759,10 +825,24 @@ IOReturn CLASS::GetRootHubPortStatus(IOUSBHubPortStatus* pStatus, UInt16 port)
 #ifdef DEBOUNCING
 	HandlePortDebouncing(&statusFlags, &changeFlags, _port, linkState, protocol);
 #endif
-	if (!changeFlags)
+	if (!changeFlags) {
+		if (didChange) {
+			if (retries < 5)
+				goto retry;
+			else {
+				IOLog("%s: Change bits on port %u, bus %#x misbehaving: portSC(%#x)\n",
+					  __FUNCTION__, 1U + _port, static_cast<uint32_t>(_busNumber), portSC);
+				Write32Reg(&_pXHCIOperationalRegisters->prs[_port].PortSC, (portSC & XHCI_PS_WRITEBACK_MASK) | XHCI_PS_CHANGEBITS);
+			}
+		}
 		_rhPortStatusChangeBitmapGated &= ~(2U << _port);
+	}
 	pStatus->statusFlags = HostToUSBWord(statusFlags);
 	pStatus->changeFlags = HostToUSBWord(changeFlags);
+	/*
+	 * Note: Mavericks B3A6 - B407
+	 *   Has some code to zero a counter (referenced in DoSoftRetries).
+	 */
 	return kIOReturnSuccess;
 }
 
@@ -771,6 +851,8 @@ IOReturn CLASS::SetRootHubPortFeature(UInt16 wValue, UInt16 port)
 	uint16_t _port;
 	uint8_t protocol;
 
+	if (!_controllerAvailable)
+		return kIOReturnOffline;
 	protocol = static_cast<uint8_t>((wValue & kUSBSpeed_Mask) >> kUSBSpeed_Shift);
 	wValue = (wValue & kUSBAddress_Mask) >> kUSBAddress_Shift;
 	_port = PortNumberProtocolToCanonical(port & UINT8_MAX, protocol);
@@ -807,6 +889,8 @@ IOReturn CLASS::ClearRootHubPortFeature(UInt16 wValue, UInt16 port)
 	uint16_t _port;
 	uint8_t protocol;
 
+	if (!_controllerAvailable)
+		return kIOReturnOffline;
 	protocol = static_cast<uint8_t>((wValue & kUSBSpeed_Mask) >> kUSBSpeed_Shift);
 	wValue = (wValue & kUSBAddress_Mask) >> kUSBAddress_Shift;
 	_port = PortNumberProtocolToCanonical(port, protocol);
@@ -888,13 +972,16 @@ void CLASS::PollInterrupts(IOUSBCompletionAction safeAction)
 	if (sts & XHCI_STS_PCD) {
 		Write32Reg(&_pXHCIOperationalRegisters->USBSts, XHCI_STS_PCD);
 		EnsureUsability();
-		/*
-		 * Note:
-		 *   RHCheckForPortResumes may be limited to the ports flagged
-		 *   by _rhPortStatusChangeBitmap | _rhPortStatusChangeBitmapGated
-		 */
-		if (_myPowerState == kUSBPowerStateOn)
+		if (_myPowerState == kUSBPowerStateOn) {
+			if (CHECK_FOR_MAVERICKS && _rhPortStatusChangeBitmap)
+				RootHubStartTimer32(kUSBRootHubPollingRate);
+			/*
+			 * Note:
+			 *   RHCheckForPortResumes may be limited to the ports flagged
+			 *   by _rhPortStatusChangeBitmap | _rhPortStatusChangeBitmapGated
+			 */
 			RHCheckForPortResumes();
+		}
 	}
 	for (int32_t interrupter = 0; interrupter < kMaxActiveInterrupters; ++interrupter)
 		while (PollEventRing2(interrupter));

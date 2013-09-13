@@ -30,6 +30,8 @@
 			<string>GenericUSBXHCI</string>
 			<key>IOPCIClassMatch</key>
 			<string>0x0c033000</string>
+			<key>IOPCIPauseCompatible</key>
+			<true/>
 			<key>IOPCITunnelCompatible</key>
 			<true/>
 			<key>IOProviderClass</key>

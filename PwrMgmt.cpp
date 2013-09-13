@@ -18,21 +18,17 @@
 __attribute__((visibility("hidden")))
 void CLASS::CheckSleepCapability(void)
 {
+	bool haveSleep = false;
+
 	if (!(gux_options & GUX_OPTION_NO_SLEEP) &&
 		_device->hasPCIPowerManagement(kPCIPMCPMESupportFromD3Cold) &&
-		kIOReturnSuccess == _device->enablePCIPowerManagement(kPCIPMCSPowerStateD3)) {
-		_expansionData->_controllerCanSleep = true;
-		setProperty("Card Type", "Built-in");
-#if 1
-		setProperty("ResetOnResume", false);
-#endif
-		return;
-	}
-	IOLog("%s: xHC will be unloaded across sleep\n", getName());
-	_expansionData->_controllerCanSleep = false;
-#if 0
-	setProperty("Card Type", "PCI");
-#else
+		kIOReturnSuccess == _device->enablePCIPowerManagement(kPCIPMCSPowerStateD3))
+		haveSleep = true;
+	else
+		IOLog("%s: xHC will be unloaded across sleep\n", getName());
+	_expansionData->_controllerCanSleep = haveSleep;
+	if (CHECK_FOR_MAVERICKS)
+		*static_cast<bool*>(getV3Ptr(V3_hasPCIPwrMgmt)) = haveSleep;
 	/*
 	 * Note:
 	 *   Always set the Card Type to Built-in, in order
@@ -40,17 +36,24 @@ void CLASS::CheckSleepCapability(void)
 	 *   if xHC does not support save/restore.
 	 * See IOUSBRootHubDevice::start
 	 */
+#if 0
+	setProperty("Card Type", haveSleep ? "Built-in" : "PCI");
+#else
 	setProperty("Card Type", "Built-in");
-	setProperty("ResetOnResume", true);
+	setProperty("ResetOnResume", !haveSleep);
 #endif
 }
 
 __attribute__((visibility("hidden")))
-IOReturn CLASS::CompleteSuspendOnAllPorts(void)
+IOReturn CLASS::RHCompleteSuspendOnAllPorts(void)
 {
-	uint32_t wait, portSC, changePortSC;
+	uint32_t wait, portSC, changePortSC, idbmp, wantedWakeBits;
 
 	wait = 0U;
+	if (CHECK_FOR_MAVERICKS)
+		idbmp = *static_cast<uint32_t const*>(getV1Ptr(V1_ignoreDisconnectBitmap));
+	else
+		idbmp = 0U;
 	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
 		changePortSC = 0U;
 		portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);
@@ -63,6 +66,14 @@ IOReturn CLASS::CompleteSuspendOnAllPorts(void)
 			XHCI_PS_PLS_GET(portSC) < XDEV_U3) {
 			changePortSC |= XHCI_PS_LWS | XHCI_PS_PLS_SET(XDEV_U3);
 			wait = 15U;
+		}
+		if (idbmp & (2U << port))
+			wantedWakeBits = XHCI_PS_WOE;
+		else
+			wantedWakeBits = XHCI_PS_WAKEBITS;
+		if (wantedWakeBits != (portSC & XHCI_PS_WAKEBITS)) {
+			portSC &= ~XHCI_PS_WAKEBITS;
+			changePortSC |= wantedWakeBits;
 		}
 		if (changePortSC)
 			Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, (portSC & XHCI_PS_WRITEBACK_MASK) | changePortSC);
@@ -178,6 +189,7 @@ void CLASS::NotifyRootHubsOfPowerLoss(void)
 #endif
 }
 
+#if 0
 __attribute__((visibility("hidden")))
 void CLASS::SantizePortsAfterPowerLoss(void)
 {
@@ -188,6 +200,40 @@ void CLASS::SantizePortsAfterPowerLoss(void)
 		Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, portSC | XHCI_PS_WAKEBITS);
 	}
 }
+
+__attribute__((visibility("hidden")))
+void CLASS::DisableWakeBits(void)
+{
+	if (!_wakeEnabled || m_invalid_regspace || isInactive())
+		return;
+	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
+		uint32_t portSC = GetPortSCForWriting(port);
+		if (m_invalid_regspace)
+			return;
+		Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, portSC & ~XHCI_PS_WAKEBITS);
+	}
+	_wakeEnabled = false;
+}
+
+__attribute__((visibility("hidden")))
+void CLASS::EnableWakeBits(void)
+{
+	if (_wakeEnabled || m_invalid_regspace || isInactive())
+		return;
+	uint32_t idbmp = *static_cast<uint32_t const*>(getV1Ptr(V1_ignoreDisconnectBitmap));
+	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
+		uint32_t portSC = GetPortSCForWriting(port);
+		if (m_invalid_regspace)
+			return;
+		if (idbmp & (2U << port))
+			portSC = (portSC & ~XHCI_PS_WAKEBITS) | XHCI_PS_WOE;
+		else
+			portSC |= XHCI_PS_WAKEBITS;
+		Write32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC, portSC);
+	}
+	_wakeEnabled = true;
+}
+#endif
 
 __attribute__((visibility("hidden")))
 void CLASS::SetPropsForBookkeeping(void)

@@ -295,7 +295,7 @@ bool CLASS::PollEventRing2(int32_t interrupter)
 	ePtr->bounceDequeueIndex = next;
 	switch (XHCI_TRB_3_TYPE_GET(localTrb.d)) {
 		case TRB_RENESAS_CMD_COMP:
-			if (!(_errataBits & kErrataRenesas))
+			if (_vendorID != kVendorRenesas)
 				break;
 		case XHCI_TRB_EVENT_CMD_COMPLETE:
 			if (!DoCMDCompletion(localTrb))
@@ -389,7 +389,7 @@ void CLASS::PollForCMDCompletions(int32_t interrupter)
 					++_diagCounters[DIAGCTR_XFERERR];
 				break;
 			case TRB_RENESAS_CMD_COMP:
-				if (!(_errataBits & kErrataRenesas))
+				if (_vendorID != kVendorRenesas)
 					break;
 			case XHCI_TRB_EVENT_CMD_COMPLETE:
 				ClearTRB(&ePtr->bounceQueuePtr[index], false);

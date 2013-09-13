@@ -42,8 +42,10 @@ IOReturn CLASS::CreateInterruptEndpoint(int16_t functionAddress, int16_t endpoin
 	uint8_t slot, endpoint;
 	int16_t intervalExponent;
 
-	if (functionAddress == _hub3Address || functionAddress == _hub2Address)
-		return RootHubStartTimer32(static_cast<uint32_t>(pollingRate));
+	if (functionAddress == _hub3Address || functionAddress == _hub2Address) {
+		_v3ExpansionData->_rootHubPollingRate32 = pollingRate > 15 ? 4096U : (pollingRate > 4 ? (1U << (pollingRate - 4)) : 1U);
+		return kIOReturnSuccess;
+	}
 	if (!functionAddress)
 		return kIOReturnInternalError;
 	slot = GetSlotID(functionAddress);
@@ -53,21 +55,14 @@ IOReturn CLASS::CreateInterruptEndpoint(int16_t functionAddress, int16_t endpoin
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)
 		return kIOReturnBadArgument;
-	if (speed > kUSBDeviceSpeedFull) {
-		if (pollingRate > 16)
-			intervalExponent = 15;
-		else if (pollingRate < 1)
-			intervalExponent = 0;
-		else
-			intervalExponent = pollingRate - 1;
-	} else {
+	if (speed > kUSBDeviceSpeedFull)
+		intervalExponent = pollingRate > 15 ? 15 : (pollingRate > 1 ? (pollingRate - 1) : 0);
+	else {
 		if (pollingRate <= 0)
 			return kIOReturnInternalError;
-		intervalExponent = 2;
-		do {
-			++intervalExponent;
-			pollingRate >>= 1;
-		} while (pollingRate && intervalExponent < 11);
+		intervalExponent = static_cast<int16_t>(34 - __builtin_clz(static_cast<uint32_t>(pollingRate)));
+		if (intervalExponent > 11)
+			intervalExponent = 11;
 	}
 	return CreateEndpoint(slot, endpoint, maxPacketSize, intervalExponent,
 						  (direction == kUSBIn) ? INT_IN_EP : INT_OUT_EP, 0U, maxBurst, 0U, 0);
@@ -80,7 +75,7 @@ IOReturn CLASS::CreateInterruptEndpoint(int16_t functionAddress, int16_t endpoin
  *   maxPacketSize: 1 - 1024
  *   intervalExplonent: 0 - 15 (the interval is 2 ^ intervalExponent microframes)
  *   endpointType: 1 - 7 (see XHCITypes.h)
- *   maxStream: 0 - (_maxPSASize - 1) or (MaxStreamsAllowed - 1)
+ *   maxStream: Either 0, or (1 + maxStream) is a power-of-2 between 4 and min(_maxPSASize, kMaxStreamsAllowed)
  *   maxBurst: 0 - 15
  *   multiple: 0 - 2
  */
@@ -92,7 +87,7 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 	ContextStruct *pContext, *pEpContext;
 	ringStruct* pRing;
 	GenericUSBXHCIIsochEP* _pIsochEndpoint;
-	uint32_t numPagesInRingQueue, mask, mps;
+	uint32_t numPagesInRingQueue, mask;
 	int32_t retFromCMD;
 	IOReturn rc;
 	uint8_t epState;
@@ -239,15 +234,8 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 	}
 	pEpContext->_e.qwEpCtx2 = (pRing->physAddr + pRing->dequeueIndex * sizeof *pRing->ptr) & XHCI_EPCTX_2_TR_DQ_PTR_MASK;
 	if (maxStream > 1U) {
-		++maxStream;
-		maxStream >>= 2;
-		mps = 0U;
-		while (maxStream) {
-			++mps;
-			maxStream >>= 1;
-		}
 		pEpContext->_e.dwEpCtx0 |= XHCI_EPCTX_0_LSA_SET(1U);
-		pEpContext->_e.dwEpCtx0 |= XHCI_EPCTX_0_MAXP_STREAMS_SET(mps);
+		pEpContext->_e.dwEpCtx0 |= XHCI_EPCTX_0_MAXP_STREAMS_SET(static_cast<uint32_t>(__builtin_ctz(maxStream + 1U) - 1));
 	} else {
 		if (pRing->cycleState)
 			pEpContext->_e.qwEpCtx2 |= 1ULL;
@@ -307,7 +295,7 @@ void CLASS::StopEndpoint(int32_t slot, int32_t endpoint, bool suspend)
 	if (suspend)
 		localTrb.d |= XHCI_TRB_3_SUSP_EP_BIT;
 	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_STOP_EP, 0);
-	if ((_errataBits & kErrataIntelPantherPoint) && retFromCMD == -1000 - 196)	// Intel CC_NOSTOP
+	if (_vendorID == kVendorIntel && retFromCMD == -1000 - 196)	// Intel CC_NOSTOP
 		SetNeedsReset(slot, true);
 }
 
@@ -329,6 +317,13 @@ uint32_t CLASS::QuiesceEndpoint(int32_t slot, int32_t endpoint)
 	uint32_t epState;
 	ContextStruct volatile* pContext;
 
+#if 0
+	/*
+	 * Note: Added Mavericks
+	 */
+	if (!_controllerAvailable)
+		return 0U;
+#endif
 	ClearStopTDs(slot, endpoint);
 	pContext = GetSlotContext(slot, endpoint);
 	epState = XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0);
@@ -515,7 +510,7 @@ IOReturn CLASS::CreateStream(ringStruct* pRing, uint16_t streamId)
 		return kIOReturnNoMemory;
 	uint64_t strm_dqptr = pStreamRing->physAddr & ~15ULL;
 	if (pStreamRing->cycleState)
-		strm_dqptr |= 1ULL;	// set DCS bit
+		strm_dqptr |= 1ULL;	// Note: set DCS bit
 	strm_dqptr |= 2ULL;	// Note: set SCT = 1 - Primary Transfer Ring
 	SetTRBAddr64(&pRing->ptr[streamId], strm_dqptr);
 	return kIOReturnSuccess;
