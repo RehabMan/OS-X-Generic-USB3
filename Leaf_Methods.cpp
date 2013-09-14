@@ -145,6 +145,13 @@ IOReturn CLASS::AllocRing(ringStruct* pRing, int32_t numPages)
 __attribute__((visibility("hidden")))
 void CLASS::DecodeExtendedCapability(uint32_t hccParams)
 {
+	if (_errataBits & kErrataVMwarePortSwap) {
+		_v3ExpansionData->_rootHubNumPortsSS = _rootHubNumPorts / 2U;
+		_v3ExpansionData->_rootHubPortsSSStartRange = 1U;
+		_v3ExpansionData->_rootHubNumPortsHS = _v3ExpansionData->_rootHubNumPortsSS;
+		_v3ExpansionData->_rootHubPortsHSStartRange = _v3ExpansionData->_rootHubPortsSSStartRange + _v3ExpansionData->_rootHubNumPortsSS;
+		return;
+	}
 	uint32_t ecp = XHCI_HCC_XECP(hccParams);
 	if (!ecp)
 		return;

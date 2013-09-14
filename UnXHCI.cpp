@@ -138,6 +138,24 @@ IOReturn CLASS::FL1100Tricks(int choice)
 }
 #endif
 
+__attribute__((visibility("hidden")))
+uint32_t CLASS::VMwarePortStatusShuffle(uint32_t statusChangedBitmap, uint8_t numPortsEach)
+{
+	uint8_t i;
+	uint32_t mask, outss, ouths, inmap;
+	outss = 0U;
+	ouths = 0U;
+	mask = 2U;
+	inmap = (statusChangedBitmap >> 1);
+	for (i = 0U; inmap && i < numPortsEach; ++i, inmap >>= 2, mask <<= 1) {
+		if (inmap & 1U)
+			outss |= mask;
+		if (inmap & 2U)
+			ouths |= mask;
+	}
+	return (statusChangedBitmap & 1U) | outss | (ouths << numPortsEach);
+}
+
 #if 0
 __attribute__((visibility("hidden")))
 uint32_t CLASS::CheckACPITablesForCaptiveRootHubPorts(uint8_t numPorts)

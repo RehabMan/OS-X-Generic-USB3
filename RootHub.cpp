@@ -488,6 +488,8 @@ uint32_t CLASS::GetPortSCForWriting(uint16_t port)
 __attribute__((noinline, visibility("hidden")))
 uint16_t CLASS::PortNumberCanonicalToProtocol(uint16_t canonical, uint8_t* pProtocol)
 {
+	if (_errataBits & kErrataVMwarePortSwap)
+		canonical = canonical / 2U + ((canonical & 1U) ? _v3ExpansionData->_rootHubNumPortsSS : 0U);
 	if (canonical + 1U >= _v3ExpansionData->_rootHubPortsSSStartRange &&
 		canonical + 1U < _v3ExpansionData->_rootHubPortsSSStartRange + _v3ExpansionData->_rootHubNumPortsSS) {
 		if (pProtocol)
@@ -508,12 +510,18 @@ uint16_t CLASS::PortNumberProtocolToCanonical(uint16_t port, uint8_t protocol)
 {
 	switch ((protocol & kUSBSpeed_Mask) >> kUSBSpeed_Shift) {
 		case kUSBDeviceSpeedSuper:
-			if (port && port <= _v3ExpansionData->_rootHubNumPortsSS)
+			if (port && port <= _v3ExpansionData->_rootHubNumPortsSS) {
+				if (_errataBits & kErrataVMwarePortSwap)
+					return port * 2U - 2U;
 				return port + _v3ExpansionData->_rootHubPortsSSStartRange - 2U;
+			}
 			break;
 		case kUSBDeviceSpeedHigh:
-			if (port && port <= _v3ExpansionData->_rootHubNumPortsHS)
+			if (port && port <= _v3ExpansionData->_rootHubNumPortsHS) {
+				if (_errataBits & kErrataVMwarePortSwap)
+					return port * 2U - 1U;
 				return port + _v3ExpansionData->_rootHubPortsHSStartRange - 2U;
+			}
 			break;
 	}
 	return UINT16_MAX;
@@ -522,6 +530,8 @@ uint16_t CLASS::PortNumberProtocolToCanonical(uint16_t port, uint8_t protocol)
 __attribute__((visibility("hidden")))
 uint16_t CLASS::GetCompanionRootPort(uint8_t protocol, uint16_t port)
 {
+	if (_errataBits & kErrataVMwarePortSwap)
+		return port ^ 1U;
 	if (protocol == kUSBDeviceSpeedHigh)
 		return port - _v3ExpansionData->_rootHubPortsHSStartRange + _v3ExpansionData->_rootHubPortsSSStartRange;
 	if (protocol == kUSBDeviceSpeedSuper)

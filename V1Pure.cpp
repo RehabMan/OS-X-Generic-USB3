@@ -562,11 +562,15 @@ void CLASS::UIMRootHubStatusChange(void)
 		statusChangedBitmap = 0U;
 #endif
 	if (CHECK_FOR_MAVERICKS) {
+		if (_errataBits & kErrataVMwarePortSwap)
+			statusChangedBitmap = VMwarePortStatusShuffle(statusChangedBitmap, _v3ExpansionData->_rootHubNumPortsSS);
 		reinterpret_cast<uint32_t*>(&_v3ExpansionData->_wakingFromStandby)[1] = statusChangedBitmap;
 		return;
 	}
 	if (static_cast<uint16_t>(statusChangedBitmap >> 16))
 		RHClearUnserviceablePorts();
+	if (_errataBits & kErrataVMwarePortSwap)
+		statusChangedBitmap = VMwarePortStatusShuffle(statusChangedBitmap, _v3ExpansionData->_rootHubNumPortsSS);
 	_rootHubStatusChangedBitmap = static_cast<uint16_t>(statusChangedBitmap);
 }
 
