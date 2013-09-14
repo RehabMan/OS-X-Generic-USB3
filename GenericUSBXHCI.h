@@ -602,6 +602,7 @@ public:
 	void EnableComplianceMode(void) {}
 	void DisableComplianceMode(void) {}
 	IOReturn FL1100Tricks(int) { return kIOReturnSuccess; }
+	static uint32_t VMwarePortStatusShuffle(uint32_t, uint8_t);
 	bool DiscoverMuxedPorts(void);
 	IOReturn HCSelect(uint8_t, uint8_t);
 	IOReturn HCSelectWithMethod(char const*);
