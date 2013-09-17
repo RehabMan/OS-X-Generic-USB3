@@ -574,7 +574,7 @@ IOReturn CLASS::AllocStreamsContextArray(ringStruct* pRing, uint32_t maxStream)
 									   (1U + maxStream) * sizeof(xhci_stream_ctx),
 									   -PAGE_SIZE,
 									   &pRing->md,
-									   reinterpret_cast<void**>(pRing->ptr),
+									   reinterpret_cast<void**>(&pRing->ptr),
 									   &pRing->physAddr))
 		return kIOReturnNoMemory;
 	pRing->numTRBs = static_cast<uint16_t>(1U + maxStream);
