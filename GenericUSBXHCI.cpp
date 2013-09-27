@@ -201,6 +201,8 @@ kern_return_t Startup(kmod_info_t* ki, void * d)
 		gux_options |= GUX_OPTION_NO_INTEL_IDLE;
 	if (PE_parse_boot_argn("-gux_nomsi", &v, sizeof v))
 		gux_options |= GUX_OPTION_NO_MSI;
+	if (PE_parse_boot_argn("-gux_nostreams", &v, sizeof v))
+		gux_options |= GUX_OPTION_NO_STREAMS;
 	if (PE_parse_boot_argn("gux_log", &v, sizeof v))
 		gux_log_level = static_cast<int>(v);
 	return KERN_SUCCESS;
@@ -217,6 +219,7 @@ void ListOptions(PrintSink* pSink)
 	pSink->print("  -gux_nomsi: Disable MSI and use pin interrupt (if available)\n");
 	pSink->print("  -gux_defer_usb2: For Intel Series 7/C210 only - Switch USB 2.0 protocol ports from xHC to EHC\n");
 	pSink->print("  -gux_no_idle: For Intel Series 7/C210 only - Disable Doze mode\n");
+	pSink->print("  -gux_nostreams: Disable support for streams endpoints\n");
 	pSink->print("  gux_log=n: Set logging level to n.  Available levels 1 - normal, 2 - higher\n");
 }
 

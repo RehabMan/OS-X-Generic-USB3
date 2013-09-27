@@ -10,6 +10,7 @@
 #include "XHCITypes.h"
 #include <IOKit/IOFilterInterruptEventSource.h>
 #include <libkern/OSKextLib.h>
+#include <libkern/version.h>
 
 #define CLASS GenericUSBXHCI
 #define super IOUSBControllerV3
@@ -187,6 +188,60 @@ char test_bit(uint32_t v, int b)
 }
 
 #pragma mark -
+#pragma mark More Printers
+#pragma mark -
+
+static
+void printVersions(PrintSink* pSink)
+{
+	char const* ver_str;
+
+	if (!pSink)
+		return;
+	pSink->print("Darwin %d.%d.%d\n", version_major, version_minor, version_revision);
+	ver_str = OSKextGetCurrentVersionString();
+	if (ver_str)
+		pSink->print("Kext Version %s\n", ver_str);
+}
+
+static
+void printLegacy(PrintSink* pSink, uint32_t volatile const* pUSBLegSup)
+{
+	uint32_t v1, v2;
+
+	if (!pSink || !pUSBLegSup)
+		return;
+	v1 = *pUSBLegSup;
+	v2 = pUSBLegSup[1];
+	pSink->print("Legacy Owner[Bios,OS] %c%c, SMIEn[Event,HSE,OSOwn,PCI,BAR] %c%c%c%c%c, Chg[OWOwn,PCI,BAR] %c%c%c\n",
+				 test_bit(v1, 16),
+				 test_bit(v1, 24),
+				 test_bit(v2, 0),
+				 test_bit(v2, 4),
+				 test_bit(v2, 13),
+				 test_bit(v2, 14),
+				 test_bit(v2, 15),
+				 test_bit(v2, 29),
+				 test_bit(v2, 30),
+				 test_bit(v2, 31));
+}
+
+static
+void printIntelMuxRegs(PrintSink* pSink, IOPCIDevice* pDevice)
+{
+	uint32_t v1, v2, v3, v4;
+
+	if (!pSink || !pDevice)
+		return;
+	v1 = pDevice->configRead32(PCI_XHCI_INTEL_XUSB2PR);
+	v2 = pDevice->configRead32(PCI_XHCI_INTEL_XUSB2PRM);
+	v3 = pDevice->configRead32(PCI_XHCI_INTEL_USB3_PSSEN);
+	v4 = pDevice->configRead32(PCI_XHCI_INTEL_USB3PRM);
+	pSink->print("Intel USB2.0 Port Routing %#x, Mask %#x\n", v1, v2);
+	pSink->print("Intel SuperSpeed Enable %#x, Mask %#x\n", v3, v4);
+}
+
+#pragma mark -
 #pragma mark Prink Sink for IOLog
 #pragma mark -
 
@@ -217,13 +272,10 @@ __attribute__((visibility("hidden")))
 void CLASS::PrintCapRegs(PrintSink* pSink)
 {
 	uint32_t v;
-	char const* ver_str;
 
 	if (!pSink)
 		pSink = const_cast<PrintSink*>(&IOLogSink);
-	ver_str = OSKextGetCurrentVersionString();
-	if (ver_str)
-		pSink->print("Kext Version %s\n", ver_str);
+	printVersions(pSink);
 	pSink->print("Vendor %#x, Device %#x, Revision %#x\n", _vendorID, _deviceID, _revisionID);
 	pSink->print("CapLength  %u\n", Read8Reg(&_pXHCICapRegisters->CapLength));
 	pSink->print("HCIVersion %#x\n", Read16Reg(&_pXHCICapRegisters->HCIVersion));
@@ -315,6 +367,7 @@ void CLASS::PrintRuntimeRegs(PrintSink* pSink)
 
 	if (!pSink)
 		pSink = const_cast<PrintSink*>(&IOLogSink);
+	printVersions(pSink);
 	v = Read32Reg(&_pXHCIOperationalRegisters->USBCmd);
 	pSink->print("USBCmd RS %c HCRST %c INTE %c HSEE %c LHCRST %c CSS %c CRS %c EWE %c EU3S %c\n",
 				 test_bit(v, 0),
@@ -343,6 +396,10 @@ void CLASS::PrintRuntimeRegs(PrintSink* pSink)
 	pSink->print("Config %u\n", Read32Reg(&_pXHCIOperationalRegisters->Config) & XHCI_CONFIG_SLOTS_MASK);
 	pSink->print("MFIndex %u\n", Read32Reg(&_pXHCIRuntimeRegisters->MFIndex) & XHCI_MFINDEX_MASK);
 	pSink->print("Last Time Sync xHC %llu milliseconds <-> CPU %llu nanoseconds\n", _millsecondsTimers[3], _millsecondsTimers[1]);
+	if (_pUSBLegSup)
+		printLegacy(pSink, _pUSBLegSup);
+	if (_vendorID == kVendorIntel)
+		printIntelMuxRegs(pSink, _device);
 	pSink->print("# Configured Endpoints %d\n", _numEndpoints);
 	pSink->print("# Interrupts: Total %u, Serviced %u, Inactive %u, Offline %u\n",
 				 _interruptCounters[1],
