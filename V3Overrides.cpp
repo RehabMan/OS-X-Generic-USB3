@@ -302,6 +302,12 @@ IOReturn CLASS::UIMCreateStreams(UInt8 functionNumber, UInt8 endpointNumber, UIn
 			return rc;
 		}
 	}
+	/*
+	 * Need to reconfigure the endpoint at this stage, in order
+	 *   to get the xHC to load all the newly assigned DQPTRs
+	 *   for the streams.
+	 */
+	ClearEndpoint(slot, endpoint);
 	return kIOReturnSuccess;
 }
 
