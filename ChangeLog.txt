@@ -1,0 +1,69 @@
+ChangeLog
+=========
+1.2.6d5
+- Added support for VMware virtual xHC device in Workstation 10/Fusion 6.
+- Fixed very serious bug that would cause KPs with any USB3 drive supporting streams endpoints.
+- Added some diagnostics.
+- Fixed problem breaking use of drives with streams endpoints.
+- Support for streams endpoints may be disabled with kernel flag '-gux_nostreams'.
+
+1.2.5
+- Support for OS 10.8.5, OS 10.9.
+- Support for Lynx Point/Intel Series 8 with 16 xHC ports (8 dual ports).
+
+1.2.4
+- Overhauled error-handling of non-isoch transfers. Fixed a couple of bugs with KP potential related to transfers.
+- Optimized handling of transfer timeouts.
+- Added kext version to 'xhcdump caps' + a couple of diagnostic counters to 'xhcdump running'
+
+1.2.3
+- Improved handling of bios semaphore for legacy USB - eliminates a problem that causes some bioses to crash during sleep.
+- Made sequence for entering sleep mode more robust and safer.
+- Eliminated potential memory corruption if xhci commands time out.
+- Eliminated some potential memory leaks, fixed some minor bugs, made some minor optimizations and added a bit more logging.
+
+1.2.2
+- Fixed extra-current errors mentioned in posts #85, #90.
+- Fixed minor issue with 32-bit build.
+- Fixed issue with chips that stop clocks for power reduction.
+- Added some logging to help debugging.
+
+1.2.1
+- Fixed alignment bug that made 32-bit build for OS 10.7.5 fail.
+
+1.2.0
+- Implemented support for Isochronous Endpoints. Should now support webcams, etc... (real-time audio/video streaming).
+- Updated UIM interface changes in OS 10.8.3.
+- Added workaround for Intel Series 7 chipset that causes instant-wakeup-on-sleep on some motherboards.
+
+1.1.6.
+- Fixed two critical bugs and seven minor bugs.
+
+1.1.5.
+- Fixed one critical bug and two minor bugs.
+
+1.1.4.
+- Reverted change that caused regression discussed in post #41. Turns out 11 msec means 11 msec and not a msec less. :D
+- Packaged common binary for 10.7.5 + 10.8.x, as suggested in post #39.
+
+1.1.3.
+- Prevent instant-wakeup and spontaneous reboot on ASM1042.
+- Eliminated some race conditions on power-state and port-status changes that may cause KPs.
+
+1.1
+- Made suspend/resume code safer from KPs.
+- Fixed an issue with use of shared pin interrupt.
+- Added diagnostic counters for some errors. These are printed by 'xhcdump running' if non-zero.
+
+1.1a4
+- Fix for xHC that lack 64-bit physical-addressing (ASM1042)
+- Prints some more information in xhcdump caps/running
+- Added kernel flag '-gux_nomsi' to force use of pin interrupt
+- 'xhcdump options' shows kernel flags supported by kext
+
+1.1a3
+- Added code to discard spurious events that are a likely cause of stalls described in post #10.
+- Made error handling of events more robust and fixed some minor bugs in processing of transfers.
+
+1.1a2
+- code added to take ownership of xHC from bios.
