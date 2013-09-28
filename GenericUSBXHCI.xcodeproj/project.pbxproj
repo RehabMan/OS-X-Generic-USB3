@@ -187,7 +187,7 @@
 		E5D81FE7166F8ABF0075A356 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0460;
+				LastUpgradeCheck = 0500;
 				ORGANIZATIONNAME = Zenith432;
 			};
 			buildConfigurationList = E5D81FEA166F8ABF0075A356 /* Build configuration list for PBXProject "GenericUSBXHCI" */;
@@ -288,6 +288,7 @@
 		E5D82005166F8ABF0075A356 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = Info.plist;
 				MODULE_NAME = net.osx86.kexts.GenericUSBXHCI;
 				MODULE_START = Startup;
