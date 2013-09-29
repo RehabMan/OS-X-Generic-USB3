@@ -220,7 +220,7 @@ IOReturn CLASS::UIMCreateBulkTransfer(IOUSBCommand* command)
 {
 	if (!command)
 		return kIOReturnBadArgument;
-	return CreateTransfer(command, command->GetStreamID());
+	return CreateTransfer(command, (gux_options & GUX_OPTION_NO_STREAMS) ? 0U : command->GetStreamID());
 }
 
 IOReturn CLASS::UIMCreateInterruptTransfer(IOUSBCommand* command)
