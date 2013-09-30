@@ -244,8 +244,6 @@ IOReturn CLASS::UIMCreateSSBulkEndpoint(UInt8 functionNumber, UInt8 endpointNumb
 	}
 	if (maxStream & (maxStream + 1U))	// Note: checks if (maxStream + 1U) is a power of 2
 		return kIOReturnBadArgument;
-	if (gux_options & GUX_OPTION_NO_STREAMS)
-		maxStream = 0U;
 	return CreateBulkEndpoint(functionNumber, endpointNumber, direction, maxPacketSize, maxStream, maxBurst);
 }
 
@@ -290,8 +288,6 @@ IOReturn CLASS::UIMCreateStreams(UInt8 functionNumber, UInt8 endpointNumber, UIn
 	uint8_t endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)
 		return kIOReturnBadArgument;
-	if (gux_options & GUX_OPTION_NO_STREAMS)
-		return kIOReturnSuccess;
 	if (pSlot->lastStreamForEndpoint[endpoint])
 		return maxStream ? kIOReturnBadArgument : kIOReturnInternalError;
 	if (maxStream < 2U || maxStream > pSlot->maxStreamForEndpoint[endpoint])

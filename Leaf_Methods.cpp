@@ -131,6 +131,13 @@ IOReturn CLASS::AllocRing(ringStruct* pRing, int32_t numPages)
 	pRing->numTRBs = static_cast<uint16_t>(numPages * (PAGE_SIZE / sizeof *pRing->ptr));
 	pRing->numPages = static_cast<uint16_t>(numPages);
 	pRing->cycleState = 1U;
+	InitPreallocedRing(pRing);
+	return kIOReturnSuccess;
+}
+
+__attribute__((visibility("hidden")))
+void CLASS::InitPreallocedRing(ringStruct* pRing)
+{
 	pRing->enqueueIndex = 0U;
 	pRing->dequeueIndex = 0U;
 	pRing->lastSeenDequeueIndex = 0U;
@@ -139,7 +146,6 @@ IOReturn CLASS::AllocRing(ringStruct* pRing, int32_t numPages)
 	TRBStruct* t = &pRing->ptr[pRing->numTRBs - 1U];
 	SetTRBAddr64(t, pRing->physAddr);
 	t->d |= XHCI_TRB_3_TYPE_SET(XHCI_TRB_TYPE_LINK) | XHCI_TRB_3_TC_BIT;
-	return kIOReturnSuccess;
 }
 
 __attribute__((visibility("hidden")))
