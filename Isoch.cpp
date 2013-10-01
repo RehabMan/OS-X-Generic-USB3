@@ -30,8 +30,7 @@ IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNum
 	uint8_t slot, endpoint, epType, speed, intervalExponent;
 
 	slot = GetSlotID(functionAddress);
-	if (!slot ||
-		ConstSlotPtr(slot)->isInactive())
+	if (!slot)
 		return kIOReturnInternalError;
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)

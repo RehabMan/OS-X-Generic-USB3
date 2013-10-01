@@ -776,8 +776,7 @@ IOReturn CLASS::configureHub(uint32_t deviceAddress, uint32_t flags)
 	if (deviceAddress == _hub3Address || deviceAddress == _hub2Address)
 		return kIOReturnSuccess;
 	slot = GetSlotID(static_cast<int32_t>(deviceAddress));
-	if (!slot ||
-		ConstSlotPtr(slot)->isInactive())
+	if (!slot)
 		return kIOReturnBadArgument;
 	if (flags & kUSBHSHubFlagsMoreInfoMask) {
 		ttt = (flags & kUSBHSHubFlagsTTThinkTimeMask) >> kUSBHSHubFlagsTTThinkTimeShift;

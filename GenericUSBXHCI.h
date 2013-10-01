@@ -556,6 +556,7 @@ public:
 	IOReturn DeleteIsochEP(GenericUSBXHCIIsochEP*);
 	IOReturn AbortIsochEP(GenericUSBXHCIIsochEP*);
 	static uint8_t TranslateEndpoint(int16_t, int16_t);
+	int32_t CleanupControlEndpoint(uint8_t, bool);
 	/*
 	 * Streams
 	 */

@@ -487,8 +487,7 @@ IOReturn CLASS::UIMClearEndpointStall(short functionNumber, short endpointNumber
 	ContextStruct* pContext;
 
 	slot = GetSlotID(functionNumber);
-	if (!slot ||
-		ConstSlotPtr(slot)->isInactive())
+	if (!slot)
 		return kIOReturnInternalError;
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (!endpoint || endpoint >= kUSBMaxPipes)

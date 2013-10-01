@@ -22,8 +22,7 @@ __attribute__((visibility("hidden")))
 IOReturn CLASS::CreateTransfer(IOUSBCommand* command, uint32_t streamId)
 {
 	uint8_t slot = GetSlotID(command->GetAddress());
-	if (!slot ||
-		ConstSlotPtr(slot)->isInactive())
+	if (!slot)
 		return kIOUSBEndpointNotFound;
 	uint8_t endpoint = TranslateEndpoint(command->GetEndpoint(), command->GetDirection());
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)

@@ -25,8 +25,7 @@ IOReturn CLASS::CreateBulkEndpoint(uint8_t functionNumber, uint8_t endpointNumbe
 	uint8_t slot, endpoint;
 
 	slot = GetSlotID(functionNumber);
-	if (!slot ||
-		ConstSlotPtr(slot)->isInactive())
+	if (!slot)
 		return kIOReturnInternalError;
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)
@@ -49,8 +48,7 @@ IOReturn CLASS::CreateInterruptEndpoint(int16_t functionAddress, int16_t endpoin
 	if (!functionAddress)
 		return kIOReturnInternalError;
 	slot = GetSlotID(functionAddress);
-	if (!slot ||
-		ConstSlotPtr(slot)->isInactive())
+	if (!slot)
 		return kIOReturnInternalError;
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)
@@ -464,6 +462,37 @@ uint8_t CLASS::TranslateEndpoint(int16_t endpointNumber, int16_t direction)
 	return static_cast<uint8_t>((2 * endpointNumber) | (direction ? 1 : 0));
 }
 
+__attribute__((visibility("hidden")))
+int32_t CLASS::CleanupControlEndpoint(uint8_t slot, bool justDisable)
+{
+	TRBStruct localTrb = { 0U };
+	SlotStruct* pSlot;
+	ringStruct* pRing;
+
+	if (justDisable)
+		goto do_disable;
+	pSlot = SlotPtr(slot);
+	pRing = pSlot->ringArrayForEndpoint[1];
+	if (pRing) {
+		DeallocRing(pRing);
+		IOFree(pRing, sizeof *pRing);
+		pSlot->ringArrayForEndpoint[1] = 0;
+	}
+	if (pSlot->md) {
+		pSlot->md->complete();
+		pSlot->md->release();
+		pSlot->md = 0;
+		pSlot->ctx = 0;
+		pSlot->physAddr = 0U;
+	}
+	_addressMapper.Slot[0] = 0U;
+	_addressMapper.Active[0] = false;
+
+do_disable:
+	localTrb.d = XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
+	return WaitForCMD(&localTrb, XHCI_TRB_TYPE_DISABLE_SLOT, 0);
+}
+
 #pragma mark -
 #pragma mark Streams
 #pragma mark -
@@ -478,6 +507,11 @@ void CLASS::RestartStreams(int32_t slot, int32_t endpoint, uint32_t streamId)
 	uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
 	if (lastStream < 2U)
 		return;
+	/*
+	 * Note: It is probably enough to ring the doorbell
+	 *   for the first stream found with a non-empty
+	 *   ring.
+	 */
 	for (uint16_t sid = 1U; sid <= lastStream; ++sid)
 		if (sid != streamId &&
 			pRing[sid].dequeueIndex != pRing[sid].enqueueIndex)
@@ -551,12 +585,11 @@ void CLASS::DeleteStreams(int32_t slot, int32_t endpoint)
 		return;
 	uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
 	for (uint16_t streamId = 1U; streamId <= lastStream; ++streamId) {
-		ringStruct* pStreamRing = &pRing[streamId];
-		XHCIAsyncEndpoint* pAsyncEp = pStreamRing->asyncEndpoint;
+		XHCIAsyncEndpoint* pAsyncEp = pRing[streamId].asyncEndpoint;
 		if (pAsyncEp) {
 			pAsyncEp->Abort();
 			pAsyncEp->release();
-			pStreamRing->asyncEndpoint = 0;
+			pRing[streamId].asyncEndpoint = 0;
 		}
 	}
 }
