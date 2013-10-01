@@ -1,11 +1,12 @@
 ChangeLog
 =========
-1.2.6d5
+1.2.6
 - Added support for VMware virtual xHC device in Workstation 10/Fusion 6.
 - Fixed very serious bug that would cause KPs with any USB3 drive supporting streams endpoints.
 - Added some diagnostics.
-- Fixed problem breaking use of drives with streams endpoints.
-- Support for streams endpoints may be disabled with kernel flag '-gux_nostreams'.
+- Fixed support for streams endpoints to use earlier allocation of rings.
+- Address Device only once.
+- Proper cleanup for incomplete UIMCreateControlEndpoint.
 
 1.2.5
 - Support for OS 10.8.5, OS 10.9.

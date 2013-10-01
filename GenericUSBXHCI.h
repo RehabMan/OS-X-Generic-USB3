@@ -558,6 +558,7 @@ public:
 	IOReturn DeleteIsochEP(GenericUSBXHCIIsochEP*);
 	IOReturn AbortIsochEP(GenericUSBXHCIIsochEP*);
 	static uint8_t TranslateEndpoint(int16_t, int16_t);
+	int32_t CleanupControlEndpoint(uint8_t, bool);
 	/*
 	 * Streams
 	 */
@@ -589,6 +590,7 @@ public:
 	ringStruct* CreateRing(int32_t, int32_t, uint32_t);
 	ringStruct* GetRing(int32_t, int32_t, uint32_t);
 	IOReturn AllocRing(ringStruct*, int32_t);
+	void InitPreallocedRing(ringStruct*);
 	static void DeallocRing(ringStruct*);
 	static int32_t CountRingToED(ringStruct*, int32_t, uint32_t*);
 	void ParkRing(ringStruct*);

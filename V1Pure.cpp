@@ -142,7 +142,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	_pXHCIDoorbellRegisters = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + u);
 	DisableComplianceMode();
 	u = XHCI_HCC_PSA_SZ_MAX(hcc);
-	if (!(gux_options & GUX_OPTION_NO_STREAMS) && u)
+	if (u)
 		_maxPSASize = 2U << u;
 	else
 		_maxPSASize = 0U;
@@ -487,8 +487,7 @@ IOReturn CLASS::UIMClearEndpointStall(short functionNumber, short endpointNumber
 	ContextStruct* pContext;
 
 	slot = GetSlotID(functionNumber);
-	if (!slot ||
-		ConstSlotPtr(slot)->isInactive())
+	if (!slot)
 		return kIOReturnInternalError;
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (!endpoint || endpoint >= kUSBMaxPipes)

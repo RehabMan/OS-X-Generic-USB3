@@ -21,7 +21,7 @@
 IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNumber, UInt16 maxPacketSize,
 										 UInt8 speed, USBDeviceAddress highSpeedHub, int highSpeedPort)
 {
-	TRBStruct trb = { 0U };
+	TRBStruct localTrb = { 0U };
 	IOReturn rc;
 	ContextStruct* pContext;
 	ringStruct* pRing;
@@ -35,7 +35,7 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 	if (!functionNumber) {
 		if (_numEndpoints >= _maxNumEndpoints)
 			return kIOUSBEndpointCountExceeded;
-		retFromCMD = WaitForCMD(&trb, XHCI_TRB_TYPE_ENABLE_SLOT, 0);
+		retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_ENABLE_SLOT, 0);
 		if (retFromCMD == -1 || retFromCMD <= -1000)
 			return retFromCMD == (-1000 - XHCI_TRB_ERROR_NO_SLOTS) ? kIOUSBDeviceCountExceeded : kIOReturnInternalError;
 		slot = static_cast<uint8_t>(retFromCMD);
@@ -45,14 +45,12 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 		 */
 		if (_vendorID == kVendorIntel && _IntelSlotWorkaround && slot == _numSlots) {
 			_IntelSlotWorkaround = false;
-			ClearTRB(&trb, true);
-			trb.d = XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
-			retFromCMD = WaitForCMD(&trb, XHCI_TRB_TYPE_DISABLE_SLOT, 0);
+			retFromCMD = CleanupControlEndpoint(slot, true);
 			_IntelSWSlot = slot;
 			if (retFromCMD == -1 || retFromCMD <= -1000)
 				return kIOReturnInternalError;
-			ClearTRB(&trb, true);
-			retFromCMD = WaitForCMD(&trb, XHCI_TRB_TYPE_ENABLE_SLOT, 0);
+			ClearTRB(&localTrb, true);
+			retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_ENABLE_SLOT, 0);
 			if (retFromCMD == -1 || retFromCMD <= -1000)
 				return retFromCMD == (-1000 - XHCI_TRB_ERROR_NO_SLOTS) ? kIOUSBDeviceCountExceeded : kIOReturnInternalError;
 			slot = static_cast<uint8_t>(retFromCMD);
@@ -66,20 +64,22 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 			 * Sanity check.  Bail out, 'cause UIMDeleteEndpoint
 			 *   won't handle invalid slot # well.
 			 */
-			ClearTRB(&trb, true);
-			trb.d = XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
-			WaitForCMD(&trb, XHCI_TRB_TYPE_DISABLE_SLOT, 0);
+			CleanupControlEndpoint(slot, true);
 			IOLog("%s: xHC assigned invalid slot number %u\n", __FUNCTION__, slot);
 			return kIOUSBDeviceCountExceeded;
 		}
+		pRing = CreateRing(slot, 1, 0U);
+		if (!pRing || pRing->md) {
+			CleanupControlEndpoint(slot, true);
+			return kIOReturnInternalError;
+		}
 		_addressMapper.Slot[0] = slot;
 		_addressMapper.Active[0] = true;
-		pRing = CreateRing(slot, 1, 0U);
-		if (!pRing || pRing->md)
-			return kIOReturnInternalError;
 		rc = AllocRing(pRing, 1);
-		if (rc != kIOReturnSuccess)
+		if (rc != kIOReturnSuccess) {
+			CleanupControlEndpoint(slot, false);
 			return kIOReturnNoMemory;
+		}
 		rc = MakeBuffer(kIOMemoryPhysicallyContiguous | kIODirectionInOut,
 						GetDeviceContextSize(),
 						-PAGE_SIZE,
@@ -87,14 +87,14 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 						reinterpret_cast<void**>(&SlotPtr(slot)->ctx),
 						&SlotPtr(slot)->physAddr);
 		if (rc != kIOReturnSuccess) {
-			DeallocRing(pRing);
+			CleanupControlEndpoint(slot, false);
 			return kIOReturnNoMemory;
 		}
 		if (!pRing->asyncEndpoint) {
 			pRing->epType = CTRL_EP;
 			pRing->asyncEndpoint = XHCIAsyncEndpoint::withParameters(this, pRing, packetSize, 0U, 0U);
 			if (!pRing->asyncEndpoint) {
-				DeallocRing(pRing);
+				CleanupControlEndpoint(slot, false);
 				return kIOReturnNoMemory;
 			}
 			static_cast<void>(__sync_fetch_and_add(&_numEndpoints, 1));
@@ -102,7 +102,7 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 		SetDCBAAAddr64(&_dcbaa.ptr[slot], ConstSlotPtr(slot)->physAddr);
 		return AddressDevice(slot,
 							 packetSize,
-							 false,
+							 true,
 							 speed,
 							 GetSlotID(highSpeedHub),
 							 highSpeedPort);
@@ -122,9 +122,9 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 	pContext->_ic.dwInCtx1 = XHCI_INCTX_1_ADD_MASK(1U);
 	pContext = GetInputContextPtr(2);
 	pContext->_e.dwEpCtx1 = XHCI_EPCTX_1_MAXP_SIZE_SET(static_cast<uint32_t>(packetSize));
-	SetTRBAddr64(&trb, _inputContext.physAddr);
-	trb.d = XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
-	retFromCMD = WaitForCMD(&trb, XHCI_TRB_TYPE_EVALUATE_CTX, 0);
+	SetTRBAddr64(&localTrb, _inputContext.physAddr);
+	localTrb.d = XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
+	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_EVALUATE_CTX, 0);
 	ReleaseInputContext();
 	if (retFromCMD == -1)
 		return kIOReturnInternalError;

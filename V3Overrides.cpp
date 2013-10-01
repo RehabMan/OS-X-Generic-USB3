@@ -166,8 +166,7 @@ IOReturn CLASS::UIMAbortStream(UInt32 streamID, short functionNumber, short endp
 	if (gux_log_level >= 2)
 		IOLog("%s(%#x, %d, %d, %d)\n", __FUNCTION__, streamID, functionNumber, endpointNumber, direction);
 	slot = GetSlotID(functionNumber);
-	if (!slot ||
-		ConstSlotPtr(slot)->isInactive())
+	if (!slot)
 		return kIOReturnInternalError;
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (!endpoint || endpoint >= kUSBMaxPipes)
@@ -290,8 +289,18 @@ IOReturn CLASS::UIMCreateStreams(UInt8 functionNumber, UInt8 endpointNumber, UIn
 		return kIOReturnBadArgument;
 	if (pSlot->lastStreamForEndpoint[endpoint])
 		return maxStream ? kIOReturnBadArgument : kIOReturnInternalError;
-	if (maxStream < 2U || maxStream > pSlot->maxStreamForEndpoint[endpoint])
-		return kIOReturnBadArgument;
+	switch (maxStream) {
+		case 0U:
+			return kIOReturnBadArgument;
+		case 1U:
+			if (!pSlot->IsStreamsEndpoint(endpoint))
+				return kIOReturnSuccess;
+			break;
+		default:
+			if (maxStream > pSlot->maxStreamForEndpoint[endpoint])
+				return kIOReturnBadArgument;
+			break;
+	}
 	pSlot->lastStreamForEndpoint[endpoint] = static_cast<uint16_t>(maxStream);
 	ringStruct* pRing = pSlot->ringArrayForEndpoint[endpoint];
 	for (uint16_t streamId = 1U; streamId <= maxStream; ++streamId) {

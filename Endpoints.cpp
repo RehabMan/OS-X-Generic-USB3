@@ -25,8 +25,7 @@ IOReturn CLASS::CreateBulkEndpoint(uint8_t functionNumber, uint8_t endpointNumbe
 	uint8_t slot, endpoint;
 
 	slot = GetSlotID(functionNumber);
-	if (!slot ||
-		ConstSlotPtr(slot)->isInactive())
+	if (!slot)
 		return kIOReturnInternalError;
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)
@@ -49,8 +48,7 @@ IOReturn CLASS::CreateInterruptEndpoint(int16_t functionAddress, int16_t endpoin
 	if (!functionAddress)
 		return kIOReturnInternalError;
 	slot = GetSlotID(functionAddress);
-	if (!slot ||
-		ConstSlotPtr(slot)->isInactive())
+	if (!slot)
 		return kIOReturnInternalError;
 	endpoint = TranslateEndpoint(endpointNumber, direction);
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)
@@ -464,6 +462,37 @@ uint8_t CLASS::TranslateEndpoint(int16_t endpointNumber, int16_t direction)
 	return static_cast<uint8_t>((2 * endpointNumber) | (direction ? 1 : 0));
 }
 
+__attribute__((visibility("hidden")))
+int32_t CLASS::CleanupControlEndpoint(uint8_t slot, bool justDisable)
+{
+	TRBStruct localTrb = { 0U };
+	SlotStruct* pSlot;
+	ringStruct* pRing;
+
+	if (justDisable)
+		goto do_disable;
+	pSlot = SlotPtr(slot);
+	pRing = pSlot->ringArrayForEndpoint[1];
+	if (pRing) {
+		DeallocRing(pRing);
+		IOFree(pRing, sizeof *pRing);
+		pSlot->ringArrayForEndpoint[1] = 0;
+	}
+	if (pSlot->md) {
+		pSlot->md->complete();
+		pSlot->md->release();
+		pSlot->md = 0;
+		pSlot->ctx = 0;
+		pSlot->physAddr = 0U;
+	}
+	_addressMapper.Slot[0] = 0U;
+	_addressMapper.Active[0] = false;
+
+do_disable:
+	localTrb.d = XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
+	return WaitForCMD(&localTrb, XHCI_TRB_TYPE_DISABLE_SLOT, 0);
+}
+
 #pragma mark -
 #pragma mark Streams
 #pragma mark -
@@ -478,6 +507,11 @@ void CLASS::RestartStreams(int32_t slot, int32_t endpoint, uint32_t streamId)
 	uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
 	if (lastStream < 2U)
 		return;
+	/*
+	 * Note: It is probably enough to ring the doorbell
+	 *   for the first stream found with a non-empty
+	 *   ring.
+	 */
 	for (uint16_t sid = 1U; sid <= lastStream; ++sid)
 		if (sid != streamId &&
 			pRing[sid].dequeueIndex != pRing[sid].enqueueIndex)
@@ -496,10 +530,9 @@ IOReturn CLASS::CreateStream(ringStruct* pRing, uint16_t streamId)
 	pStreamRing->returnInProgress = false;
 	pStreamRing->deleteInProgress = false;
 	pStreamRing->schedulingPending = false;
-	if (pStreamRing->md)
-		return kIOReturnInternalError; // Note: Originally kIOReturnNoMemory
-	if (kIOReturnSuccess != AllocRing(pStreamRing, 1))
-		return kIOReturnNoMemory;
+	if (!pStreamRing->md)
+		return kIOReturnInternalError;
+	InitPreallocedRing(pStreamRing);
 	pStreamRing->epType = pRing->epType;
 	XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
 	pStreamRing->asyncEndpoint = XHCIAsyncEndpoint::withParameters(this, pStreamRing,
@@ -508,11 +541,6 @@ IOReturn CLASS::CreateStream(ringStruct* pRing, uint16_t streamId)
 																   pAsyncEp->multiple);
 	if (!pStreamRing->asyncEndpoint)
 		return kIOReturnNoMemory;
-	uint64_t strm_dqptr = pStreamRing->physAddr & ~15ULL;
-	if (pStreamRing->cycleState)
-		strm_dqptr |= 1ULL;	// Note: set DCS bit
-	strm_dqptr |= 2ULL;	// Note: set SCT = 1 - Primary Transfer Ring
-	SetTRBAddr64(&pRing->ptr[streamId], strm_dqptr);
 	return kIOReturnSuccess;
 }
 
@@ -524,7 +552,6 @@ void CLASS::CleanupPartialStreamAllocations(ringStruct* pRing, uint16_t lastStre
 			pRing[i].asyncEndpoint->release();
 			pRing[i].asyncEndpoint = 0;
 		}
-		DeallocRing(&pRing[i]);
 	}
 }
 
@@ -536,13 +563,14 @@ ringStruct* CLASS::FindStream(int32_t slot, int32_t endpoint, uint64_t addr, int
 	ringStruct* pRing = pSlot->ringArrayForEndpoint[endpoint];
 	uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
 	for (uint16_t streamId = 1U; streamId <= lastStream; ++streamId) {
-		if (!pRing[streamId].md)
+		ringStruct* pStreamRing = &pRing[streamId];
+		if (!pStreamRing->md)
 			continue;
-		diffIdx64 = DiffTRBIndex(addr, pRing[streamId].physAddr);
-		if (diffIdx64 < 0 || diffIdx64 >= pRing[streamId].numTRBs - 1U)	// Note: originally >
+		diffIdx64 = DiffTRBIndex(addr, pStreamRing->physAddr);
+		if (diffIdx64 < 0 || diffIdx64 >= pStreamRing->numTRBs - 1U)	// Note: originally >
 			continue;
 		*pTrbIndexInRingQueue = static_cast<int32_t>(diffIdx64);
-		return &pRing[streamId];
+		return pStreamRing;
 	}
 	*pTrbIndexInRingQueue = 0;
 	return 0;
@@ -563,15 +591,21 @@ void CLASS::DeleteStreams(int32_t slot, int32_t endpoint)
 			pAsyncEp->release();
 			pRing[streamId].asyncEndpoint = 0;
 		}
-		DeallocRing(&pRing[streamId]);
 	}
 }
 
 __attribute__((visibility("hidden")))
 IOReturn CLASS::AllocStreamsContextArray(ringStruct* pRing, uint32_t maxStream)
 {
-	if (kIOReturnSuccess != MakeBuffer(kIOMemoryPhysicallyContiguous | kIODirectionInOut,
-									   (1U + maxStream) * sizeof(xhci_stream_ctx),
+	size_t scaSize = ((1U + maxStream) * sizeof(xhci_stream_ctx) + PAGE_SIZE - 1U) & -PAGE_SIZE;
+	/*
+	 * TBD: this is contingent on kMaxStreamsAllowed <= 256, so
+	 *   maxStream <= 255 and therefore scaSize is always PAGE_SIZE.
+	 *   If scaSize > PAGE_SIZE, the first scaSize bytes need
+	 *   to be kIOMemoryPhysicallyContiguous.
+	 */
+	if (kIOReturnSuccess != MakeBuffer(kIODirectionInOut,
+									   scaSize + maxStream * PAGE_SIZE,
 									   -PAGE_SIZE,
 									   &pRing->md,
 									   reinterpret_cast<void**>(&pRing->ptr),
@@ -579,5 +613,18 @@ IOReturn CLASS::AllocStreamsContextArray(ringStruct* pRing, uint32_t maxStream)
 		return kIOReturnNoMemory;
 	pRing->numTRBs = static_cast<uint16_t>(1U + maxStream);
 	pRing->dequeueIndex = 0U;
+	for (uint16_t streamId = 1U; streamId <= maxStream; ++streamId, scaSize += PAGE_SIZE) {
+		ringStruct* pStreamRing = &pRing[streamId];
+		if (pStreamRing->md)
+			continue;
+		IOByteCount segLength;
+		pStreamRing->md = pRing->md;
+		pStreamRing->ptr = reinterpret_cast<TRBStruct*>(reinterpret_cast<uintptr_t>(pRing->ptr) + scaSize);
+		pStreamRing->physAddr = pRing->md->getPhysicalSegment(scaSize, &segLength, 0);
+		pStreamRing->numTRBs = static_cast<uint16_t>(PAGE_SIZE / sizeof *pStreamRing->ptr);
+		pStreamRing->numPages = 1U;
+		pStreamRing->cycleState = 1U;
+		SetTRBAddr64(&pRing->ptr[streamId], (pStreamRing->physAddr & ~15ULL) | 3ULL);
+	}
 	return kIOReturnSuccess;
 }
