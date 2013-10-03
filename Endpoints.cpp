@@ -530,9 +530,9 @@ IOReturn CLASS::CreateStream(ringStruct* pRing, uint16_t streamId)
 	pStreamRing->returnInProgress = false;
 	pStreamRing->deleteInProgress = false;
 	pStreamRing->schedulingPending = false;
-	if (!pStreamRing->md)
+	if (pStreamRing->md)
 		return kIOReturnInternalError;
-	InitPreallocedRing(pStreamRing);
+	pStreamRing->md = pRing->md;
 	pStreamRing->epType = pRing->epType;
 	XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
 	pStreamRing->asyncEndpoint = XHCIAsyncEndpoint::withParameters(this, pStreamRing,
@@ -552,6 +552,7 @@ void CLASS::CleanupPartialStreamAllocations(ringStruct* pRing, uint16_t lastStre
 			pRing[i].asyncEndpoint->release();
 			pRing[i].asyncEndpoint = 0;
 		}
+		pRing[i].md = 0;
 	}
 }
 
@@ -591,6 +592,7 @@ void CLASS::DeleteStreams(int32_t slot, int32_t endpoint)
 			pAsyncEp->release();
 			pRing[streamId].asyncEndpoint = 0;
 		}
+		pRing[streamId].md = 0;
 	}
 }
 
@@ -618,12 +620,12 @@ IOReturn CLASS::AllocStreamsContextArray(ringStruct* pRing, uint32_t maxStream)
 		if (pStreamRing->md)
 			continue;
 		IOByteCount segLength;
-		pStreamRing->md = pRing->md;
 		pStreamRing->ptr = reinterpret_cast<TRBStruct*>(reinterpret_cast<uintptr_t>(pRing->ptr) + scaSize);
 		pStreamRing->physAddr = pRing->md->getPhysicalSegment(scaSize, &segLength, 0);
 		pStreamRing->numTRBs = static_cast<uint16_t>(PAGE_SIZE / sizeof *pStreamRing->ptr);
 		pStreamRing->numPages = 1U;
 		pStreamRing->cycleState = 1U;
+		InitPreallocedRing(pStreamRing);
 		SetTRBAddr64(&pRing->ptr[streamId], (pStreamRing->physAddr & ~15ULL) | 3ULL);
 	}
 	return kIOReturnSuccess;

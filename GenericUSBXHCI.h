@@ -597,6 +597,7 @@ public:
 	int32_t SetTRDQPtr(int32_t, int32_t, uint32_t, int32_t);
 	static bool CanTDFragmentFit(ringStruct const*, uint32_t);
 	static uint32_t FreeSlotsOnRing(ringStruct const*);
+	static void AdvanceTransferDQ(ringStruct*, int32_t);
 	/*
 	 * Non-standard XHCI Extensions
 	 */
