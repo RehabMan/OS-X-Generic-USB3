@@ -719,10 +719,14 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 #endif
 	if ((pRing->epType | CTRL_EP) == ISOC_IN_EP) {
 	update_dq_and_done:
+#if 1
 		next = static_cast<uint16_t>(trbIndexInRingQueue + 1);
 		if (next >= pRing->numTRBs - 1U)
 			next = 0U;
 		pRing->dequeueIndex = next;
+#else
+		AdvanceTransferDQ(pRing, trbIndexInRingQueue);
+#endif
 		return true;
 	}
 	pAsyncEp = pRing->asyncEndpoint;
@@ -748,10 +752,14 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 	 */
 	if (pRing->enqueueIndex == pRing->dequeueIndex)
 		return true;
+#if 1
 	next = static_cast<uint16_t>(trbIndexInRingQueue + 1);
 	if (next >= pRing->numTRBs - 1U)
 		next = 0U;
 	pRing->dequeueIndex = next;
+#else
+	AdvanceTransferDQ(pRing, trbIndexInRingQueue);
+#endif
 	if (ED)
 		shortfall = pAsyncTd->bytesThisTD - shortfall;
 	if (err != XHCI_TRB_ERROR_SUCCESS) {

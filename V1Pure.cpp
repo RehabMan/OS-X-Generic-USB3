@@ -367,15 +367,14 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 	pSlot = SlotPtr(slot);
 	if (endpointNumber) {
 		endpoint = TranslateEndpoint(endpointNumber, direction);
-		if (!endpoint || endpoint >= kUSBMaxPipes || pSlot->isInactive())
+		if (!endpoint || endpoint >= kUSBMaxPipes)
 			return kIOReturnBadArgument;
 	} else
 		endpoint = 1U;
 	pRing = pSlot->ringArrayForEndpoint[endpoint];
 	if (pRing)
 		pRing->deleteInProgress = true;
-	if (!pSlot->isInactive() &&
-		!pRing->isInactive()) {
+	if (!pRing->isInactive()) {
 		UIMAbortEndpoint(functionNumber, endpointNumber, direction);
 		/*
 		 * Note: Mavericks checks _controllerAvailable
@@ -455,9 +454,7 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 	if (!_controllerAvailable)
 		goto _Skip_Disable_Slot;
 #endif
-	ClearTRB(&localTrb, true);
-	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
-	WaitForCMD(&localTrb, XHCI_TRB_TYPE_DISABLE_SLOT, 0);
+	CleanupControlEndpoint(slot, true);
 #if 0
 	/*
 	 * Note: Mavericks

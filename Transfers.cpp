@@ -612,6 +612,17 @@ void CLASS::PutBackTRB(ringStruct* pRing, TRBStruct* pTrb)
 	}
 }
 
+__attribute__((visibility("hidden")))
+void CLASS::AdvanceTransferDQ(ringStruct* pRing, int32_t index)
+{
+	++index;
+	if ((index >= static_cast<int32_t>(pRing->numTRBs) - 1) ||
+		(index != pRing->enqueueIndex &&
+		 XHCI_TRB_3_TYPE_GET(pRing->ptr[index].d) == XHCI_TRB_TYPE_LINK))
+		index = 0;
+	pRing->dequeueIndex = static_cast<uint16_t>(index);
+}
+
 #pragma mark -
 #pragma mark XHCIAsyncEndpoint
 #pragma mark -

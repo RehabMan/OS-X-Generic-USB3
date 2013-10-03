@@ -1,5 +1,10 @@
 ChangeLog
 =========
+1.2.7d1
+- Mark stream as active using ring md.
+- Simplify UIMDeleteEndpoint.
+- Add AdvanceTransferDQ (not used yet).
+
 1.2.6
 - Added support for VMware virtual xHC device in Workstation 10/Fusion 6.
 - Fixed very serious bug that would cause KPs with any USB3 drive supporting streams endpoints.
