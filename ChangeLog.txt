@@ -5,6 +5,7 @@ ChangeLog
 - Simplify UIMDeleteEndpoint.
 - Add AdvanceTransferDQ (not used yet).
 - Fix bug in NukeSlot releasing streams.
+- Upgrade project files to Xcode 5.
 
 1.2.6
 - Added support for VMware virtual xHC device in Workstation 10/Fusion 6.
