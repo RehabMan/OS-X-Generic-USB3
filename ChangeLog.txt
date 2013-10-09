@@ -1,9 +1,10 @@
 ChangeLog
 =========
-1.2.7d1
+1.2.7d2
 - Mark stream as active using ring md.
 - Simplify UIMDeleteEndpoint.
 - Add AdvanceTransferDQ (not used yet).
+- Fix bug in NukeSlot releasing streams.
 
 1.2.6
 - Added support for VMware virtual xHC device in Workstation 10/Fusion 6.

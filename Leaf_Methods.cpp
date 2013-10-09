@@ -630,7 +630,10 @@ void CLASS::NukeSlot(uint8_t slot)
 		}
 		uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
 		for (uint16_t streamId = 0U; streamId <= lastStream; ++streamId) {
-			DeallocRing(&pRing[streamId]);
+			if (streamId)
+				pRing[streamId].md = 0;
+			else
+				DeallocRing(&pRing[streamId]);
 			if ((pRing[streamId].epType | CTRL_EP) == ISOC_IN_EP) {
 				if (pRing[streamId].isochEndpoint)
 					NukeIsochEP(pRing[streamId].isochEndpoint);
