@@ -1,11 +1,12 @@
 ChangeLog
 =========
-1.2.7d2
+1.2.7d3
 - Mark stream as active using ring md.
 - Simplify UIMDeleteEndpoint.
 - Add AdvanceTransferDQ (not used yet).
 - Fix bug in NukeSlot releasing streams.
 - Upgrade project files to Xcode 5.
+- Speed up stream detection with qsort/bsearch.
 
 1.2.6
 - Added support for VMware virtual xHC device in Workstation 10/Fusion 6.

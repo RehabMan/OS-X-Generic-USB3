@@ -12,6 +12,7 @@
 		E52B1AC5168BA6D600860CF2 /* Leaf_Methods.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E52B1AC3168BA6D600860CF2 /* Leaf_Methods.cpp */; };
 		E52B1ACA168BA86400860CF2 /* V3Pure.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E52B1AC8168BA86400860CF2 /* V3Pure.cpp */; };
 		E5A3497216C7B79500F86B90 /* Transfers.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5A3497116C7B79500F86B90 /* Transfers.cpp */; };
+		E5AE45A91805D01D000813E4 /* Streams.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5AE45A81805D01D000813E4 /* Streams.cpp */; };
 		E5C71C13168BA9CC0066307F /* V3Overrides.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5C71C11168BA9CC0066307F /* V3Overrides.cpp */; };
 		E5C71C17168BAA480066307F /* V2Pure.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5C71C15168BAA480066307F /* V2Pure.cpp */; };
 		E5C71C1B168BAA540066307F /* V2Overrides.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5C71C19168BAA530066307F /* V2Overrides.cpp */; };
@@ -36,6 +37,7 @@
 		E52B1AC3168BA6D600860CF2 /* Leaf_Methods.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Leaf_Methods.cpp; sourceTree = "<group>"; };
 		E52B1AC8168BA86400860CF2 /* V3Pure.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = V3Pure.cpp; sourceTree = "<group>"; };
 		E5A3497116C7B79500F86B90 /* Transfers.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Transfers.cpp; sourceTree = "<group>"; };
+		E5AE45A81805D01D000813E4 /* Streams.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Streams.cpp; sourceTree = "<group>"; };
 		E5C71C11168BA9CC0066307F /* V3Overrides.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = V3Overrides.cpp; sourceTree = "<group>"; };
 		E5C71C15168BAA480066307F /* V2Pure.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = V2Pure.cpp; sourceTree = "<group>"; };
 		E5C71C19168BAA530066307F /* V2Overrides.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = V2Overrides.cpp; sourceTree = "<group>"; };
@@ -124,6 +126,7 @@
 				E518655A1695EFE400F068CF /* Private.h */,
 				E5EA8C831698241A00A263A2 /* PwrMgmt.cpp */,
 				E5D170DE16ADFDE9004F0277 /* RootHub.cpp */,
+				E5AE45A81805D01D000813E4 /* Streams.cpp */,
 				E5A3497116C7B79500F86B90 /* Transfers.cpp */,
 				E5D4CB7316B4432300A81AB7 /* UnXHCI.cpp */,
 				E5DE0B26168BAC3A002BD641 /* V1Overrides.cpp */,
@@ -242,6 +245,7 @@
 				E5EA8C7F169822C800A263A2 /* Diagnostics.cpp in Sources */,
 				E5EA8C821698239100A263A2 /* Interrupts.cpp in Sources */,
 				E5EA8C841698241A00A263A2 /* PwrMgmt.cpp in Sources */,
+				E5AE45A91805D01D000813E4 /* Streams.cpp in Sources */,
 				E508CA0016A2030B005DEF4F /* Accessors.cpp in Sources */,
 				E5D170DF16ADFDE9004F0277 /* RootHub.cpp in Sources */,
 				E5D4CB7216B4422200A81AB7 /* Endpoints.cpp in Sources */,
@@ -262,7 +266,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPYRIGHT_NOTICE = "Copyright © 2012-2013 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.7d2;
+				CURRENT_PROJECT_VERSION = 1.2.7d3;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
@@ -300,7 +304,7 @@
 				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
 				COMBINE_HIDPI_IMAGES = YES;
 				COPYRIGHT_NOTICE = "Copyright © 2012-2013 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.7d2;
+				CURRENT_PROJECT_VERSION = 1.2.7d3;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
