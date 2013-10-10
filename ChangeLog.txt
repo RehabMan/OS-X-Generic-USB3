@@ -7,6 +7,7 @@ ChangeLog
 - Fix bug in NukeSlot releasing streams.
 - Upgrade project files to Xcode 5.
 - Speed up stream detection with qsort/bsearch.
+- Reorganize source files.
 
 1.2.6
 - Added support for VMware virtual xHC device in Workstation 10/Fusion 6.

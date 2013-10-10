@@ -74,7 +74,7 @@ typedef uint64_t (*PGetErrata64Bits)(void*, uint16_t, uint16_t, uint16_t);
 struct ringStruct
 {
 	/*
-	 * Total Size 96
+	 * Total Size 88
 	 */
 	IOBufferMemoryDescriptor* md;	// 0x0
 	TRBStruct* ptr;	// 0x8
@@ -105,7 +105,7 @@ struct ringStruct
 struct EventRingStruct
 {
 	/*
-	 * Total Size 64
+	 * Total Size 56
 	 */
 	uint16_t xHCDequeueIndex; // 0x0
 	uint16_t volatile bounceDequeueIndex;// 0x2
@@ -125,7 +125,7 @@ struct EventRingStruct
 struct SlotStruct
 {
 	/*
-	 * Total Size 552
+	 * Total Size 416
 	 */
 	IOBufferMemoryDescriptor* md;	// 0
 	ContextStruct* ctx; // Originally 8, 16

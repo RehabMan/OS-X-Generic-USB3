@@ -8,9 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		E508CA0016A2030B005DEF4F /* Accessors.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E508C9FF16A2030B005DEF4F /* Accessors.cpp */; };
+		E50946D21806FC3C0034259A /* Async.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E50946D11806FC3C0034259A /* Async.cpp */; };
 		E50C5E3F16EF37FE00D655E1 /* Isoch.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E50C5E3E16EF37FE00D655E1 /* Isoch.cpp */; };
 		E52B1AC5168BA6D600860CF2 /* Leaf_Methods.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E52B1AC3168BA6D600860CF2 /* Leaf_Methods.cpp */; };
 		E52B1ACA168BA86400860CF2 /* V3Pure.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E52B1AC8168BA86400860CF2 /* V3Pure.cpp */; };
+		E53AAC301807016B0050AC2C /* Rings.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E53AAC2F1807016B0050AC2C /* Rings.cpp */; };
 		E5A3497216C7B79500F86B90 /* Transfers.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5A3497116C7B79500F86B90 /* Transfers.cpp */; };
 		E5AE45A91805D01D000813E4 /* Streams.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5AE45A81805D01D000813E4 /* Streams.cpp */; };
 		E5C71C13168BA9CC0066307F /* V3Overrides.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5C71C11168BA9CC0066307F /* V3Overrides.cpp */; };
@@ -23,6 +25,7 @@
 		E5D81FFF166F8ABF0075A356 /* GenericUSBXHCI.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5D81FFE166F8ABF0075A356 /* GenericUSBXHCI.cpp */; };
 		E5DE0B28168BAC3A002BD641 /* V1Overrides.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5DE0B26168BAC3A002BD641 /* V1Overrides.cpp */; };
 		E5DE0B2D168BAC5E002BD641 /* V1Pure.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5DE0B2B168BAC5E002BD641 /* V1Pure.cpp */; };
+		E5DE3C4818070046007D70A7 /* Slots.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5DE3C4718070046007D70A7 /* Slots.cpp */; };
 		E5EA8C7F169822C800A263A2 /* Diagnostics.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5EA8C7E169822C800A263A2 /* Diagnostics.cpp */; };
 		E5EA8C821698239100A263A2 /* Interrupts.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5EA8C811698239100A263A2 /* Interrupts.cpp */; };
 		E5EA8C841698241A00A263A2 /* PwrMgmt.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5EA8C831698241A00A263A2 /* PwrMgmt.cpp */; };
@@ -31,11 +34,13 @@
 
 /* Begin PBXFileReference section */
 		E508C9FF16A2030B005DEF4F /* Accessors.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Accessors.cpp; sourceTree = "<group>"; };
+		E50946D11806FC3C0034259A /* Async.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Async.cpp; sourceTree = "<group>"; };
 		E50C5E3E16EF37FE00D655E1 /* Isoch.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Isoch.cpp; sourceTree = "<group>"; };
 		E50C5E4016EF381600D655E1 /* Isoch.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Isoch.h; sourceTree = "<group>"; };
 		E518655A1695EFE400F068CF /* Private.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Private.h; sourceTree = "<group>"; };
 		E52B1AC3168BA6D600860CF2 /* Leaf_Methods.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Leaf_Methods.cpp; sourceTree = "<group>"; };
 		E52B1AC8168BA86400860CF2 /* V3Pure.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = V3Pure.cpp; sourceTree = "<group>"; };
+		E53AAC2F1807016B0050AC2C /* Rings.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Rings.cpp; sourceTree = "<group>"; };
 		E5A3497116C7B79500F86B90 /* Transfers.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Transfers.cpp; sourceTree = "<group>"; };
 		E5AE45A81805D01D000813E4 /* Streams.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Streams.cpp; sourceTree = "<group>"; };
 		E5C71C11168BA9CC0066307F /* V3Overrides.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = V3Overrides.cpp; sourceTree = "<group>"; };
@@ -55,6 +60,7 @@
 		E5D81FFE166F8ABF0075A356 /* GenericUSBXHCI.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = GenericUSBXHCI.cpp; sourceTree = "<group>"; wrapsLines = 0; };
 		E5DE0B26168BAC3A002BD641 /* V1Overrides.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = V1Overrides.cpp; sourceTree = "<group>"; };
 		E5DE0B2B168BAC5E002BD641 /* V1Pure.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = V1Pure.cpp; sourceTree = "<group>"; };
+		E5DE3C4718070046007D70A7 /* Slots.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Slots.cpp; sourceTree = "<group>"; };
 		E5E863C216B3EAE900C8C1AC /* XHCITypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = XHCITypes.h; sourceTree = "<group>"; };
 		E5EA8C7E169822C800A263A2 /* Diagnostics.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Diagnostics.cpp; sourceTree = "<group>"; };
 		E5EA8C811698239100A263A2 /* Interrupts.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Interrupts.cpp; sourceTree = "<group>"; };
@@ -112,6 +118,7 @@
 			children = (
 				E508C9FF16A2030B005DEF4F /* Accessors.cpp */,
 				E5D5A40616C80BFA0087F0E9 /* Async.h */,
+				E50946D11806FC3C0034259A /* Async.cpp */,
 				E5D588C316B563CC002E8D56 /* Command.cpp */,
 				E5EA8C7E169822C800A263A2 /* Diagnostics.cpp */,
 				E5D4CB7116B4422200A81AB7 /* Endpoints.cpp */,
@@ -125,7 +132,9 @@
 				E52B1AC3168BA6D600860CF2 /* Leaf_Methods.cpp */,
 				E518655A1695EFE400F068CF /* Private.h */,
 				E5EA8C831698241A00A263A2 /* PwrMgmt.cpp */,
+				E53AAC2F1807016B0050AC2C /* Rings.cpp */,
 				E5D170DE16ADFDE9004F0277 /* RootHub.cpp */,
+				E5DE3C4718070046007D70A7 /* Slots.cpp */,
 				E5AE45A81805D01D000813E4 /* Streams.cpp */,
 				E5A3497116C7B79500F86B90 /* Transfers.cpp */,
 				E5D4CB7316B4432300A81AB7 /* UnXHCI.cpp */,
@@ -239,6 +248,7 @@
 				E52B1ACA168BA86400860CF2 /* V3Pure.cpp in Sources */,
 				E5C71C13168BA9CC0066307F /* V3Overrides.cpp in Sources */,
 				E5C71C17168BAA480066307F /* V2Pure.cpp in Sources */,
+				E50946D21806FC3C0034259A /* Async.cpp in Sources */,
 				E5C71C1B168BAA540066307F /* V2Overrides.cpp in Sources */,
 				E5DE0B28168BAC3A002BD641 /* V1Overrides.cpp in Sources */,
 				E5DE0B2D168BAC5E002BD641 /* V1Pure.cpp in Sources */,
@@ -246,6 +256,8 @@
 				E5EA8C821698239100A263A2 /* Interrupts.cpp in Sources */,
 				E5EA8C841698241A00A263A2 /* PwrMgmt.cpp in Sources */,
 				E5AE45A91805D01D000813E4 /* Streams.cpp in Sources */,
+				E53AAC301807016B0050AC2C /* Rings.cpp in Sources */,
+				E5DE3C4818070046007D70A7 /* Slots.cpp in Sources */,
 				E508CA0016A2030B005DEF4F /* Accessors.cpp in Sources */,
 				E5D170DF16ADFDE9004F0277 /* RootHub.cpp in Sources */,
 				E5D4CB7216B4422200A81AB7 /* Endpoints.cpp in Sources */,

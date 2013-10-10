@@ -461,34 +461,3 @@ uint8_t CLASS::TranslateEndpoint(int16_t endpointNumber, int16_t direction)
 {
 	return static_cast<uint8_t>((2 * endpointNumber) | (direction ? 1 : 0));
 }
-
-__attribute__((visibility("hidden")))
-int32_t CLASS::CleanupControlEndpoint(uint8_t slot, bool justDisable)
-{
-	TRBStruct localTrb = { 0U };
-	SlotStruct* pSlot;
-	ringStruct* pRing;
-
-	if (justDisable)
-		goto do_disable;
-	pSlot = SlotPtr(slot);
-	pRing = pSlot->ringArrayForEndpoint[1];
-	if (pRing) {
-		DeallocRing(pRing);
-		IOFree(pRing, sizeof *pRing);
-		pSlot->ringArrayForEndpoint[1] = 0;
-	}
-	if (pSlot->md) {
-		pSlot->md->complete();
-		pSlot->md->release();
-		pSlot->md = 0;
-		pSlot->ctx = 0;
-		pSlot->physAddr = 0U;
-	}
-	_addressMapper.Slot[0] = 0U;
-	_addressMapper.Active[0] = false;
-
-do_disable:
-	localTrb.d = XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
-	return WaitForCMD(&localTrb, XHCI_TRB_TYPE_DISABLE_SLOT, 0);
-}
