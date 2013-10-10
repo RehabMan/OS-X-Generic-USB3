@@ -241,6 +241,29 @@ void printIntelMuxRegs(PrintSink* pSink, IOPCIDevice* pDevice)
 	pSink->print("Intel SuperSpeed Enable %#x, Mask %#x\n", v3, v4);
 }
 
+static
+void printDiagCounters(PrintSink* pSink, int32_t const* pDiagCounters)
+{
+	if (pDiagCounters[DIAGCTR_SLEEP])
+		pSink->print("# Save Errors %u\n", pDiagCounters[DIAGCTR_SLEEP]);
+	if (pDiagCounters[DIAGCTR_RESUME])
+		pSink->print("# Restore Errors %u\n", pDiagCounters[DIAGCTR_RESUME]);
+	if (pDiagCounters[DIAGCTR_BNCEOVRFLW])
+		pSink->print("# Event Queue Overflows %u\n", pDiagCounters[DIAGCTR_BNCEOVRFLW]);
+	if (pDiagCounters[DIAGCTR_CMDERR])
+		pSink->print("# Spurious Command Completion Events %u\n", pDiagCounters[DIAGCTR_CMDERR]);
+	if (pDiagCounters[DIAGCTR_XFERERR])
+		pSink->print("# Spurious Transfer Events %u\n", pDiagCounters[DIAGCTR_XFERERR]);
+	if (pDiagCounters[DIAGCTR_XFERKEEPAWAY])
+		pSink->print("# Transfer Ring Keepaways %u\n", pDiagCounters[DIAGCTR_XFERKEEPAWAY]);
+	if (pDiagCounters[DIAGCTR_XFERLAYOUT])
+		pSink->print("# Transfer Layout Errors %u\n", pDiagCounters[DIAGCTR_XFERLAYOUT]);
+	if (pDiagCounters[DIAGCTR_ORPHANEDTDS])
+		pSink->print("# Orphaned Transfer Descriptors %u\n", pDiagCounters[DIAGCTR_ORPHANEDTDS]);
+	if (pDiagCounters[DIAGCTR_SHORTSUCCESS])
+		pSink->print("# Short Transfers with Success Code %u\n", pDiagCounters[DIAGCTR_SHORTSUCCESS]);
+}
+
 #pragma mark -
 #pragma mark Prink Sink for IOLog
 #pragma mark -
@@ -349,12 +372,6 @@ void CLASS::PrintCapRegs(PrintSink* pSink)
 	pSink->print("DBOff  %#x\n", Read32Reg(&_pXHCICapRegisters->DBOff));
 	pSink->print("RTSOff %#x\n", Read32Reg(&_pXHCICapRegisters->RTSOff));
 	pSink->print("PageSize %u\n", (Read32Reg(&_pXHCIOperationalRegisters->PageSize) & 0xFFFFU) << 12);
-	if (!_expansionData->_controllerCanSleep)
-		pSink->print("Will Reset on Resume\n");
-	if (_filterInterruptSource && !_filterInterruptSource->getAutoDisable())
-		pSink->print("Using MSI\n");
-	if (_vendorID == kVendorIntel && !(_errataBits & kErrataSWAssistedIdle))
-		pSink->print("Intel Doze Disabled\n");
 }
 
 __attribute__((visibility("hidden")))
@@ -368,6 +385,7 @@ void CLASS::PrintRuntimeRegs(PrintSink* pSink)
 	if (!pSink)
 		pSink = const_cast<PrintSink*>(&IOLogSink);
 	printVersions(pSink);
+	pSink->print("Vendor %#x, Device %#x, Revision %#x\n", _vendorID, _deviceID, _revisionID);
 	v = Read32Reg(&_pXHCIOperationalRegisters->USBCmd);
 	pSink->print("USBCmd RS %c HCRST %c INTE %c HSEE %c LHCRST %c CSS %c CRS %c EWE %c EU3S %c\n",
 				 test_bit(v, 0),
@@ -396,6 +414,12 @@ void CLASS::PrintRuntimeRegs(PrintSink* pSink)
 	pSink->print("Config %u\n", Read32Reg(&_pXHCIOperationalRegisters->Config) & XHCI_CONFIG_SLOTS_MASK);
 	pSink->print("MFIndex %u\n", Read32Reg(&_pXHCIRuntimeRegisters->MFIndex) & XHCI_MFINDEX_MASK);
 	pSink->print("Last Time Sync xHC %llu milliseconds <-> CPU %llu nanoseconds\n", _millsecondsTimers[3], _millsecondsTimers[1]);
+	if (!_expansionData->_controllerCanSleep)
+		pSink->print("Will Reset on Resume\n");
+	if (_filterInterruptSource && !_filterInterruptSource->getAutoDisable())
+		pSink->print("Using MSI\n");
+	if (_vendorID == kVendorIntel && !(_errataBits & kErrataSWAssistedIdle))
+		pSink->print("Intel Doze Disabled\n");
 	if (_pUSBLegSup)
 		printLegacy(pSink, _pUSBLegSup);
 	if (_vendorID == kVendorIntel)
@@ -406,24 +430,7 @@ void CLASS::PrintRuntimeRegs(PrintSink* pSink)
 				 _interruptCounters[0],
 				 _interruptCounters[2],
 				 _interruptCounters[3]);
-	if (_diagCounters[DIAGCTR_SLEEP])
-		pSink->print("# Save Errors %u\n", _diagCounters[DIAGCTR_SLEEP]);
-	if (_diagCounters[DIAGCTR_RESUME])
-		pSink->print("# Restore Errors %u\n", _diagCounters[DIAGCTR_RESUME]);
-	if (_diagCounters[DIAGCTR_BNCEOVRFLW])
-		pSink->print("# Event Queue Overflows %u\n", _diagCounters[DIAGCTR_BNCEOVRFLW]);
-	if (_diagCounters[DIAGCTR_CMDERR])
-		pSink->print("# Spurious Command Completion Events %u\n", _diagCounters[DIAGCTR_CMDERR]);
-	if (_diagCounters[DIAGCTR_XFERERR])
-		pSink->print("# Spurious Transfer Events %u\n", _diagCounters[DIAGCTR_XFERERR]);
-	if (_diagCounters[DIAGCTR_XFERKEEPAWAY])
-		pSink->print("# Transfer Ring Keepaways %u\n", _diagCounters[DIAGCTR_XFERKEEPAWAY]);
-	if (_diagCounters[DIAGCTR_XFERLAYOUT])
-		pSink->print("# Transfer Layout Errors %u\n", _diagCounters[DIAGCTR_XFERLAYOUT]);
-	if (_diagCounters[DIAGCTR_ORPHANEDTDS])
-		pSink->print("# Orphaned Transfer Descriptors %u\n", _diagCounters[DIAGCTR_ORPHANEDTDS]);
-	if (_diagCounters[DIAGCTR_SHORTSUCCESS])
-		pSink->print("# Short Transfers with Success Code %u\n", _diagCounters[DIAGCTR_SHORTSUCCESS]);
+	printDiagCounters(pSink, &_diagCounters[0]);
 	if (_inTestMode)
 		pSink->print("Test Mode Active\n");
 	if (m_invalid_regspace)
