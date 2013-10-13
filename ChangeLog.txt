@@ -1,6 +1,6 @@
 ChangeLog
 =========
-1.2.7d3
+1.2.7d4
 - Mark stream as active using ring md.
 - Simplify UIMDeleteEndpoint.
 - Add AdvanceTransferDQ (not used yet).
@@ -9,6 +9,8 @@ ChangeLog
 - Speed up stream detection with qsort/bsearch.
 - Reorganize source files.
 - Move some diagnostics from caps to running.
+- Try make SWAssistedXHCI safer for Intel Series 7.
+- Correct some code for Intel Series 8.
 
 1.2.6
 - Added support for VMware virtual xHC device in Workstation 10/Fusion 6.

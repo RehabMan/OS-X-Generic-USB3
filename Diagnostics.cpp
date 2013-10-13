@@ -418,7 +418,7 @@ void CLASS::PrintRuntimeRegs(PrintSink* pSink)
 		pSink->print("Will Reset on Resume\n");
 	if (_filterInterruptSource && !_filterInterruptSource->getAutoDisable())
 		pSink->print("Using MSI\n");
-	if (_vendorID == kVendorIntel && !(_errataBits & kErrataSWAssistedIdle))
+	if ((_errataBits & kErrataIntelPantherPoint) && !(_errataBits & kErrataSWAssistedIdle))
 		pSink->print("Intel Doze Disabled\n");
 	if (_pUSBLegSup)
 		printLegacy(pSink, _pUSBLegSup);

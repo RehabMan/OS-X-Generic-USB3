@@ -215,7 +215,7 @@ void ListOptions(PrintSink* pSink)
 	pSink->print("Kernel Flags\n");
 	pSink->print("  -gux_nosleep: Disable XHCI suspend/resume method, and use reset-on-resume (forces USB Bus re-enumeration)\n");
 	pSink->print("  -gux_nomsi: Disable MSI and use pin interrupt (if available)\n");
-	pSink->print("  -gux_defer_usb2: For Intel Series 7/C210 only - Switch USB 2.0 protocol ports from xHC to EHC\n");
+	pSink->print("  -gux_defer_usb2: For Intel Series 7/C210 or Intel Series 8/C220 - Switch USB 2.0 protocol ports from xHC to EHC\n");
 	pSink->print("  -gux_no_idle: For Intel Series 7/C210 only - Disable Doze mode\n");
 	pSink->print("  gux_log=n: Set logging level to n.  Available levels 1 - normal, 2 - higher\n");
 }

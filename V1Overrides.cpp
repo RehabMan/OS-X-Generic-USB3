@@ -29,8 +29,8 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 			kErrataSWAssistedIdle |
 			kErrataParkRing | kErrataIntelPortMuxing |
 			kErrataEnableAutoCompliance | kErrataIntelPantherPoint },	// Intel Series 7/C210
-		{ kVendorIntel, 0x8C31U, 0U, UINT16_MAX, kErrataSWAssistedIdle | kErrataEnableAutoCompliance | kErrataParkRing | kErrataIntelLynxPoint },	// Intel Series 8/C220
-		{ kVendorIntel, 0x9C31U, 0U, UINT16_MAX, kErrataSWAssistedIdle | kErrataEnableAutoCompliance | kErrataParkRing | kErrataIntelLynxPoint },	// Intel Lynx Point
+		{ kVendorIntel, 0x8C31U, 0U, UINT16_MAX, kErrataEnableAutoCompliance | kErrataParkRing | kErrataIntelLynxPoint },	// Intel Series 8/C220
+		{ kVendorIntel, 0x9C31U, 0U, UINT16_MAX, kErrataEnableAutoCompliance | kErrataParkRing | kErrataIntelLynxPoint },	// Intel Lynx Point
 		{ kVendorVMware, 0x778U, 0U, UINT16_MAX, kErrataVMwarePortSwap }	// VMware Virtual xHC
 	};
 	ErrataListEntry const* entryPtr;
