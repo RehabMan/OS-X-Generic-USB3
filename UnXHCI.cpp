@@ -131,7 +131,16 @@ IOReturn CLASS::FL1100Tricks(int choice)
 			v = Read32Reg(pReg);
 			if (m_invalid_regspace)
 				return kIOReturnNoDevice;
+			v &= ~0x7000U;
+			v |= 0x5000U;
 			Write32Reg(pReg, v & 0xEFFFFFFFU);
+			break;
+		case 2:
+			pReg = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80C0);
+			v = Read32Reg(pReg);
+			if (m_invalid_regspace)
+				return kIOReturnNoDevice;
+			Write32Reg(pReg, v & ~0x4000U);
 			break;
 	}
 	return kIOReturnSuccess;

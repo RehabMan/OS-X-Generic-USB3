@@ -51,6 +51,8 @@ IOReturn CLASS::RestartControllerFromReset(void)
 	IOReturn rc = ResetController();
 	if (rc != kIOReturnSuccess)
 		return rc;
+	if (_errataBits & kErrataFL1100LowRev)
+		FL1100Tricks(2);
 	RHPortStatusChangeBitmapInit();
 	bzero(&_rhPortEmulateCSC[0], sizeof _rhPortEmulateCSC);
 	rc = InitializePorts();
@@ -134,7 +136,7 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 	uint32_t sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
-	if (_errataBits & kErrataFL1100)
+	if (_errataBits & kErrataFL1100LowRev)
 		FL1100Tricks(1);
 	if (sts & XHCI_STS_PCD) {
 		for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {

@@ -39,6 +39,7 @@ UInt32 gUSBStackDebugFlags;	// Note: defined in IOUSBFamily/Classes/IOUSBControl
 #define kVendorFrescoLogic 0x1B73U
 #define kVendorIntel 0x8086U
 #define kVendorRenesas 0x1033U
+#define kVendorVIATechnologies 0x1106U
 #define kVendorVMware 0x15ADU
 
 #pragma mark -
@@ -51,7 +52,7 @@ UInt32 gUSBStackDebugFlags;	// Note: defined in IOUSBFamily/Classes/IOUSBControl
 #define kErrataEnableAutoCompliance 0x10U
 #define kErrataIntelPortMuxing 0x20U
 #define kErrataParkRing 0x100U
-#define kErrataFL1100 0x200U
+#define kErrataFL1100LowRev 0x200U
 #define kErrataVMwarePortSwap 0x400U
 #define kErrataSWAssistedIdle (1U << 25)
 

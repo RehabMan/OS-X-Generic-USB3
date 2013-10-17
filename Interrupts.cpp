@@ -776,7 +776,7 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 		 *   possible flushing.  Presently it's ignored,
 		 *   which may cause subsequent TDs in same
 		 *   transaction to be orphaned.
-		 *   (observed on Etron ASRock P67, Fresco Logic)
+		 *   (observed on Etron EJ168, Fresco Logic)
 		 */
 		if (shortfall)
 			++_diagCounters[DIAGCTR_SHORTSUCCESS];

@@ -27,6 +27,8 @@ IOReturn CLASS::CreateTransfer(IOUSBCommand* command, uint32_t streamId)
 	uint8_t endpoint = TranslateEndpoint(command->GetEndpoint(), command->GetDirection());
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)
 		return kIOReturnBadArgument;
+	if (streamId == 1U && !IsStreamsEndpoint(slot, endpoint))
+		streamId = 0U;
 	ringStruct* pRing = GetRing(slot, endpoint, streamId);
 	if (pRing->isInactive())
 		return kIOReturnBadArgument;

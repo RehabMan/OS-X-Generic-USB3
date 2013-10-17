@@ -293,6 +293,8 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	 *   more stuff
 	 */
 	SetPropsForBookkeeping();
+	if (CHECK_FOR_MAVERICKS && _vendorID == kVendorEtron)
+		setProperty("DisableUAS", kOSBooleanTrue);
 	_uimInitialized = true;
 	registerService();
 	return kIOReturnSuccess;

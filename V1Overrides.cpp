@@ -24,7 +24,8 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 {
 	ErrataListEntry const errataList[] = {
 		{ kVendorFrescoLogic, 0x1000U, 0U, UINT16_MAX, kErrataDisableMSI },	// Fresco Logic FL1000
-		{ kVendorFrescoLogic, 0x1100U, 0U, 0x10U, kErrataFL1100 },	// Fresco Logic FL1100
+		{ kVendorFrescoLogic, 0x1100U, 0U, 15U, kErrataFL1100LowRev | kErrataParkRing },	// Fresco Logic FL1100, rev 0 - 15
+		{ kVendorFrescoLogic, 0x1100U, 16U, UINT16_MAX, kErrataParkRing }, // Fresco Logic FL1100, rev 16 and up
 		{ kVendorIntel, 0x1E31U, 0U, UINT16_MAX,
 			kErrataSWAssistedIdle |
 			kErrataParkRing | kErrataIntelPortMuxing |

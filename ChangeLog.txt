@@ -1,6 +1,6 @@
 ChangeLog
 =========
-1.2.7d4
+1.2.7d5
 - Mark stream as active using ring md.
 - Simplify UIMDeleteEndpoint.
 - Add AdvanceTransferDQ (not used yet).
@@ -11,6 +11,9 @@ ChangeLog
 - Move some diagnostics from caps to running.
 - Try make SWAssistedXHCI safer for Intel Series 7.
 - Correct some code for Intel Series 8.
+- Added some FL1100 errata from OS 10.9.
+- Allow stream 1 on 2-stream bulk endpoint.
+- Set DisableUAS for Etron chip - enables IOUSBFamily 10.8.5, 10.9 workaround for Etron lack of streams support.
 
 1.2.6
 - Added support for VMware virtual xHC device in Workstation 10/Fusion 6.
