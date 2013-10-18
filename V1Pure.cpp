@@ -295,6 +295,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	SetPropsForBookkeeping();
 	if (CHECK_FOR_MAVERICKS && _vendorID == kVendorEtron)
 		setProperty("DisableUAS", kOSBooleanTrue);
+	_completer.setOwner(this);
 	_uimInitialized = true;
 	registerService();
 	return kIOReturnSuccess;
@@ -302,6 +303,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 
 IOReturn CLASS::UIMFinalize(void)
 {
+	_completer.Finalize();
 	if (_providerACPIDevice) {
 		_providerACPIDevice->release();
 		_providerACPIDevice = 0;
@@ -444,6 +446,7 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 		pSlot->lastStreamForEndpoint[endpoint] = 0U;
 		pSlot->ringArrayForEndpoint[endpoint] = 0;
 	}
+	_completer.Flush();
 	for (endpoint = 1U; endpoint != kUSBMaxPipes; ++endpoint) {
 		pRing = pSlot->ringArrayForEndpoint[endpoint];
 		if (!pRing->isInactive())
@@ -454,7 +457,7 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 	 * Note: Mavericks
 	 */
 	if (!_controllerAvailable)
-		goto _Skip_Disable_Slot;
+		goto _Skip_CleanupControlEndpoint_And_IntelSWSlot;
 #endif
 	CleanupControlEndpoint(slot, true);
 #if 0
@@ -987,6 +990,7 @@ void CLASS::PollInterrupts(IOUSBCompletionAction safeAction)
 	}
 	for (int32_t interrupter = 0; interrupter < kMaxActiveInterrupters; ++interrupter)
 		while (PollEventRing2(interrupter));
+	_completer.Flush();
 }
 
 IOReturn CLASS::GetRootHubStringDescriptor(UInt8 index, OSData* desc)

@@ -267,6 +267,7 @@ void CLASS::CheckSlotForTimeouts(int32_t slot, uint32_t frameNumber, bool isAsso
 		} else if (checkEPForTimeOuts(slot, endpoint, 0U, frameNumber, abortAll))
 			StartEndpoint(slot, endpoint, 0U);
 	}
+	_completer.Flush();
 }
 
 #pragma mark -

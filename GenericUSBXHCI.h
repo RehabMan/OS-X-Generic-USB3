@@ -18,6 +18,7 @@
 #include <IOKit/usb/IOUSBControllerV3.h>
 #include "XHCIRegs.h"
 #include "Private.h"
+#include "Completer.h"
 
 class IOInterruptEventSource;
 class IOFilterInterruptEventSource;
@@ -27,6 +28,7 @@ class GenericUSBXHCI : public IOUSBControllerV3
 	OSDeclareFinalStructors(GenericUSBXHCI);
 
 	friend struct XHCIAsyncEndpoint;
+	friend class Completer;
 
 private:
 	/*
@@ -272,6 +274,7 @@ private:
 									// offset 0x23B19
 	bool _HSEDetected;				// offset 0x23B1A
 									// align 5-byte
+	Completer _completer;			// Added
 #if 0
 	bool _wakeEnabled;				// Added Mavericks (0x2CFA0)
 	bool _IntelSlotWorkaround;		// Added Mavericks (0x2CFA1)

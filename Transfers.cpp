@@ -60,7 +60,7 @@ IOReturn CLASS::ReturnAllTransfersAndReinitRing(int32_t slot, int32_t endpoint, 
 	if (pRing->isInactive())
 		return kIOReturnBadArgument;
 	if (!pRing->ptr)
-		return kIOReturnNoMemory;
+		return kIOReturnBadArgument;
 	if ((pRing->epType | CTRL_EP) == ISOC_IN_EP) {
 		GenericUSBXHCIIsochEP* pIsochEp = pRing->isochEndpoint;
 		if (pIsochEp) {
@@ -69,13 +69,17 @@ IOReturn CLASS::ReturnAllTransfersAndReinitRing(int32_t slot, int32_t endpoint, 
 			if (pIsochEp->tdsScheduled)
 				pIsochEp->tdsScheduled = false;
 			AbortIsochEP(pIsochEp);
+			pRing->dequeueIndex = pRing->enqueueIndex;
 		}
-		return kIOReturnSuccess;
 	}
 	if (pRing->dequeueIndex != pRing->enqueueIndex) {
 		XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
-		if (pAsyncEp)
+		if (pAsyncEp) {
 			pAsyncEp->Abort();
+			IOReturn rc = ReinitTransferRing(slot, endpoint, streamId);
+			_completer.Flush();
+			return rc;
+	}
 	}
 	return ReinitTransferRing(slot, endpoint, streamId);
 }

@@ -319,7 +319,7 @@ void XHCIAsyncEndpoint::RetireTDs(XHCIAsyncTD* pTd, IOReturn passthruReturnCode,
 			MoveTDsFromReadyQToDoneQ(pTd->command);
 			if (scheduledHead) {
 				/*
-				 * Note - original is inverted...
+				 * Note: This was inverted in AppleUSBXHCI until OS 10.9.
 				 */
 				if (provider->IsStreamsEndpoint(slot, endpoint))
 					provider->RestartStreams(slot, endpoint, 0U);
@@ -460,9 +460,10 @@ void XHCIAsyncEndpoint::Complete(IOReturn passthruReturnCode)
 				 * Note: Mavericks updates a couple
 				 *   of diagnostic counters here.
 				 */
-				provider->Complete(comp,
+				provider->_completer.AddItem(&comp,
 								   passthruReturnCode,
-								   command->GetUIMScratch(9U));
+											 command->GetUIMScratch(9U),
+											 true);
 				pTd->shortfall = 0U;
 			}
 			pTd->interruptThisTD = false;
