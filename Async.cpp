@@ -461,7 +461,7 @@ void XHCIAsyncEndpoint::Complete(IOReturn passthruReturnCode)
 				 *   of diagnostic counters here.
 				 */
 				provider->_completer.AddItem(&comp,
-								   passthruReturnCode,
+											 passthruReturnCode,
 											 command->GetUIMScratch(9U),
 											 true);
 				pTd->shortfall = 0U;

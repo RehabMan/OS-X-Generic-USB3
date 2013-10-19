@@ -74,12 +74,8 @@ IOReturn CLASS::ReturnAllTransfersAndReinitRing(int32_t slot, int32_t endpoint, 
 	}
 	if (pRing->dequeueIndex != pRing->enqueueIndex) {
 		XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
-		if (pAsyncEp) {
+		if (pAsyncEp)
 			pAsyncEp->Abort();
-			IOReturn rc = ReinitTransferRing(slot, endpoint, streamId);
-			_completer.Flush();
-			return rc;
-	}
 	}
 	return ReinitTransferRing(slot, endpoint, streamId);
 }

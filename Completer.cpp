@@ -12,6 +12,7 @@
 
 #define MAX_FREE_RETENTION 16
 
+__attribute__((visibility("hidden")))
 bool Completer::AddItem(IOUSBCompletion const* pCompletion, IOReturn status, uint32_t actualByteCount, bool allowImmediate)
 {
 	CompleterItem* pItem;
@@ -48,10 +49,11 @@ bool Completer::AddItem(IOUSBCompletion const* pCompletion, IOReturn status, uin
 	return true;
 }
 
-void Completer::Flush(void)
+__attribute__((visibility("hidden")))
+void Completer::InternalFlush(void)
 {
 	CompleterItem* pNext;
-	while (activeHead) {
+	do {
 		if (activeHead == activeTail)
 			pNext = 0;
 		else
@@ -68,10 +70,11 @@ void Completer::Flush(void)
 		} else
 			IOFree(activeHead, sizeof *pNext);
 		activeHead = pNext;
-	}
+	} while (activeHead);
 	activeTail = 0;
 }
 
+__attribute__((visibility("hidden")))
 void Completer::Finalize(void)
 {
 	CompleterItem* pNext;
