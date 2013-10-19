@@ -278,7 +278,6 @@ void CLASS::AddIsocFramesToSchedule(GenericUSBXHCIIsochEP* pIsochEp)
 {
 	uint64_t currFrame, newCurrFrame, timeStamp;
 	GenericUSBXHCIIsochTD* pIsochTd;
-	IOReturn rc;
 	uint16_t nextSlot;
 	bool lostRegisterAccess, firstMicroFrame, ringFullAndEmpty;
 
@@ -319,7 +318,7 @@ void CLASS::AddIsocFramesToSchedule(GenericUSBXHCIIsochEP* pIsochEp)
 		while (pIsochEp->toDoList->_frameNumber <= currFrame + _istKeepAwayFrames) {
 			pIsochTd = static_cast<GenericUSBXHCIIsochTD*>(GetTDfromToDoList(pIsochEp));
 			ClearTRB(&pIsochTd->eventTrb, true);
-			rc = pIsochTd->UpdateFrameList(reinterpret_cast<AbsoluteTime const&>(timeStamp));
+			pIsochTd->UpdateFrameList(reinterpret_cast<AbsoluteTime const&>(timeStamp));
 			if (pIsochEp->scheduledTDs > 0)
 				PutTDonDeferredQueue(pIsochEp, pIsochTd);
 			else

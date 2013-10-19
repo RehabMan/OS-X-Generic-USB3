@@ -39,6 +39,7 @@ UInt32 gUSBStackDebugFlags;	// Note: defined in IOUSBFamily/Classes/IOUSBControl
 #define kVendorFrescoLogic 0x1B73U
 #define kVendorIntel 0x8086U
 #define kVendorRenesas 0x1033U
+#define kVendorVIATechnologies 0x1106U
 #define kVendorVMware 0x15ADU
 
 #pragma mark -
@@ -51,7 +52,7 @@ UInt32 gUSBStackDebugFlags;	// Note: defined in IOUSBFamily/Classes/IOUSBControl
 #define kErrataEnableAutoCompliance 0x10U
 #define kErrataIntelPortMuxing 0x20U
 #define kErrataParkRing 0x100U
-#define kErrataFL1100 0x200U
+#define kErrataFL1100LowRev 0x200U
 #define kErrataVMwarePortSwap 0x400U
 #define kErrataSWAssistedIdle (1U << 25)
 
@@ -74,7 +75,7 @@ typedef uint64_t (*PGetErrata64Bits)(void*, uint16_t, uint16_t, uint16_t);
 struct ringStruct
 {
 	/*
-	 * Total Size 96
+	 * Total Size 88
 	 */
 	IOBufferMemoryDescriptor* md;	// 0x0
 	TRBStruct* ptr;	// 0x8
@@ -105,7 +106,7 @@ struct ringStruct
 struct EventRingStruct
 {
 	/*
-	 * Total Size 64
+	 * Total Size 56
 	 */
 	uint16_t xHCDequeueIndex; // 0x0
 	uint16_t volatile bounceDequeueIndex;// 0x2
@@ -125,7 +126,7 @@ struct EventRingStruct
 struct SlotStruct
 {
 	/*
-	 * Total Size 552
+	 * Total Size 416
 	 */
 	IOBufferMemoryDescriptor* md;	// 0
 	ContextStruct* ctx; // Originally 8, 16

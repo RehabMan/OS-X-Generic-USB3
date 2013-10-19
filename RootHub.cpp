@@ -249,6 +249,8 @@ IOReturn CLASS::RHResetPort(uint8_t protocol, uint16_t port)
 		return kIOReturnSuccess;
 	IOSleep(500U - count * 32U);
 	companionPort = GetCompanionRootPort(protocol, port);
+	if (companionPort == UINT16_MAX)
+		return kIOReturnSuccess;
 	companionPortSC = Read32Reg(&_pXHCIOperationalRegisters->prs[companionPort].PortSC);
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
@@ -532,11 +534,19 @@ uint16_t CLASS::GetCompanionRootPort(uint8_t protocol, uint16_t port)
 {
 	if (_errataBits & kErrataVMwarePortSwap)
 		return port ^ 1U;
-	if (protocol == kUSBDeviceSpeedHigh)
-		return port - _v3ExpansionData->_rootHubPortsHSStartRange + _v3ExpansionData->_rootHubPortsSSStartRange;
-	if (protocol == kUSBDeviceSpeedSuper)
-		return port - _v3ExpansionData->_rootHubPortsSSStartRange + _v3ExpansionData->_rootHubPortsHSStartRange;
-	return 0U;
+	if (protocol == kUSBDeviceSpeedHigh) {
+		port -= _v3ExpansionData->_rootHubPortsHSStartRange;
+		if (port + 1U >= _v3ExpansionData->_rootHubNumPortsSS)
+			return UINT16_MAX;
+		return port + _v3ExpansionData->_rootHubPortsSSStartRange;
+	}
+	if (protocol == kUSBDeviceSpeedSuper) {
+		port -= _v3ExpansionData->_rootHubPortsSSStartRange;
+		if (port + 1U >= _v3ExpansionData->_rootHubNumPortsHS)
+			return UINT16_MAX;
+		return port + _v3ExpansionData->_rootHubPortsHSStartRange;
+	}
+	return UINT16_MAX;
 }
 
 #pragma mark -

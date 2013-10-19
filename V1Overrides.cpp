@@ -24,13 +24,14 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 {
 	ErrataListEntry const errataList[] = {
 		{ kVendorFrescoLogic, 0x1000U, 0U, UINT16_MAX, kErrataDisableMSI },	// Fresco Logic FL1000
-		{ kVendorFrescoLogic, 0x1100U, 0U, 0x10U, kErrataFL1100 },	// Fresco Logic FL1100
+		{ kVendorFrescoLogic, 0x1100U, 0U, 15U, kErrataFL1100LowRev | kErrataParkRing },	// Fresco Logic FL1100, rev 0 - 15
+		{ kVendorFrescoLogic, 0x1100U, 16U, UINT16_MAX, kErrataParkRing }, // Fresco Logic FL1100, rev 16 and up
 		{ kVendorIntel, 0x1E31U, 0U, UINT16_MAX,
 			kErrataSWAssistedIdle |
 			kErrataParkRing | kErrataIntelPortMuxing |
 			kErrataEnableAutoCompliance | kErrataIntelPantherPoint },	// Intel Series 7/C210
-		{ kVendorIntel, 0x8C31U, 0U, UINT16_MAX, kErrataSWAssistedIdle | kErrataEnableAutoCompliance | kErrataParkRing | kErrataIntelLynxPoint },	// Intel Series 8/C220
-		{ kVendorIntel, 0x9C31U, 0U, UINT16_MAX, kErrataSWAssistedIdle | kErrataEnableAutoCompliance | kErrataParkRing | kErrataIntelLynxPoint },	// Intel Lynx Point
+		{ kVendorIntel, 0x8C31U, 0U, UINT16_MAX, kErrataEnableAutoCompliance | kErrataParkRing | kErrataIntelLynxPoint },	// Intel Series 8/C220
+		{ kVendorIntel, 0x9C31U, 0U, UINT16_MAX, kErrataEnableAutoCompliance | kErrataParkRing | kErrataIntelLynxPoint },	// Intel Lynx Point
 		{ kVendorVMware, 0x778U, 0U, UINT16_MAX, kErrataVMwarePortSwap }	// VMware Virtual xHC
 	};
 	ErrataListEntry const* entryPtr;
@@ -57,6 +58,8 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 	return errata;
 }
 
+#define FlushAndReturn do { _completer.Flush(); return; } while (false)
+
 void CLASS::UIMCheckForTimeouts(void)
 {
 	uint32_t frameNumber, sts, mfIndex;
@@ -75,7 +78,7 @@ void CLASS::UIMCheckForTimeouts(void)
 			if (_watchdogUSBTimer)
 				_watchdogUSBTimer->cancelTimeout();
 		}
-		return;
+		FlushAndReturn;
 	}
 	if ((sts & XHCI_STS_HSE) && !_HSEDetected) {
 		IOLog("%s: HSE bit set:%x (1)\n", __FUNCTION__, sts);
@@ -88,17 +91,20 @@ void CLASS::UIMCheckForTimeouts(void)
 			CheckSlotForTimeouts(slot, frameNumber, false);
 	}
 	if (_powerStateChangingTo != kUSBPowerStateStable && _powerStateChangingTo < kUSBPowerStateOn && _powerStateChangingTo > kUSBPowerStateRestart)
-		return;
+		FlushAndReturn;
 	mfIndex = Read32Reg(&_pXHCIRuntimeRegisters->MFIndex);
 	if (m_invalid_regspace)
-		return;
+		FlushAndReturn;
 	mfIndex &= XHCI_MFINDEX_MASK;
 	if (!mfIndex)
-		return;
+		FlushAndReturn;
 	for (slot = 1U; slot <= _numSlots; ++slot)
 		if (ConstSlotPtr(slot)->oneBitCache)
 			CheckSlotForTimeouts(slot, frameNumber, true);
+	FlushAndReturn;
 }
+
+#undef FlushAndReturn
 
 IOReturn CLASS::UIMCreateControlTransfer(short functionNumber, short endpointNumber, IOUSBCommand* command,
 										 IOMemoryDescriptor* CBP, bool /* bufferRounding */, UInt32 bufferSize,

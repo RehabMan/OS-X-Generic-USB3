@@ -51,6 +51,8 @@ IOReturn CLASS::RestartControllerFromReset(void)
 	IOReturn rc = ResetController();
 	if (rc != kIOReturnSuccess)
 		return rc;
+	if (_errataBits & kErrataFL1100LowRev)
+		FL1100Tricks(2);
 	RHPortStatusChangeBitmapInit();
 	bzero(&_rhPortEmulateCSC[0], sizeof _rhPortEmulateCSC);
 	rc = InitializePorts();
@@ -134,7 +136,7 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 	uint32_t sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace)
 		return kIOReturnNoDevice;
-	if (_errataBits & kErrataFL1100)
+	if (_errataBits & kErrataFL1100LowRev)
 		FL1100Tricks(1);
 	if (sts & XHCI_STS_PCD) {
 		for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
@@ -256,8 +258,8 @@ IOReturn CLASS::DozeController(void)
 {
 	if (!_v3ExpansionData->_externalDeviceCount &&
 		(_errataBits & kErrataSWAssistedIdle)) {
-		uint16_t xhcc = _device->configRead16(PCI_XHCI_INTEL_XHCC);
-		if (xhcc == UINT16_MAX) {
+		uint32_t xhcc = _device->configRead32(PCI_XHCI_INTEL_XHCC);
+		if (xhcc == UINT32_MAX) {
 #if 0
 			m_invalid_regspace = true;
 			return kIOReturnNoDevice;
@@ -271,21 +273,20 @@ IOReturn CLASS::DozeController(void)
 		 */
 		xhcc |= PCI_XHCI_INTEL_XHCC_SWAXHCIP_SET(0U);
 		xhcc |= PCI_XHCI_INTEL_XHCC_SWAXHCI;
-		_device->configWrite16(PCI_XHCI_INTEL_XHCC, xhcc);
+		_device->configWrite32(PCI_XHCI_INTEL_XHCC, xhcc);
 	}
 	return kIOReturnSuccess;
 }
 
 IOReturn CLASS::WakeControllerFromDoze(void)
 {
-	if (!_v3ExpansionData->_externalDeviceCount &&
-		(_errataBits & kErrataSWAssistedIdle)) {
-		uint16_t xhcc = _device->configRead16(PCI_XHCI_INTEL_XHCC);
+	if (_errataBits & kErrataSWAssistedIdle) {
+		uint32_t xhcc = _device->configRead32(PCI_XHCI_INTEL_XHCC);
 		/*
 		 * Clear SWAXHCI if it's still on
 		 */
-		if (xhcc != UINT16_MAX && (xhcc & PCI_XHCI_INTEL_XHCC_SWAXHCI))
-			_device->configWrite16(PCI_XHCI_INTEL_XHCC, xhcc & ~PCI_XHCI_INTEL_XHCC_SWAXHCI);
+		if (xhcc != UINT32_MAX && (xhcc & PCI_XHCI_INTEL_XHCC_SWAXHCI))
+			_device->configWrite32(PCI_XHCI_INTEL_XHCC, xhcc & ~PCI_XHCI_INTEL_XHCC_SWAXHCI);
 	}
 #if 0
 	bool found_resuming = false;
