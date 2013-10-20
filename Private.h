@@ -99,6 +99,9 @@ struct ringStruct
 	bool returnInProgress; // 0x5A
 	bool deleteInProgress; // 0x5B
 	bool schedulingPending; // 0x5C
+#if 0
+	bool needSetDQ;	// 0x5D (Added Mavericks)
+#endif
 
 	__attribute__((always_inline)) bool isInactive(void) const { return !this || !this->md; }
 } __attribute__((aligned(128)));

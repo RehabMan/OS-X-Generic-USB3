@@ -432,6 +432,7 @@ public:
 	bool willTerminate(IOService* provider, IOOptionBits options);
 	bool terminate(IOOptionBits options);
 	IOReturn message(UInt32 type, IOService* provider, void* argument);
+	unsigned long maxCapabilityForDomainState(IOPMPowerFlags domainState);
 	IOReturn newUserClient(task_t owningTask, void* securityID, UInt32 type, IOUserClient ** handler);
 
 	/*

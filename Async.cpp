@@ -407,7 +407,7 @@ void XHCIAsyncEndpoint::FlushTDs(IOUSBCommand* command, int updateDequeueOption)
 	 * Note: Added Mavericks
 	 */
 	if (updateDequeueIndex && !provider->_controllerAvailable) {
-		(&pRing->schedulingPending)[1] = true;
+		pRing->needSetDQ = true;
 		return;
 	}
 #endif

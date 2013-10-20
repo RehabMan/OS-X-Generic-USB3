@@ -277,6 +277,14 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 __attribute__((visibility("hidden")))
 IOReturn CLASS::StartEndpoint(int32_t slot, int32_t endpoint, uint16_t streamId)
 {
+#if 0
+	/*
+	 * Added Mavericks
+	 */
+	ringStruct* pRing = GetRing(slot, endpoint, streamId);
+	if (pRing && pRing->needSetDQ)
+		SetTRDQPtr(slot, endpoint, streamId, pRing->dequeueIndex);
+#endif
 	Write32Reg(&_pXHCIDoorbellRegisters[slot], (static_cast<uint32_t>(streamId) << 16) | (static_cast<uint32_t>(endpoint) & 0xFFU));
 	return kIOReturnSuccess;
 }
