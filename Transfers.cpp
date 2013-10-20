@@ -101,6 +101,15 @@ IOReturn CLASS::ReinitTransferRing(int32_t slot, int32_t endpoint, uint32_t stre
 		pRing->lastSeenFrame = 0U;
 		pRing->nextIsocFrame = 0ULL;
 	}
+#if 0
+	/*
+	 * Added Mavericks
+	 */
+	if (!_controllerAvailable) {
+		pRing->needSetDQ = true;
+		return kIOReturnSuccess;
+	}
+#endif
 	retFromCMD = SetTRDQPtr(slot, endpoint, streamId, pRing->dequeueIndex);
 	if (pRing->schedulingPending) {
 		if ((pRing->epType | CTRL_EP) != ISOC_IN_EP) {

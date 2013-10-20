@@ -79,6 +79,47 @@ IOReturn CLASS::message(UInt32 type, IOService* provider, void* argument)
 	return rc;
 }
 
+unsigned long CLASS::maxCapabilityForDomainState(IOPMPowerFlags domainState)
+{
+	uint8_t port, portLimit;
+	uint32_t portSC;
+	unsigned long state = super::maxCapabilityForDomainState(domainState);
+	if (!CHECK_FOR_MAVERICKS)
+		return state;
+	if (_wakingFromHibernation)
+		return state;
+	if (!(_errataBits & kErrataIntelLynxPoint))
+		return state;
+	if (_myPowerState != kUSBPowerStateSleep)
+		return state;
+	if (state < kUSBPowerStateLowPower)
+		return state;
+	/*
+	 * Note: This check neutralizes the code below because PM backbone calls this method *before*
+	 *   powering the parent IOPCIDevice on when coming back from Sleep to On.
+	 */
+	if (!_v3ExpansionData || !*static_cast<bool const*>(getV3Ptr(V3_parentDeviceON)))
+		return state;
+	port = _v3ExpansionData->_rootHubPortsSSStartRange - 1U;
+	portLimit = port + _v3ExpansionData->_rootHubNumPortsSS;
+	for (; port < portLimit; ++port) {
+		portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);
+		if (m_invalid_regspace)
+			return state;
+		if (!(portSC & XHCI_PS_WRC))
+			return state;
+	}
+	IOLog("XHCI: All ports have WRC bit set - reseting all of USB\n");
+	/*
+	 * Note: Tested and this code causes ejection messages on connected drives.
+	 */
+	ResetControllerState();
+	EnableAllEndpoints(true);
+	state = kUSBPowerStateOff;
+	_wakingFromHibernation = true;
+	return state;
+}
+
 IOReturn CLASS::newUserClient(task_t owningTask, void* securityID, UInt32 type, IOUserClient ** handler)
 {
 	IOUserClient *client;
