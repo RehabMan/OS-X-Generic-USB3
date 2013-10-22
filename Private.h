@@ -184,6 +184,7 @@ struct PrintSink
 #define V3_hasPCIPwrMgmt 0xF9
 #define V3_acpiDevice 0x110
 #define V3_minimumIdlePowerStateValid 0x129
+#define V3_parentDeviceON 0x12A
 #define V3_GetErrata64Bits 418
 
 #ifdef __LP64__

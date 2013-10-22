@@ -122,11 +122,17 @@ IOReturn CLASS::FL1100Tricks(int choice)
 
 	switch (choice) {
 		case 1:
-			pReg = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x8094);
+			if (FL1100Tricks(4) != kIOReturnSuccess)
+				return kIOReturnNoDevice;
+			return FL1100Tricks(3);
+		case 2:
+			pReg = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80C0);
 			v = Read32Reg(pReg);
 			if (m_invalid_regspace)
 				return kIOReturnNoDevice;
-			Write32Reg(pReg, v | 0x800000U);
+			Write32Reg(pReg, v & ~0x4000U);
+			break;
+		case 3:
 			pReg = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80EC);
 			v = Read32Reg(pReg);
 			if (m_invalid_regspace)
@@ -135,12 +141,12 @@ IOReturn CLASS::FL1100Tricks(int choice)
 			v |= 0x5000U;
 			Write32Reg(pReg, v & 0xEFFFFFFFU);
 			break;
-		case 2:
-			pReg = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x80C0);
+		case 4:
+			pReg = reinterpret_cast<uint32_t volatile*>(reinterpret_cast<uint8_t volatile*>(_pXHCICapRegisters) + 0x8094);
 			v = Read32Reg(pReg);
 			if (m_invalid_regspace)
 				return kIOReturnNoDevice;
-			Write32Reg(pReg, v & ~0x4000U);
+			Write32Reg(pReg, v | 0x800000U);
 			break;
 	}
 	return kIOReturnSuccess;

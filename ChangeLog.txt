@@ -1,6 +1,6 @@
 ChangeLog
 =========
-1.2.7d6
+1.2.7d7
 - Mark stream as active using ring md.
 - Simplify UIMDeleteEndpoint.
 - Add AdvanceTransferDQ (not used yet).

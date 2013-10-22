@@ -24,6 +24,13 @@ IOReturn CLASS::CreateTransfer(IOUSBCommand* command, uint32_t streamId)
 	uint8_t slot = GetSlotID(command->GetAddress());
 	if (!slot)
 		return kIOUSBEndpointNotFound;
+#if 0
+	/*
+	 * Note: Added Mavericks
+	 */
+	if (!IsStillConnectedAndEnabled(slot))
+		return kIOReturnNoDevice;
+#endif
 	uint8_t endpoint = TranslateEndpoint(command->GetEndpoint(), command->GetDirection());
 	if (endpoint < 2U || endpoint >= kUSBMaxPipes)
 		return kIOReturnBadArgument;
