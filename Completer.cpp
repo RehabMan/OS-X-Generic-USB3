@@ -25,7 +25,7 @@ bool Completer::AddItem(IOUSBCompletion const* pCompletion, IOReturn status, uin
 			freeHead = 0;
 			freeTail = 0;
 		} else
-			freeHead = freeHead->next;
+			freeHead = pItem->next;
 		--freeCount;
 	} else {
 		pItem = static_cast<CompleterItem*>(IOMalloc(sizeof *pItem));
@@ -41,7 +41,7 @@ bool Completer::AddItem(IOUSBCompletion const* pCompletion, IOReturn status, uin
 	pItem->completion = *pCompletion;
 	pItem->status = status;
 	pItem->actualByteCount = actualByteCount;
-	if (activeHead)
+	if (activeTail)
 		activeTail->next = pItem;
 	else
 		activeHead = pItem;
@@ -52,26 +52,35 @@ bool Completer::AddItem(IOUSBCompletion const* pCompletion, IOReturn status, uin
 __attribute__((visibility("hidden")))
 void Completer::InternalFlush(void)
 {
-	CompleterItem* pNext;
+	CompleterItem* pItem;
+	flushing = true;
+	pItem = activeHead;
 	do {
-		if (activeHead == activeTail)
-			pNext = 0;
-		else
-			pNext = activeHead->next;
-		if (owner)
-			owner->Complete(activeHead->completion, activeHead->status, activeHead->actualByteCount);
-		if (freeCount < MAX_FREE_RETENTION) {
-			if (freeHead)
-				freeTail->next = activeHead;
-			else
-				freeHead = activeHead;
-			freeTail = activeHead;
-			++freeCount;
+		if (pItem == activeTail) {
+			activeHead = 0;
+			activeTail = 0;
 		} else
-			IOFree(activeHead, sizeof *pNext);
-		activeHead = pNext;
-	} while (activeHead);
-	activeTail = 0;
+			activeHead = pItem->next;
+		if (freeCount < MAX_FREE_RETENTION) {
+			if (freeTail)
+				freeTail->next = pItem;
+			else
+				freeHead = pItem;
+			freeTail = pItem;
+			++freeCount;
+			/*
+			 * Note: pItem is on free list and may be reused inside Complete,
+			 *   but its content is loaded on stack before the call.
+			 */
+			if (owner)
+				owner->Complete(pItem->completion, pItem->status, pItem->actualByteCount);
+		} else {
+			if (owner)
+				owner->Complete(pItem->completion, pItem->status, pItem->actualByteCount);
+			IOFree(pItem, sizeof *pItem);
+		}
+	} while ((pItem = activeHead));
+	flushing = false;
 }
 
 __attribute__((visibility("hidden")))
@@ -97,4 +106,5 @@ void Completer::Finalize(void)
 	}
 	freeTail = 0;
 	freeCount = 0;
+	flushing = false;
 }
