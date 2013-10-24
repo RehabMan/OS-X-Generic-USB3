@@ -31,6 +31,7 @@ private:
 	CompleterItem* freeHead;
 	CompleterItem* freeTail;
 	uint32_t freeCount;
+	bool flushing;
 
 	void InternalFlush(void);
 
@@ -39,7 +40,7 @@ public:
 	void setOwner(GenericUSBXHCI* owner) { this->owner = owner; }
 	bool AddItem(IOUSBCompletion const*, IOReturn, uint32_t, bool);
 	__attribute__((always_inline))
-	void Flush(void) { if (activeHead) InternalFlush(); }
+	void Flush(void) { if (activeHead && !flushing) InternalFlush(); }
 	void Finalize(void);
 };
 

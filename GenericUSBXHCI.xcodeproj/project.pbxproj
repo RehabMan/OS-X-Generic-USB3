@@ -285,7 +285,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPYRIGHT_NOTICE = "Copyright © 2012-2013 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.7d7;
+				CURRENT_PROJECT_VERSION = 1.2.7d9;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
@@ -322,7 +322,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				COPYRIGHT_NOTICE = "Copyright © 2012-2013 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.7d7;
+				CURRENT_PROJECT_VERSION = 1.2.7d9;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
@@ -340,10 +340,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.7.5;
 				OTHER_CFLAGS = "-fno-stack-protector";
 				OTHER_LDFLAGS = "-Wl,-no_source_version";
-				"OTHER_LDFLAGS[arch=x86_64]" = (
-					"-dead_strip",
-					"-Wl,-no_source_version",
-				);
+				"OTHER_LDFLAGS[arch=x86_64]" = "-dead_strip";
 				SDKROOT = macosx10.8;
 				STRIPFLAGS = "-no_uuid";
 			};

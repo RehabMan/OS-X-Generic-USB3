@@ -126,10 +126,14 @@ IOReturn CLASS::ResetController(void)
 			IOLog("%s: could not get chip to halt within 100 ms\n", __FUNCTION__);
 		return rc;
 	}
+	if (_errataBits & kErrataFL1100LowRev)
+		FL1100Tricks(3);
 	Write32Reg(&_pXHCIOperationalRegisters->USBCmd, XHCI_CMD_HCRST);
 	rc = XHCIHandshake(&_pXHCIOperationalRegisters->USBCmd, XHCI_CMD_HCRST, 0U, 1000);
 	if (rc == kIOReturnTimeout)
 		IOLog("%s: could not get chip to come out of reset within 1000 ms\n", __FUNCTION__);
+	if (_errataBits & kErrataFL1100LowRev)
+		FL1100Tricks(4);
 	return rc;
 }
 
