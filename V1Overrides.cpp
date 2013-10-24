@@ -11,6 +11,7 @@
 #include "Isoch.h"
 #include "XHCITypes.h"
 #include <IOKit/IOTimerEventSource.h>
+#include <libkern/version.h>
 
 #define CLASS GenericUSBXHCI
 #define super IOUSBControllerV3
@@ -42,7 +43,7 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 			revisionID >= entryPtr->revisionLo &&
 			revisionID <= entryPtr->revisionHi)
 			errata |= entryPtr->errata;
-	if (gux_options & GUX_OPTION_NO_INTEL_IDLE)
+	if ((gux_options & GUX_OPTION_NO_INTEL_IDLE) || version_major >= 13)
 		errata &= ~kErrataSWAssistedIdle;
 	if (gux_options & GUX_OPTION_NO_MSI)
 		errata |= kErrataDisableMSI;
