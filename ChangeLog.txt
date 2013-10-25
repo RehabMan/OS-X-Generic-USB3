@@ -1,6 +1,6 @@
 ChangeLog
 =========
-1.2.7d9
+1.2.7
 - Mark stream as active using ring md.
 - Simplify UIMDeleteEndpoint.
 - Add AdvanceTransferDQ (not used yet).
@@ -16,6 +16,7 @@ ChangeLog
 - Set DisableUAS for Etron chip - enables IOUSBFamily 10.8.5, 10.9 workaround for Etron lack of streams support.
 - Delay USL completions to safe points.
 - Made -gux_no_idle the default for OS 10.9.
+- Set DisableUAS for ASMedia 1042.
 
 1.2.6
 - Added support for VMware virtual xHC device in Workstation 10/Fusion 6.

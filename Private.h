@@ -54,6 +54,7 @@ UInt32 gUSBStackDebugFlags;	// Note: defined in IOUSBFamily/Classes/IOUSBControl
 #define kErrataParkRing 0x100U
 #define kErrataFL1100LowRev 0x200U
 #define kErrataVMwarePortSwap 0x400U
+#define kErrataBrokenStreams 0x800U
 #define kErrataSWAssistedIdle (1U << 25)
 
 #pragma mark -
