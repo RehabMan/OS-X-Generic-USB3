@@ -136,7 +136,8 @@ int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uin
 
 	trbType = XHCI_TRB_3_TYPE_GET(pTrb->d);
 	while ((pTrb->d & XHCI_TRB_3_CHAIN_BIT) &&
-		   trbType != XHCI_TRB_TYPE_EVENT_DATA) {
+		   trbType != XHCI_TRB_TYPE_EVENT_DATA &&
+		   trbType != XHCI_TRB_TYPE_LINK) {
 		next = trbIndexInRingQueue + 1;
 		if (next >= static_cast<int32_t>(pRing->numTRBs) - 1)
 			next = 0;

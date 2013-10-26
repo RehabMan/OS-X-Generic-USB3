@@ -40,6 +40,8 @@
 			<string>IOUSBControllerUserClient</string>
 			<key>IOProbeScore</key>
 			<integer>1</integer>
+			<key>ASMediaEDLTAFix</key>
+			<true/>
 		</dict>
 	</dict>
 	<key>NSHumanReadableCopyright</key>

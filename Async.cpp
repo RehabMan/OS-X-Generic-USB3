@@ -110,6 +110,10 @@ IOReturn XHCIAsyncEndpoint::CreateTDs(IOUSBCommand* command, uint16_t streamId, 
 	if (aborting)
 		return kIOReturnNotPermitted;
 	transferRequestBytes = command->GetReqCount();
+	if (transferRequestBytes >= (1U << 23) && (provider->_errataBits & kErrataAbsoluteEDTLA)) {
+		IOLog("%s: xHC with absolute EDTLA limited to 8MB per transaction\n", __FUNCTION__);
+		return kIOReturnUnsupported;
+	}
 	if (transferRequestBytes) {
 		IODMACommand* dmac = command->GetDMACommand();
 		if (!dmac || !dmac->getMemoryDescriptor()) {
@@ -451,7 +455,10 @@ void XHCIAsyncEndpoint::Complete(IOReturn passthruReturnCode)
 		if (!pTd)
 			continue;
 		command = pTd->command;
-		command->SetUIMScratch(9U, command->GetUIMScratch(9U) + pTd->shortfall);
+		if (pTd->absoluteShortfall)
+			command->SetUIMScratch(9U, pTd->shortfall);
+		else
+			command->SetUIMScratch(9U, command->GetUIMScratch(9U) + pTd->shortfall);
 		if (pTd->interruptThisTD &&
 			pTd->finalTDInTransaction) {
 			comp = command->GetUSLCompletion();
@@ -465,6 +472,7 @@ void XHCIAsyncEndpoint::Complete(IOReturn passthruReturnCode)
 											 command->GetUIMScratch(9U),
 											 true);
 				pTd->shortfall = 0U;
+				pTd->absoluteShortfall = false;
 			}
 			pTd->interruptThisTD = false;
 		}
@@ -494,34 +502,50 @@ bool XHCIAsyncEndpoint::NeedTimeouts(void)
 	return ndto || cto;
 }
 
+#define OLDAS_MASK 0x80000000U
+
 __attribute__((visibility("hidden")))
 void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool stopped)
 {
 	uint64_t addr;
 	int64_t trbIndex64;
-	XHCIAsyncTD* pTd;
+	XHCIAsyncTD* pAsyncTd;
 	IOUSBCommand* command;
 	IOReturn passthruReturnCode;
-	uint32_t shortfall, ndto, cto, bytesTransferred, firstSeen, TRTime;
+	uint32_t shortfall, ndto, cto, bytesShortfell, firstSeen, TRTime;
 	int32_t next;
-	bool returnATransfer, ED;
+	bool returnATransfer = false, ED, absoluteShortfall = false, oldAS, errorLength;
 
+	pAsyncTd = scheduledHead;
+	if (!pAsyncTd)
+		return;
 	addr = GenericUSBXHCI::GetTRBAddr64(&pRing->stopTrb);
 	ED = (pRing->stopTrb.d & XHCI_TRB_3_ED_BIT) != 0U;
-	if (!ED && XHCI_TRB_2_ERROR_GET(pRing->stopTrb.c) == XHCI_TRB_ERROR_LENGTH)
+	errorLength = (XHCI_TRB_2_ERROR_GET(pRing->stopTrb.c) == XHCI_TRB_ERROR_LENGTH);
+	if (!ED && errorLength)
 		shortfall = 0U;
 	else
 		shortfall = XHCI_TRB_2_REM_GET(pRing->stopTrb.c);
 	trbIndex64 = GenericUSBXHCI::DiffTRBIndex(addr, pRing->physAddr);
 	if (trbIndex64 < 0 || trbIndex64 >= pRing->numTRBs - 1U)
 		trbIndex64 = pRing->dequeueIndex;
-	pTd = scheduledHead;
-	if (!pTd)
-		return;
-	if (ED)
-		shortfall = pTd->bytesThisTD - shortfall;
+	else if (!ED) {
+		if (errorLength)
+			/*
+			 * Note: If stopped on a link TRB, this field is zero
+			 */
+			shortfall += XHCI_TRB_2_BYTES_GET(pRing->ptr[trbIndex64].c);
+		GenericUSBXHCI::CountRingToED(pRing, static_cast<int32_t>(trbIndex64), &shortfall);
+	}
+	if (ED) {
+		shortfall = pAsyncTd->bytesThisTD - shortfall;
+		if (provider->_errataBits & kErrataAbsoluteEDTLA) {
+			absoluteShortfall = true;
+			shortfall += pAsyncTd->bytesPreceedingThisTD;
+		}
+	}
 	if (!abortAll) {
-		command = pTd->command;
+		command = pAsyncTd->command;
 		if (!command)
 			return;
 		ndto = command->GetNoDataTimeout();
@@ -531,22 +555,26 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 			command->SetUIMScratch(5U, frameNumber);
 			firstSeen = frameNumber;
 		}
-		returnATransfer = false;
 		if (cto && frameNumber - firstSeen > cto) {
-			pTd->shortfall = pTd->bytesThisTD - shortfall;
+			pAsyncTd->shortfall = shortfall;
+			pAsyncTd->absoluteShortfall = absoluteShortfall;
 			returnATransfer = true;
 		}
 		if (ndto) {
-			bytesTransferred = command->GetUIMScratch(4U);
+			bytesShortfell = command->GetUIMScratch(4U);
+			oldAS = ((bytesShortfell & OLDAS_MASK) != 0U);
+			bytesShortfell &= ~OLDAS_MASK;
 			TRTime = command->GetUIMScratch(6U);
 			if (!TRTime ||
 				command->GetUIMScratch(3U) != static_cast<uint32_t>(trbIndex64) ||
-				bytesTransferred != shortfall) {
+				bytesShortfell != shortfall ||
+				oldAS != absoluteShortfall) {
 				command->SetUIMScratch(3U, static_cast<uint32_t>(trbIndex64));
-				command->SetUIMScratch(4U, shortfall);
+				command->SetUIMScratch(4U, absoluteShortfall ? (shortfall | OLDAS_MASK) : shortfall);
 				command->SetUIMScratch(6U, frameNumber);
 			} else if (frameNumber - TRTime > ndto) {
-				pTd->shortfall = pTd->bytesThisTD - bytesTransferred;
+				pAsyncTd->shortfall = bytesShortfell;
+				pAsyncTd->absoluteShortfall = oldAS;
 				returnATransfer = true;
 			}
 		}
@@ -554,7 +582,8 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 			return;
 		passthruReturnCode = kIOUSBTransactionTimeout;
 	} else {
-		pTd->shortfall = pTd->bytesThisTD - shortfall;
+		pAsyncTd->shortfall = shortfall;
+		pAsyncTd->absoluteShortfall = absoluteShortfall;
 		passthruReturnCode = kIOReturnNotResponding;
 	}
 	GetTD(&scheduledHead, &scheduledTail, &numTDsScheduled);
@@ -564,13 +593,13 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 	 * Note: Mavericks updates a couple
 	 *   of diagnostic counters here.
 	 */
-	next = pTd->lastTrbIndex + 1;
+	next = pAsyncTd->lastTrbIndex + 1;
 	if (next >= static_cast<int32_t>(pRing->numTRBs) - 1)
 		next = 0;
 	if (!stopped)
 		provider->QuiesceEndpoint(pRing->slot, pRing->endpoint);
-	provider->SetTRDQPtr(pRing->slot, pRing->endpoint, pTd->streamId, next);
-	RetireTDs(pTd, passthruReturnCode, true, true);
+	provider->SetTRDQPtr(pRing->slot, pRing->endpoint, pAsyncTd->streamId, next);
+	RetireTDs(pAsyncTd, passthruReturnCode, true, true);
 }
 
 __attribute__((visibility("hidden")))

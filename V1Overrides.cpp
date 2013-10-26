@@ -35,7 +35,7 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 		{ kVendorIntel, 0x9C31U, 0U, UINT16_MAX, kErrataEnableAutoCompliance | kErrataParkRing | kErrataIntelLynxPoint },	// Intel Lynx Point
 		{ kVendorVMware, 0x778U, 0U, UINT16_MAX, kErrataVMwarePortSwap },	// VMware Virtual xHC
 		{ kVendorEtron, 0U, 0U, UINT16_MAX, kErrataBrokenStreams },		// All Etron
-		{ kVendorASMedia, 0x1042, 0U, UINT16_MAX, kErrataBrokenStreams }	// ASMedia 1042
+		{ kVendorASMedia, 0x1042, 0U, UINT16_MAX, kErrataBrokenStreams | kErrataAbsoluteEDTLA }	// ASMedia 1042
 	};
 	ErrataListEntry const* entryPtr;
 	uint32_t i, errata = 0U;

@@ -493,6 +493,7 @@ public:
 	IOReturn MakeBufferUnmapped(uint32_t, size_t, uint64_t, IOBufferMemoryDescriptor **, uint64_t*);
 	void CheckSleepCapability(void);
 	void SetPropsForBookkeeping(void);
+	void OverrideErrataFromProps(void);
 	IOReturn AllocScratchpadBuffers(void);
 	void FinalizeScratchpadBuffers(void);
 	uint16_t PortNumberCanonicalToProtocol(uint16_t, uint8_t*);

@@ -1,5 +1,9 @@
 ChangeLog
 =========
+1.2.7Fixes
+- Implement workaround for ASM1042 Absolute EDTLA bug.
+- Correct calculation of shortfall in UpdateTimeouts.
+
 1.2.7
 - Mark stream as active using ring md.
 - Simplify UIMDeleteEndpoint.

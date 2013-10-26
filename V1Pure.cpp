@@ -49,6 +49,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	_errataBits = GetErrataBits(_vendorID, _deviceID, _revisionID);	// Note: originally |=
 	if (!_v3ExpansionData->_onThunderbolt)
 		_expansionData->_isochMaxBusStall = 25000U;
+	OverrideErrataFromProps();
 	_pXHCICapRegisters = reinterpret_cast<struct XHCICapRegisters volatile*>(_deviceBase->getVirtualAddress());
 #if 0
 	if (m_invalid_regspace) {
@@ -293,8 +294,6 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	 *   more stuff
 	 */
 	SetPropsForBookkeeping();
-	if (CHECK_FOR_MAVERICKS && (_errataBits & kErrataBrokenStreams) && !getProperty("DisableUAS"))
-		setProperty("DisableUAS", kOSBooleanTrue);
 	_completer.setOwner(this);
 	_uimInitialized = true;
 	registerService();
