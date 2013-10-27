@@ -42,6 +42,8 @@
 			<integer>1</integer>
 			<key>ASMediaEDLTAFix</key>
 			<true/>
+			<key>IntelDoze</key>
+			<false/>
 		</dict>
 	</dict>
 	<key>NSHumanReadableCopyright</key>

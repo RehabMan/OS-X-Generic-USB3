@@ -1,5 +1,8 @@
 ChangeLog
 =========
+1.2.8d1
+- Implement properties UseLegacyInt, IntelDoze, eliminate -gux_no_idle.
+
 1.2.7Fixes
 - Implement workaround for ASM1042 Absolute EDTLA bug.
 - Correct calculation of shortfall in UpdateTimeouts.

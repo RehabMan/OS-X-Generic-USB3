@@ -258,8 +258,8 @@ IOReturn CLASS::DozeController(void)
 {
 	if (!_v3ExpansionData->_externalDeviceCount &&
 		(_errataBits & kErrataSWAssistedIdle)) {
-		uint32_t xhcc = _device->configRead32(PCI_XHCI_INTEL_XHCC);
-		if (xhcc == UINT32_MAX) {
+		uint16_t xhcc = _device->configRead16(PCI_XHCI_INTEL_XHCC);
+		if (xhcc == UINT16_MAX) {
 #if 0
 			m_invalid_regspace = true;
 			return kIOReturnNoDevice;
@@ -273,7 +273,7 @@ IOReturn CLASS::DozeController(void)
 		 */
 		xhcc |= PCI_XHCI_INTEL_XHCC_SWAXHCIP_SET(0U);
 		xhcc |= PCI_XHCI_INTEL_XHCC_SWAXHCI;
-		_device->configWrite32(PCI_XHCI_INTEL_XHCC, xhcc);
+		_device->configWrite16(PCI_XHCI_INTEL_XHCC, xhcc);
 	}
 	return kIOReturnSuccess;
 }
@@ -281,12 +281,12 @@ IOReturn CLASS::DozeController(void)
 IOReturn CLASS::WakeControllerFromDoze(void)
 {
 	if (_errataBits & kErrataSWAssistedIdle) {
-		uint32_t xhcc = _device->configRead32(PCI_XHCI_INTEL_XHCC);
+		uint16_t xhcc = _device->configRead16(PCI_XHCI_INTEL_XHCC);
 		/*
 		 * Clear SWAXHCI if it's still on
 		 */
-		if (xhcc != UINT32_MAX && (xhcc & PCI_XHCI_INTEL_XHCC_SWAXHCI))
-			_device->configWrite32(PCI_XHCI_INTEL_XHCC, xhcc & ~PCI_XHCI_INTEL_XHCC_SWAXHCI);
+		if (xhcc != UINT16_MAX && (xhcc & PCI_XHCI_INTEL_XHCC_SWAXHCI))
+			_device->configWrite16(PCI_XHCI_INTEL_XHCC, xhcc & ~PCI_XHCI_INTEL_XHCC_SWAXHCI);
 	}
 #if 0
 	bool found_resuming = false;
