@@ -167,7 +167,18 @@ IOReturn CLASS::UIMCreateControlTransfer(short functionNumber, short endpointNum
 			return kIOReturnInternalError;
 		if (smallbuf2.bmRequestType == 0U && smallbuf2.bRequest == 5U) { /* kSetAddress */
 			uint16_t deviceAddress = smallbuf2.wValue;
+			ContextStruct* pContext = GetSlotContext(slot, 1);
+			uint16_t maxPacketSize = static_cast<uint16_t>(XHCI_EPCTX_1_MAXP_SIZE_GET(pContext->_e.dwEpCtx1));
+			pContext = GetSlotContext(slot);
 			_deviceZero.isBeingAddressed = true;
+			rc = AddressDevice(slot,
+							   maxPacketSize,
+							   true,
+							   GetSlCtxSpeed(pContext),
+							   XHCI_SCTX_2_TT_HUB_SID_GET(pContext->_s.dwSctx2),
+							   XHCI_SCTX_2_TT_PORT_NUM_GET(pContext->_s.dwSctx2));
+			if (rc != kIOReturnSuccess)
+				return rc;
 			_addressMapper.HubAddress[deviceAddress] = static_cast<uint8_t>(_deviceZero.HubAddress);
 			_addressMapper.PortOnHub[deviceAddress] = static_cast<uint8_t>(_deviceZero.PortOnHub);
 			_addressMapper.Slot[deviceAddress] = static_cast<uint8_t>(slot);

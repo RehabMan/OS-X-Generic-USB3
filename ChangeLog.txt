@@ -3,6 +3,7 @@ ChangeLog
 1.2.7Fixes
 - Implement workaround for ASM1042 Absolute EDTLA bug.
 - Correct calculation of shortfall in UpdateTimeouts.
+- Revert commit f63329 (Address Device only once) because it causes lag for some devices.
 
 1.2.7
 - Mark stream as active using ring md.
