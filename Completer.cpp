@@ -46,6 +46,8 @@ bool Completer::AddItem(IOUSBCompletion const* pCompletion, IOReturn status, uin
 	else
 		activeHead = pItem;
 	activeTail = pItem;
+	if (owner && owner->_eventSource)
+		owner->_eventSource->enable();	// Note: twisted way of calling signalWorkAvailable()
 	return true;
 }
 

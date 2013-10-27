@@ -108,6 +108,12 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		UIMFinalize();
 		return rc;
 	}
+	rc = InitializeEventSource();
+	if (rc != kIOReturnSuccess) {
+		IOLog("%s: Unable to create private IOEventSource and add to workloop, error == %#x\n", __FUNCTION__, rc);
+		UIMFinalize();
+		return rc;
+	}
 	uint32_t hcc = Read32Reg(&_pXHCICapRegisters->HCCParams);
 	if (m_invalid_regspace) {
 		IOLog("%s: Invalid regspace (3)\n", __FUNCTION__);
@@ -335,6 +341,7 @@ IOReturn CLASS::UIMFinalize(void)
 		_inputContext.md = 0;
 	}
 	FinalizeScratchpadBuffers();
+	FinalizeEventSource();
 	if (_filterInterruptSource && _workLoop) {
 		_workLoop->removeEventSource(_filterInterruptSource);
 		_filterInterruptSource->release();
@@ -445,7 +452,6 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 		pSlot->lastStreamForEndpoint[endpoint] = 0U;
 		pSlot->ringArrayForEndpoint[endpoint] = 0;
 	}
-	_completer.Flush();
 	for (endpoint = 1U; endpoint != kUSBMaxPipes; ++endpoint) {
 		pRing = pSlot->ringArrayForEndpoint[endpoint];
 		if (!pRing->isInactive())
@@ -989,7 +995,6 @@ void CLASS::PollInterrupts(IOUSBCompletionAction safeAction)
 	}
 	for (int32_t interrupter = 0; interrupter < kMaxActiveInterrupters; ++interrupter)
 		while (PollEventRing2(interrupter));
-	_completer.Flush();
 }
 
 IOReturn CLASS::GetRootHubStringDescriptor(UInt8 index, OSData* desc)

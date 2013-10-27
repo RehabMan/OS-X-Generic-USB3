@@ -59,8 +59,6 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 	return errata;
 }
 
-#define FlushAndReturn do { _completer.Flush(); return; } while (false)
-
 void CLASS::UIMCheckForTimeouts(void)
 {
 	uint32_t frameNumber, sts, mfIndex;
@@ -79,7 +77,7 @@ void CLASS::UIMCheckForTimeouts(void)
 			if (_watchdogUSBTimer)
 				_watchdogUSBTimer->cancelTimeout();
 		}
-		FlushAndReturn;
+		return;
 	}
 	if ((sts & XHCI_STS_HSE) && !_HSEDetected) {
 		IOLog("%s: HSE bit set:%x (1)\n", __FUNCTION__, sts);
@@ -92,20 +90,17 @@ void CLASS::UIMCheckForTimeouts(void)
 			CheckSlotForTimeouts(slot, frameNumber, false);
 	}
 	if (_powerStateChangingTo != kUSBPowerStateStable && _powerStateChangingTo < kUSBPowerStateOn && _powerStateChangingTo > kUSBPowerStateRestart)
-		FlushAndReturn;
+		return;
 	mfIndex = Read32Reg(&_pXHCIRuntimeRegisters->MFIndex);
 	if (m_invalid_regspace)
-		FlushAndReturn;
+		return;
 	mfIndex &= XHCI_MFINDEX_MASK;
 	if (!mfIndex)
-		FlushAndReturn;
+		return;
 	for (slot = 1U; slot <= _numSlots; ++slot)
 		if (ConstSlotPtr(slot)->oneBitCache)
 			CheckSlotForTimeouts(slot, frameNumber, true);
-	FlushAndReturn;
 }
-
-#undef FlushAndReturn
 
 IOReturn CLASS::UIMCreateControlTransfer(short functionNumber, short endpointNumber, IOUSBCommand* command,
 										 IOMemoryDescriptor* CBP, bool /* bufferRounding */, UInt32 bufferSize,

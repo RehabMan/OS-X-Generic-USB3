@@ -29,6 +29,7 @@ class GenericUSBXHCI : public IOUSBControllerV3
 
 	friend struct XHCIAsyncEndpoint;
 	friend class Completer;
+	friend class GenericUSBXHCIEventSource;
 
 private:
 	/*
@@ -275,6 +276,7 @@ private:
 	bool _HSEDetected;				// offset 0x23B1A
 									// align 5-byte
 	Completer _completer;			// Added
+	IOEventSource* _eventSource;	// Added
 #if 0
 	bool _wakeEnabled;				// Added Mavericks (0x2CFA0)
 	bool _IntelSlotWorkaround;		// Added Mavericks (0x2CFA1)
@@ -496,6 +498,8 @@ public:
 	void OverrideErrataFromProps(void);
 	IOReturn AllocScratchpadBuffers(void);
 	void FinalizeScratchpadBuffers(void);
+	IOReturn InitializeEventSource(void);
+	void FinalizeEventSource(void);
 	uint16_t PortNumberCanonicalToProtocol(uint16_t, uint8_t*);
 	uint16_t PortNumberProtocolToCanonical(uint16_t, uint8_t);
 	IOUSBHubPolicyMaker* GetHubForProtocol(uint8_t protocol);
