@@ -238,8 +238,6 @@ kern_return_t Startup(kmod_info_t* ki, void * d)
 		gux_options |= GUX_OPTION_NO_SLEEP;
 	if (PE_parse_boot_argn("-gux_defer_usb2", &v, sizeof v))
 		gux_options |= GUX_OPTION_DEFER_INTEL_EHC_PORTS;
-	if (PE_parse_boot_argn("-gux_no_idle", &v, sizeof v))
-		gux_options |= GUX_OPTION_NO_INTEL_IDLE;
 	if (PE_parse_boot_argn("-gux_nomsi", &v, sizeof v))
 		gux_options |= GUX_OPTION_NO_MSI;
 	if (PE_parse_boot_argn("gux_log", &v, sizeof v))
@@ -257,8 +255,12 @@ void ListOptions(PrintSink* pSink)
 	pSink->print("  -gux_nosleep: Disable XHCI suspend/resume method, and use reset-on-resume (forces USB Bus re-enumeration)\n");
 	pSink->print("  -gux_nomsi: Disable MSI and use pin interrupt (if available)\n");
 	pSink->print("  -gux_defer_usb2: For Intel Series 7/C210 or Intel Series 8/C220 - Switch USB 2.0 protocol ports from xHC to EHC\n");
-	pSink->print("  -gux_no_idle: For Intel Series 7/C210 only - Disable Doze mode\n");
-	pSink->print("  gux_log=n: Set logging level to n.  Available levels 1 - normal, 2 - higher\n");
+	pSink->print("  gux_log=n: Set logging level to n.  Available levels 1 - normal, 2 - higher\n\n");
+	pSink->print("Properties in Info.plist personality\n");
+	pSink->print("  DisableUAS (boolean) - disables USB Attached SCSI\n");
+	pSink->print("  ASMediaEDLTAFix (boolean) - enables workaround for ASM 1042 EDTLA bug\n");
+	pSink->print("  UseLegacyInt (boolean) - override selection of pin interrupt or MSI\n");
+	pSink->print("  IntelDoze (boolean) - For Intel Series 7/C210 only - enables use of Doze mode\n");
 }
 
 }

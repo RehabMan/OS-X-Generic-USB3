@@ -145,12 +145,6 @@ IOReturn CLASS::UIMDeviceToBeReset(short functionAddress)
 	return kIOReturnSuccess;
 }
 
-static inline IOReturn __helper(IOReturn rc, Completer* c)
-{
-	c->Flush();
-	return rc;
-}
-
 IOReturn CLASS::UIMAbortStream(UInt32 streamID, short functionNumber, short endpointNumber, short direction)
 {
 	IOReturn rc1, rc2;
@@ -183,7 +177,7 @@ IOReturn CLASS::UIMAbortStream(UInt32 streamID, short functionNumber, short endp
 		if (IsStreamsEndpoint(slot, endpoint))
 			return kIOReturnBadArgument;
 		QuiesceEndpoint(slot, endpoint);
-		return __helper(ReturnAllTransfersAndReinitRing(slot, endpoint, streamID), &_completer);
+		return ReturnAllTransfersAndReinitRing(slot, endpoint, streamID);
 	} else {
 		if (streamID > GetLastStreamForEndpoint(slot, endpoint))
 			return kIOReturnBadArgument;
@@ -191,11 +185,10 @@ IOReturn CLASS::UIMAbortStream(UInt32 streamID, short functionNumber, short endp
 		rc1 = ReturnAllTransfersAndReinitRing(slot, endpoint, streamID);
 		if (epState == EP_STATE_RUNNING)
 			RestartStreams(slot, endpoint, streamID);
-		_completer.Flush();
 		return rc1;
 	}
 	if (!IsStreamsEndpoint(slot, endpoint))
-		return __helper(ReturnAllTransfersAndReinitRing(slot, endpoint, 0U), &_completer);
+		return ReturnAllTransfersAndReinitRing(slot, endpoint, 0U);
 	lastStream = GetLastStreamForEndpoint(slot, endpoint);
 	rc1 = kIOReturnSuccess;
 	for (uint16_t streamId = 1U; streamId <= lastStream; ++streamId) {
@@ -203,7 +196,6 @@ IOReturn CLASS::UIMAbortStream(UInt32 streamID, short functionNumber, short endp
 		if (rc2 != kIOReturnSuccess)
 			rc1 = rc2;
 	}
-	_completer.Flush();
 	return rc1;
 }
 

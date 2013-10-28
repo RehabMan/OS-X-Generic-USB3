@@ -102,7 +102,7 @@ IOReturn CLASS::UIMCreateControlEndpoint(UInt8 functionNumber, UInt8 endpointNum
 		SetDCBAAAddr64(&_dcbaa.ptr[slot], ConstSlotPtr(slot)->physAddr);
 		return AddressDevice(slot,
 							 packetSize,
-							 true,
+							 false,
 							 speed,
 							 GetSlotID(highSpeedHub),
 							 highSpeedPort);

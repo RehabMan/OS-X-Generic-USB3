@@ -91,6 +91,32 @@ void* CLASS::getV3Ptr(intptr_t offset)
 	return 0;
 }
 
+__attribute__((visibility("hidden")))
+void CLASS::OverrideErrataFromProps(void)
+{
+	if (CHECK_FOR_MAVERICKS && (_errataBits & kErrataBrokenStreams) && !getProperty("DisableUAS"))
+		setProperty("DisableUAS", kOSBooleanTrue);
+	if ((_errataBits & kErrataAbsoluteEDTLA) &&
+		OSDynamicCast(OSBoolean, getProperty("ASMediaEDLTAFix")) == kOSBooleanFalse)
+		_errataBits &= ~kErrataAbsoluteEDTLA;
+	OSBoolean* b = OSDynamicCast(OSBoolean, getProperty("UseLegacyInt"));
+	if (b) {
+		if (b->isTrue())
+			_errataBits |= kErrataDisableMSI;
+		else
+			_errataBits &= ~kErrataDisableMSI;
+	}
+	if (_errataBits & kErrataIntelPantherPoint) {
+		b = OSDynamicCast(OSBoolean, getProperty("IntelDoze"));
+		if (b) {
+			if (b->isTrue())
+				_errataBits |= kErrataSWAssistedIdle;
+			else
+				_errataBits &= ~kErrataSWAssistedIdle;
+		}
+	}
+}
+
 #pragma mark -
 #pragma mark Buffers
 #pragma mark -

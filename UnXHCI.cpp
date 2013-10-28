@@ -113,6 +113,7 @@ void CLASS::EnableComplianceMode(void)
 		*_pXHCIPPTChickenBits &= ~1U;
 	}
 }
+#endif
 
 __attribute__((visibility("hidden")))
 IOReturn CLASS::FL1100Tricks(int choice)
@@ -151,7 +152,6 @@ IOReturn CLASS::FL1100Tricks(int choice)
 	}
 	return kIOReturnSuccess;
 }
-#endif
 
 __attribute__((visibility("hidden")))
 uint32_t CLASS::VMwarePortStatusShuffle(uint32_t statusChangedBitmap, uint8_t numPortsEach)

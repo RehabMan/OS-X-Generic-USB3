@@ -30,6 +30,7 @@
 		E5EA8C821698239100A263A2 /* Interrupts.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5EA8C811698239100A263A2 /* Interrupts.cpp */; };
 		E5EA8C841698241A00A263A2 /* PwrMgmt.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5EA8C831698241A00A263A2 /* PwrMgmt.cpp */; };
 		E5FA97CB16BEE6920026B0FD /* GenericUSBXHCIUserClient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5FA97C916BEE6920026B0FD /* GenericUSBXHCIUserClient.cpp */; };
+		E5FC455C181D65A2007BFF5B /* GenericUSBXHCIEventSource.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5FC455B181D65A2007BFF5B /* GenericUSBXHCIEventSource.cpp */; };
 		E5FD15B91811804B0035DB81 /* Completer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E5FD15B81811804B0035DB81 /* Completer.cpp */; };
 /* End PBXBuildFile section */
 
@@ -68,6 +69,7 @@
 		E5EA8C831698241A00A263A2 /* PwrMgmt.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = PwrMgmt.cpp; sourceTree = "<group>"; };
 		E5FA97C916BEE6920026B0FD /* GenericUSBXHCIUserClient.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = GenericUSBXHCIUserClient.cpp; sourceTree = "<group>"; };
 		E5FA97CA16BEE6920026B0FD /* GenericUSBXHCIUserClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GenericUSBXHCIUserClient.h; sourceTree = "<group>"; };
+		E5FC455B181D65A2007BFF5B /* GenericUSBXHCIEventSource.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = GenericUSBXHCIEventSource.cpp; sourceTree = "<group>"; };
 		E5FD15B7181180370035DB81 /* Completer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Completer.h; sourceTree = "<group>"; };
 		E5FD15B81811804B0035DB81 /* Completer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Completer.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -130,6 +132,7 @@
 				E5D81FFD166F8ABF0075A356 /* GenericUSBXHCI.h */,
 				E5FA97CA16BEE6920026B0FD /* GenericUSBXHCIUserClient.h */,
 				E5D81FFE166F8ABF0075A356 /* GenericUSBXHCI.cpp */,
+				E5FC455B181D65A2007BFF5B /* GenericUSBXHCIEventSource.cpp */,
 				E5FA97C916BEE6920026B0FD /* GenericUSBXHCIUserClient.cpp */,
 				E5EA8C811698239100A263A2 /* Interrupts.cpp */,
 				E50C5E4016EF381600D655E1 /* Isoch.h */,
@@ -262,6 +265,7 @@
 				E5EA8C7F169822C800A263A2 /* Diagnostics.cpp in Sources */,
 				E5EA8C821698239100A263A2 /* Interrupts.cpp in Sources */,
 				E5EA8C841698241A00A263A2 /* PwrMgmt.cpp in Sources */,
+				E5FC455C181D65A2007BFF5B /* GenericUSBXHCIEventSource.cpp in Sources */,
 				E5AE45A91805D01D000813E4 /* Streams.cpp in Sources */,
 				E53AAC301807016B0050AC2C /* Rings.cpp in Sources */,
 				E5DE3C4818070046007D70A7 /* Slots.cpp in Sources */,
@@ -285,7 +289,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPYRIGHT_NOTICE = "Copyright © 2012-2013 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.7d9;
+				CURRENT_PROJECT_VERSION = 1.2.8d2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
@@ -322,7 +326,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				COPYRIGHT_NOTICE = "Copyright © 2012-2013 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.7d9;
+				CURRENT_PROJECT_VERSION = 1.2.8d2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;

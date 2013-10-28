@@ -31,6 +31,7 @@ class EXPORT GenericUSBXHCI : public IOUSBControllerV3
 
 	friend struct XHCIAsyncEndpoint;
 	friend class Completer;
+	friend class GenericUSBXHCIEventSource;
 
 private:
 	/*
@@ -277,6 +278,7 @@ private:
 	bool _HSEDetected;				// offset 0x23B1A
 									// align 5-byte
 	Completer _completer;			// Added
+	IOEventSource* _eventSource;	// Added
 #if 0
 	bool _wakeEnabled;				// Added Mavericks (0x2CFA0)
 	bool _IntelSlotWorkaround;		// Added Mavericks (0x2CFA1)
@@ -495,8 +497,11 @@ public:
 	IOReturn MakeBufferUnmapped(uint32_t, size_t, uint64_t, IOBufferMemoryDescriptor **, uint64_t*);
 	void CheckSleepCapability(void);
 	void SetPropsForBookkeeping(void);
+	void OverrideErrataFromProps(void);
 	IOReturn AllocScratchpadBuffers(void);
 	void FinalizeScratchpadBuffers(void);
+	IOReturn InitializeEventSource(void);
+	void FinalizeEventSource(void);
 	uint16_t PortNumberCanonicalToProtocol(uint16_t, uint8_t*);
 	uint16_t PortNumberProtocolToCanonical(uint16_t, uint8_t);
 	IOUSBHubPolicyMaker* GetHubForProtocol(uint8_t protocol);
@@ -610,7 +615,7 @@ public:
 	void EnableXHCIPorts(void);
 	void EnableComplianceMode(void) {}
 	void DisableComplianceMode(void) {}
-	IOReturn FL1100Tricks(int) { return kIOReturnSuccess; }
+	IOReturn FL1100Tricks(int);
 	static uint32_t VMwarePortStatusShuffle(uint32_t, uint8_t);
 	bool DiscoverMuxedPorts(void);
 	IOReturn HCSelect(uint8_t, uint8_t);

@@ -760,8 +760,13 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 #else
 	AdvanceTransferDQ(pRing, trbIndexInRingQueue);
 #endif
-	if (ED)
+	if (ED) {
 		shortfall = pAsyncTd->bytesThisTD - shortfall;
+		if (_errataBits & kErrataAbsoluteEDTLA) {
+			pAsyncTd->absoluteShortfall = true;
+			shortfall += pAsyncTd->bytesPreceedingThisTD;
+		}
+	}
 	if (err != XHCI_TRB_ERROR_SUCCESS) {
 		callCompletion = true;
 		flush = !pAsyncTd->finalTDInTransaction;

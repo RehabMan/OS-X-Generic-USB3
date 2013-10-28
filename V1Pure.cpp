@@ -49,6 +49,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	_errataBits = GetErrataBits(_vendorID, _deviceID, _revisionID);	// Note: originally |=
 	if (!_v3ExpansionData->_onThunderbolt)
 		_expansionData->_isochMaxBusStall = 25000U;
+	OverrideErrataFromProps();
 	_pXHCICapRegisters = reinterpret_cast<struct XHCICapRegisters volatile*>(_deviceBase->getVirtualAddress());
 #if 0
 	if (m_invalid_regspace) {
@@ -104,6 +105,12 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	rc = _workLoop->addEventSource(_filterInterruptSource);
 	if (rc != kIOReturnSuccess) {
 		IOLog("%s: Unable to add filter to workloop, error == %#x\n", __FUNCTION__, rc);
+		UIMFinalize();
+		return rc;
+	}
+	rc = InitializeEventSource();
+	if (rc != kIOReturnSuccess) {
+		IOLog("%s: Unable to create private IOEventSource and add to workloop, error == %#x\n", __FUNCTION__, rc);
 		UIMFinalize();
 		return rc;
 	}
@@ -293,8 +300,6 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	 *   more stuff
 	 */
 	SetPropsForBookkeeping();
-	if (CHECK_FOR_MAVERICKS && _vendorID == kVendorEtron)
-		setProperty("DisableUAS", kOSBooleanTrue);
 	_completer.setOwner(this);
 	_uimInitialized = true;
 	registerService();
@@ -336,6 +341,7 @@ IOReturn CLASS::UIMFinalize(void)
 		_inputContext.md = 0;
 	}
 	FinalizeScratchpadBuffers();
+	FinalizeEventSource();
 	if (_filterInterruptSource && _workLoop) {
 		_workLoop->removeEventSource(_filterInterruptSource);
 		_filterInterruptSource->release();
@@ -446,7 +452,6 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 		pSlot->lastStreamForEndpoint[endpoint] = 0U;
 		pSlot->ringArrayForEndpoint[endpoint] = 0;
 	}
-	_completer.Flush();
 	for (endpoint = 1U; endpoint != kUSBMaxPipes; ++endpoint) {
 		pRing = pSlot->ringArrayForEndpoint[endpoint];
 		if (!pRing->isInactive())
@@ -990,7 +995,6 @@ void CLASS::PollInterrupts(IOUSBCompletionAction safeAction)
 	}
 	for (int32_t interrupter = 0; interrupter < kMaxActiveInterrupters; ++interrupter)
 		while (PollEventRing2(interrupter));
-	_completer.Flush();
 }
 
 IOReturn CLASS::GetRootHubStringDescriptor(UInt8 index, OSData* desc)

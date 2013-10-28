@@ -33,7 +33,9 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 			kErrataEnableAutoCompliance | kErrataIntelPantherPoint },	// Intel Series 7/C210
 		{ kVendorIntel, 0x8C31U, 0U, UINT16_MAX, kErrataEnableAutoCompliance | kErrataParkRing | kErrataIntelLynxPoint },	// Intel Series 8/C220
 		{ kVendorIntel, 0x9C31U, 0U, UINT16_MAX, kErrataEnableAutoCompliance | kErrataParkRing | kErrataIntelLynxPoint },	// Intel Lynx Point
-		{ kVendorVMware, 0x778U, 0U, UINT16_MAX, kErrataVMwarePortSwap }	// VMware Virtual xHC
+		{ kVendorVMware, 0x778U, 0U, UINT16_MAX, kErrataVMwarePortSwap },	// VMware Virtual xHC
+		{ kVendorEtron, 0U, 0U, UINT16_MAX, kErrataBrokenStreams },		// All Etron
+		{ kVendorASMedia, 0x1042, 0U, UINT16_MAX, kErrataBrokenStreams | kErrataAbsoluteEDTLA }	// ASMedia 1042
 	};
 	ErrataListEntry const* entryPtr;
 	uint32_t i, errata = 0U;
@@ -43,8 +45,6 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 			revisionID >= entryPtr->revisionLo &&
 			revisionID <= entryPtr->revisionHi)
 			errata |= entryPtr->errata;
-	if ((gux_options & GUX_OPTION_NO_INTEL_IDLE) || version_major >= 13)
-		errata &= ~kErrataSWAssistedIdle;
 	if (gux_options & GUX_OPTION_NO_MSI)
 		errata |= kErrataDisableMSI;
 	/*
@@ -58,8 +58,6 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 	}
 	return errata;
 }
-
-#define FlushAndReturn do { _completer.Flush(); return; } while (false)
 
 void CLASS::UIMCheckForTimeouts(void)
 {
@@ -79,7 +77,7 @@ void CLASS::UIMCheckForTimeouts(void)
 			if (_watchdogUSBTimer)
 				_watchdogUSBTimer->cancelTimeout();
 		}
-		FlushAndReturn;
+		return;
 	}
 	if ((sts & XHCI_STS_HSE) && !_HSEDetected) {
 		IOLog("%s: HSE bit set:%x (1)\n", __FUNCTION__, sts);
@@ -92,20 +90,17 @@ void CLASS::UIMCheckForTimeouts(void)
 			CheckSlotForTimeouts(slot, frameNumber, false);
 	}
 	if (_powerStateChangingTo != kUSBPowerStateStable && _powerStateChangingTo < kUSBPowerStateOn && _powerStateChangingTo > kUSBPowerStateRestart)
-		FlushAndReturn;
+		return;
 	mfIndex = Read32Reg(&_pXHCIRuntimeRegisters->MFIndex);
 	if (m_invalid_regspace)
-		FlushAndReturn;
+		return;
 	mfIndex &= XHCI_MFINDEX_MASK;
 	if (!mfIndex)
-		FlushAndReturn;
+		return;
 	for (slot = 1U; slot <= _numSlots; ++slot)
 		if (ConstSlotPtr(slot)->oneBitCache)
 			CheckSlotForTimeouts(slot, frameNumber, true);
-	FlushAndReturn;
 }
-
-#undef FlushAndReturn
 
 IOReturn CLASS::UIMCreateControlTransfer(short functionNumber, short endpointNumber, IOUSBCommand* command,
 										 IOMemoryDescriptor* CBP, bool /* bufferRounding */, UInt32 bufferSize,
@@ -165,7 +160,18 @@ IOReturn CLASS::UIMCreateControlTransfer(short functionNumber, short endpointNum
 			return kIOReturnInternalError;
 		if (smallbuf2.bmRequestType == 0U && smallbuf2.bRequest == 5U) { /* kSetAddress */
 			uint16_t deviceAddress = smallbuf2.wValue;
+			ContextStruct* pContext = GetSlotContext(slot, 1);
+			uint16_t maxPacketSize = static_cast<uint16_t>(XHCI_EPCTX_1_MAXP_SIZE_GET(pContext->_e.dwEpCtx1));
+			pContext = GetSlotContext(slot);
 			_deviceZero.isBeingAddressed = true;
+			rc = AddressDevice(slot,
+							   maxPacketSize,
+							   true,
+							   GetSlCtxSpeed(pContext),
+							   XHCI_SCTX_2_TT_HUB_SID_GET(pContext->_s.dwSctx2),
+							   XHCI_SCTX_2_TT_PORT_NUM_GET(pContext->_s.dwSctx2));
+			if (rc != kIOReturnSuccess)
+				return rc;
 			_addressMapper.HubAddress[deviceAddress] = static_cast<uint8_t>(_deviceZero.HubAddress);
 			_addressMapper.PortOnHub[deviceAddress] = static_cast<uint8_t>(_deviceZero.PortOnHub);
 			_addressMapper.Slot[deviceAddress] = static_cast<uint8_t>(slot);
