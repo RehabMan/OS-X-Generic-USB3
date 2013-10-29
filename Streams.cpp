@@ -72,7 +72,7 @@ void qsort(ringStruct* pRing, uint32_t maxStream)
 		pivot_index = partition(pRing, L, R, R);
 		if (pivot_index == R)
 			/*
-			 * This happens if all elements are <= pivot, in
+			 * Note: This happens if all elements are <= pivot, in
 			 *   which case we're guaranteed that nothing was
 			 *   moved, and the pivot is still at R.
 			 */

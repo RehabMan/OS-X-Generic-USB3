@@ -380,7 +380,7 @@ void CLASS::PrintRuntimeRegs(PrintSink* pSink)
 	XHCIPortRegisterSet volatile* prs;
 	XHCIInterruptRegisterSet volatile* irs;
 	uint32_t v, v2, v3;
-	uint8_t low3, high3;
+	uint8_t protocol;
 
 	if (!pSink)
 		pSink = const_cast<PrintSink*>(&IOLogSink);
@@ -437,8 +437,6 @@ void CLASS::PrintRuntimeRegs(PrintSink* pSink)
 		pSink->print("Disabled due to Invalid Register Access\n");
 	if (_HSEDetected)
 		pSink->print("Host System Error detected\n");
-	low3 = _v3ExpansionData->_rootHubPortsSSStartRange - 1U;
-	high3 = low3 + _v3ExpansionData->_rootHubNumPortsSS;
 	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
 		prs = &_pXHCIOperationalRegisters->prs[port];
 		v = Read32Reg(&prs->PortSC);
@@ -470,7 +468,8 @@ void CLASS::PrintRuntimeRegs(PrintSink* pSink)
 					 test_bit(v, 30),
 					 test_bit(v, 31));
 		v = Read32Reg(&prs->PortPmsc);
-		if (port >=  low3 && port < high3)
+		PortNumberCanonicalToProtocol(port, &protocol);
+		if (protocol == kUSBDeviceSpeedSuper)
 			pSink->print("         PortPmsc U1 %u U2 %u FLA %c PortLi LEC %u\n",
 						 v & 0xFFU,
 						 (v >> 8) & 0xFFU,

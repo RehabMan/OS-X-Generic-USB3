@@ -295,7 +295,12 @@ void CLASS::StopEndpoint(int32_t slot, int32_t endpoint, bool suspend)
 	TRBStruct localTrb = { 0 };
 	int32_t retFromCMD;
 
+#if 0
+	/*
+	 * Note: UpdateTimeouts is the only consumer of stopTrb
+	 */
 	ClearStopTDs(slot, endpoint);
+#endif
 	localTrb.d |= XHCI_TRB_3_SLOT_SET(slot);
 	localTrb.d |= XHCI_TRB_3_EP_SET(endpoint);
 	if (suspend)
@@ -305,7 +310,7 @@ void CLASS::StopEndpoint(int32_t slot, int32_t endpoint, bool suspend)
 		SetNeedsReset(slot, true);
 }
 
-__attribute__((visibility("hidden")))
+__attribute__((always_inline, visibility("hidden")))
 void CLASS::ResetEndpoint(int32_t slot, int32_t endpoint, bool TSP)
 {
 	TRBStruct localTrb = { 0 };
@@ -330,17 +335,20 @@ uint32_t CLASS::QuiesceEndpoint(int32_t slot, int32_t endpoint)
 	if (!_controllerAvailable)
 		return 0U;
 #endif
+#if 0
+	/*
+	 * Note: UpdateTimeouts is the only consumer of stopTrb
+	 */
 	ClearStopTDs(slot, endpoint);
+#endif
 	pContext = GetSlotContext(slot, endpoint);
 	epState = XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0);
 	switch (epState) {
 		case EP_STATE_RUNNING:
 			StopEndpoint(slot, endpoint);
-			if (XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0) == EP_STATE_HALTED) {
-				ResetEndpoint(slot, endpoint);
-				epState = EP_STATE_HALTED;
-			}
-			break;
+			if (XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0) != EP_STATE_HALTED)
+				break;
+			epState = EP_STATE_HALTED;
 		case EP_STATE_HALTED:
 			ResetEndpoint(slot, endpoint);
 			break;
@@ -386,13 +394,13 @@ bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId
 		}
 	} else
 		return false;
-	ClearStopTDs(slot, endpoint);
 	if (!pAsyncEp->scheduledHead)
 		return false;
 	if (pAsyncEp->scheduledHead->command)
 		ndto = pAsyncEp->scheduledHead->command->GetNoDataTimeout();
 	else
 		ndto = 0U;
+	ClearStopTDs(slot, endpoint);
 	if (ndto)
 		switch (XHCI_EPCTX_0_EPSTATE_GET(pEpContext->_e.dwEpCtx0)) {
 			case EP_STATE_DISABLED:

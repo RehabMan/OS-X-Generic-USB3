@@ -8,6 +8,7 @@
 //
 
 #include "GenericUSBXHCI.h"
+#include "XHCITypes.h"
 
 #define CLASS GenericUSBXHCI
 #define super IOUSBControllerV3
@@ -86,7 +87,8 @@ void CLASS::ParkRing(ringStruct* pRing)
 		return;
 #endif
 	endpoint = pRing->endpoint;
-	QuiesceEndpoint(slot, endpoint);
+	if (QuiesceEndpoint(slot, endpoint) == EP_STATE_DISABLED)
+		return;
 	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
 	localTrb.d |= XHCI_TRB_3_EP_SET(static_cast<uint32_t>(endpoint));
 	/*

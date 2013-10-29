@@ -1,7 +1,12 @@
 ChangeLog
 =========
-1.2.8d1
+1.2.8d3
 - Implement properties UseLegacyInt, IntelDoze, eliminate -gux_no_idle.
+- Add GenericUSBXHCIEventSource to do _completer.Flush().
+- Don't park a disabled ring.
+- Call DoCMDCompletion from primary interrupt context.
+- Correct port recognition as USB2/USB3 in Diagnostics.cpp.
+- Eliminate unneeded calls to ClearStopTDS.
 
 1.2.7Fixes
 - Implement workaround for ASM1042 Absolute EDTLA bug.

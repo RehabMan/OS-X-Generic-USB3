@@ -25,7 +25,7 @@ OSDefineMetaClassAndFinalStructors(GenericUSBXHCIEventSource, IOEventSource);
 bool GenericUSBXHCIEventSource::checkForWork()
 {
 	GenericUSBXHCI* _owner = OSDynamicCast(GenericUSBXHCI, owner);
-	if (_owner)
+	if (_owner && !_owner->isInactive())
 		_owner->_completer.Flush();
 	return false;
 }
@@ -60,4 +60,22 @@ void GenericUSBXHCI::FinalizeEventSource(void)
 		_workLoop->removeEventSource(_eventSource);
 	_eventSource->release();
 	_eventSource = 0;
+}
+
+__attribute__((visibility("hidden")))
+void GenericUSBXHCI::ScheduleEventSource(void)
+{
+	if (!_eventSource)
+		return;
+#if 1
+	/*
+	 * Note: This optimization depends on implementation of IOWorkLoop.
+	 *   If we're executing inside InterruptHandler(), since _eventSource
+	 *   is added to WL after _filterInterruptSource,
+	 *   _eventSource->checkForWork() will execute even w/o reschedule.
+	 */
+	if (_workLoop && _workLoop->onThread())
+		return;
+#endif
+	_eventSource->enable();	// Note: twisted way of calling signalWorkAvailable()
 }

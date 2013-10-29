@@ -500,6 +500,7 @@ public:
 	void FinalizeScratchpadBuffers(void);
 	IOReturn InitializeEventSource(void);
 	void FinalizeEventSource(void);
+	void ScheduleEventSource(void);
 	uint16_t PortNumberCanonicalToProtocol(uint16_t, uint8_t*);
 	uint16_t PortNumberProtocolToCanonical(uint16_t, uint8_t);
 	IOUSBHubPolicyMaker* GetHubForProtocol(uint8_t protocol);
@@ -641,16 +642,14 @@ public:
 	 * Command Ring
 	 */
 	void InitCMDRing(void);
-	void RestoreCRCr(void);
 	IOReturn CommandStop(void);
 	IOReturn CommandAbort(void);
 	int32_t WaitForCMD(TRBStruct*, int32_t, TRBCallback);
 	IOReturn EnqueCMD(TRBStruct*, int32_t, TRBCallback, int32_t*);
 	bool DoCMDCompletion(TRBStruct);
-	static void _CompleteSlotCommand(GenericUSBXHCI*, TRBStruct*, int32_t*);
-	static void CompleteSlotCommand(TRBStruct*, int32_t*);
+	static void CompleteSlotCommand(GenericUSBXHCI*, TRBStruct*, int32_t*);
 #if 0
-	static void CompleteRenesasVendorCommand(TRBStruct*, int32_t*);
+	static void CompleteRenesasVendorCommand(GenericUSBXHCI*, TRBStruct*, int32_t*);
 #endif
 	/*
 	 * Event Handling
