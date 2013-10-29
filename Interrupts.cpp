@@ -196,6 +196,13 @@ bool CLASS::FilterEventRing(int32_t interrupter, bool* pInvokeContinuation)
 	}
 	ePtr->foundSome = true;
 	switch (XHCI_TRB_3_TYPE_GET(localTrb.d)) {
+		case TRB_RENESAS_CMD_COMP:
+			if (_vendorID != kVendorRenesas)
+				break;
+		case XHCI_TRB_EVENT_CMD_COMPLETE:
+			if (!DoCMDCompletion(localTrb))
+				break;
+			return true;
 		case XHCI_TRB_EVENT_TRANSFER:
 			if (processTransferEvent(&localTrb))
 				break;
@@ -220,7 +227,7 @@ bool CLASS::FilterEventRing(int32_t interrupter, bool* pInvokeContinuation)
 			rhPort = static_cast<uint8_t>(localTrb.a >> 24);
 			if (rhPort && rhPort <= kMaxRootPorts)
 				RHPortStatusChangeBitmapSet(1U << rhPort);
-			if (pInvokeContinuation)	// Note: Invoke PollInterrupts to call EnsureUsability
+			if (pInvokeContinuation)	// Note: Invoke PollInterrupts to perform code qualified by XHCI_STS_PCD
 				*pInvokeContinuation = true;
 			return true;
 #if 0

@@ -12,6 +12,39 @@
 #define super IOUSBControllerV3
 
 #pragma mark -
+#pragma mark Helper
+#pragma mark -
+
+template<typename T>
+static
+IOReturn WaitForChangeEvent(T volatile const* pEvent, T start_value)
+{
+	uint64_t deadline;
+
+	if (!(*pEvent == start_value))
+		return kIOReturnSuccess;
+	clock_interval_to_deadline(100, kMillisecondScale, &deadline);
+	do {
+		if (assert_wait_deadline(const_cast<T*>(pEvent), THREAD_ABORTSAFE, deadline) != THREAD_WAITING)
+			return kIOReturnNoResources;
+		if (!(*pEvent == start_value)) {
+			thread_wakeup_prim(const_cast<T*>(pEvent), FALSE, THREAD_AWAKENED);
+			break;
+		}
+		switch (thread_block(THREAD_CONTINUE_NULL)) {
+			case THREAD_AWAKENED:
+			case THREAD_NOT_WAITING:
+				break;
+			case THREAD_TIMED_OUT:
+				return kIOReturnTimeout;
+			default:
+				return kIOReturnAborted;
+		}
+	} while (*pEvent == start_value);
+	return kIOReturnSuccess;
+}
+
+#pragma mark -
 #pragma mark Command Ring
 #pragma mark -
 
@@ -34,26 +67,6 @@ void CLASS::InitCMDRing(void)
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::RestoreCRCr(void)
-{
-	uint64_t newCRCr;
-	uint8_t newCycleState;
-
-	newCRCr = _commandRing.physAddr + _commandRing.dequeueIndex * sizeof *_commandRing.ptr;
-#if 0
-	newCRCr &= ~XHCI_CRCR_LO_MASK;	// Note: This is a XHCI design flaw, as dequeueIndex may not be a multiple of 4
-#endif
-	if (_commandRing.enqueueIndex >= _commandRing.dequeueIndex)
-		newCycleState = _commandRing.cycleState;
-	else
-		newCycleState = _commandRing.cycleState ^ 1U;
-	if (newCycleState & 1U)
-		newCRCr |= XHCI_CRCR_LO_RCS;
-
-	Write64Reg(&_pXHCIOperationalRegisters->CRCr, newCRCr, false);
-}
-
-__attribute__((visibility("hidden")))
 IOReturn CLASS::CommandStop(void)
 {
 	uint32_t lowCRCr = Read32Reg(reinterpret_cast<uint32_t volatile const*>(&_pXHCIOperationalRegisters->CRCr));
@@ -63,13 +76,7 @@ IOReturn CLASS::CommandStop(void)
 		return kIOReturnSuccess;
 	_commandRing.stopPending = true;
 	Write32Reg(reinterpret_cast<uint32_t volatile*>(&_pXHCIOperationalRegisters->CRCr), static_cast<uint32_t>(XHCI_CRCR_LO_CS));
-	for (int32_t count = 0; _commandRing.stopPending && count < 100; ++count) {
-		if (count)
-			IOSleep(1U);
-		PollForCMDCompletions(0);
-		if (m_invalid_regspace)
-			return kIOReturnNoDevice;
-	}
+	WaitForChangeEvent<bool>(&_commandRing.stopPending, true);
 	if (_commandRing.stopPending) {
 		_commandRing.stopPending = false;
 		IOLog("%s: Timeout waiting for command ring to stop, 100ms\n", __FUNCTION__);
@@ -88,13 +95,7 @@ IOReturn CLASS::CommandAbort(void)
 		return kIOReturnSuccess;
 	_commandRing.stopPending = true;
 	Write32Reg(reinterpret_cast<uint32_t volatile*>(&_pXHCIOperationalRegisters->CRCr), static_cast<uint32_t>(XHCI_CRCR_LO_CA));
-	for (int32_t count = 0; _commandRing.stopPending && count < 10000; ++count) {
-		if (count)
-			IODelay(10U);
-		PollForCMDCompletions(0);
-		if (m_invalid_regspace)
-			return kIOReturnNoDevice;
-	}
+	WaitForChangeEvent<bool>(&_commandRing.stopPending, true);
 	if (_commandRing.stopPending) {
 		IOLog("%s: Timeout waiting for command to abort, 100ms\n", __FUNCTION__);
 		_commandRing.stopPending = false;
@@ -106,7 +107,7 @@ IOReturn CLASS::CommandAbort(void)
 __attribute__((visibility("hidden")))
 int32_t CLASS::WaitForCMD(TRBStruct* trb, int32_t trbType, TRBCallback callback)
 {
-	int32_t count, prevIndex;
+	int32_t prevIndex;
 	int32_t volatile ret = -1;
 	uint32_t sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace)
@@ -118,15 +119,14 @@ int32_t CLASS::WaitForCMD(TRBStruct* trb, int32_t trbType, TRBCallback callback)
 	if (isInactive() || !_controllerAvailable)
 		return ret;
 	prevIndex = _commandRing.enqueueIndex;
-	if (EnqueCMD(trb, trbType, callback ? : _CompleteSlotCommand, const_cast<int32_t*>(&ret)) != kIOReturnSuccess)
+	if (EnqueCMD(trb, trbType, callback ? : CompleteSlotCommand, const_cast<int32_t*>(&ret)) != kIOReturnSuccess)
 		return ret;
-	for (count = 0; ret == -1 && count < 10000; ++count) {
-		if (count)
-			IODelay(10U);
+	WaitForChangeEvent<int32_t>(&ret, -1);
+	/*
+	 * Note: Scoop up stop TRBs
+	 */
+	if (trbType == XHCI_TRB_TYPE_STOP_EP)
 		PollForCMDCompletions(0);
-		if (m_invalid_regspace)
-			return ret;
-	}
 	if (ret != -1)
 		return ret;
 	IOLog("%s: Timeout waiting for command completion (opcode %#x), 100ms\n", __FUNCTION__, static_cast<uint32_t>(trbType));
@@ -189,17 +189,21 @@ bool CLASS::DoCMDCompletion(TRBStruct trb)
 	uint16_t newIdx;
 	uint64_t addr = GetTRBAddr64(&trb);
 	if (!addr) {
-		IOLog("%s: Zero pointer in CCE\n", __FUNCTION__);
+		if (!ml_at_interrupt_context())
+			IOLog("%s: Zero pointer in CCE\n", __FUNCTION__);
 		return false;
 	}
 	idx64 = DiffTRBIndex(addr, _commandRing.physAddr);
 	if (idx64 < 0 || idx64 >= _commandRing.numTRBs - 1U) {
-		IOLog("%s: bad pointer in CCE: %lld\n", __FUNCTION__, idx64);
+		if (!ml_at_interrupt_context())
+			IOLog("%s: bad pointer in CCE: %lld\n", __FUNCTION__, idx64);
 		return false;
 	}
 	if (XHCI_TRB_2_ERROR_GET(trb.c) == XHCI_TRB_ERROR_CMD_RING_STOP) {
-		_commandRing.stopPending = false;
 		_commandRing.dequeueIndex = static_cast<uint16_t>(idx64);
+		_commandRing.stopPending = false;
+		if (ml_at_interrupt_context())
+			thread_wakeup_prim(const_cast<bool*>(&_commandRing.stopPending), FALSE, THREAD_AWAKENED);
 		return true;
 	}
 	newIdx = static_cast<uint16_t>(idx64) + 1U;
@@ -219,13 +223,7 @@ bool CLASS::DoCMDCompletion(TRBStruct trb)
 #pragma mark -
 
 __attribute__((visibility("hidden")))
-void CLASS::_CompleteSlotCommand(GenericUSBXHCI* owner, TRBStruct* pTrb, int32_t* param)
-{
-	owner->CompleteSlotCommand(pTrb, param);
-}
-
-__attribute__((visibility("hidden")))
-void CLASS::CompleteSlotCommand(TRBStruct* pTrb, int32_t* param)
+void CLASS::CompleteSlotCommand(CLASS*, TRBStruct* pTrb, int32_t* param)
 {
 	int32_t ret, err = static_cast<int32_t>(XHCI_TRB_2_ERROR_GET(pTrb->c));
 	if (err == XHCI_TRB_ERROR_SUCCESS)
@@ -233,22 +231,8 @@ void CLASS::CompleteSlotCommand(TRBStruct* pTrb, int32_t* param)
 	else
 		ret = -1000 - err;
 	*param = ret;
-#if 0
-	/*
-	 * Note: Called from either of
-	 *   PollEventRing2 - on thread, on gate
-	 *     Signalling param could be useful, but never
-	 *     used, since EnqueCMD is not used standalone
-	 *     with an off-gate thread waiting for the result.
-	 *   PollForCMDCompletions - off thread, on gate
-	 *     Signalling param is useless because this invocation
-	 *     is nested within WaitForCMD which tests the value
-	 *     of *param once the call returns.
-	 */
-	if (getWorkLoop()->onThread())
-		return;
-	GetCommandGate()->commandWakeup(param);
-#endif
+	if (ml_at_interrupt_context())
+		thread_wakeup_prim(param, FALSE, THREAD_AWAKENED);
 }
 
 #if 0
@@ -259,14 +243,15 @@ void CLASS::CompleteSlotCommand(TRBStruct* pTrb, int32_t* param)
  *   each field 8 bits.
  */
 __attribute__((visibility("hidden")))
-void CLASS::CompleteRenesasVendorCommand(TRBStruct* pTrb, int32_t* param)
+void CLASS::CompleteRenesasVendorCommand(CLASS*, TRBStruct* pTrb, int32_t* param)
 {
 	int32_t ret, err = static_cast<int32_t>(XHCI_TRB_2_ERROR_GET(pTrb->c));
 	if (err == XHCI_TRB_ERROR_SUCCESS)
 		ret = static_cast<int32_t>(pTrb->c & UINT16_MAX);
 	else
 		ret = -1000 - err;	// Note: originally 1000 + err
-	*param = err;
-	GetCommandGate()->commandWakeup(param);
+	*param = ret;
+	if (ml_at_interrupt_context())
+		thread_wakeup_prim(param, FALSE, THREAD_AWAKENED);
 }
 #endif

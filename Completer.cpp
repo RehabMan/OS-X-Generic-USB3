@@ -46,8 +46,12 @@ bool Completer::AddItem(IOUSBCompletion const* pCompletion, IOReturn status, uin
 	else
 		activeHead = pItem;
 	activeTail = pItem;
-	if (owner && owner->_eventSource)
-		owner->_eventSource->enable();	// Note: twisted way of calling signalWorkAvailable()
+	/*
+	 * Note: If flushing, we're already executing inside
+	 *   InternalFlush, so no need to reschedule.
+	 */
+	if (!flushing && owner)
+		owner->ScheduleEventSource();
 	return true;
 }
 
