@@ -514,34 +514,32 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 	IOReturn passthruReturnCode;
 	uint32_t shortfall, ndto, cto, bytesShortfell, firstSeen, TRTime;
 	int32_t next;
-	bool returnATransfer = false, ED, absoluteShortfall = false, oldAS, errorLength;
+	bool returnATransfer = false, absoluteShortfall = false, oldAS;
 
 	pAsyncTd = scheduledHead;
 	if (!pAsyncTd)
 		return;
 	addr = GenericUSBXHCI::GetTRBAddr64(&pRing->stopTrb);
-	ED = (pRing->stopTrb.d & XHCI_TRB_3_ED_BIT) != 0U;
-	errorLength = (XHCI_TRB_2_ERROR_GET(pRing->stopTrb.c) == XHCI_TRB_ERROR_LENGTH);
-	if (!ED && errorLength)
-		shortfall = 0U;
-	else
-		shortfall = XHCI_TRB_2_REM_GET(pRing->stopTrb.c);
 	trbIndex64 = GenericUSBXHCI::DiffTRBIndex(addr, pRing->physAddr);
-	if (trbIndex64 < 0 || trbIndex64 >= pRing->numTRBs - 1U)
+	if (trbIndex64 < 0 || trbIndex64 >= pRing->numTRBs - 1U) {
 		trbIndex64 = pRing->dequeueIndex;
-	else if (!ED) {
-		if (errorLength)
-			/*
-			 * Note: If stopped on a link TRB, this field is zero
-			 */
-			shortfall += XHCI_TRB_2_BYTES_GET(pRing->ptr[trbIndex64].c);
-		GenericUSBXHCI::CountRingToED(pRing, static_cast<int32_t>(trbIndex64), &shortfall);
-	}
-	if (ED) {
-		shortfall = pAsyncTd->bytesThisTD - shortfall;
-		if (provider->_errataBits & kErrataAbsoluteEDTLA) {
-			absoluteShortfall = true;
-			shortfall += pAsyncTd->bytesPreceedingThisTD;
+		shortfall = pAsyncTd->bytesThisTD;
+	} else {
+		if ((pRing->stopTrb.d & XHCI_TRB_3_ED_BIT) != 0U) {
+			shortfall = pAsyncTd->bytesThisTD - XHCI_TRB_2_REM_GET(pRing->stopTrb.c);
+			if (provider->_errataBits & kErrataAbsoluteEDTLA) {
+				absoluteShortfall = true;
+				shortfall += pAsyncTd->bytesPreceedingThisTD;
+			}
+		} else {
+			if (XHCI_TRB_2_ERROR_GET(pRing->stopTrb.c) == XHCI_TRB_ERROR_LENGTH)
+				/*
+				 * Note: If stopped on a link TRB, this field is zero
+				 */
+				shortfall = XHCI_TRB_2_BYTES_GET(pRing->ptr[trbIndex64].c);
+			else
+				shortfall = XHCI_TRB_2_REM_GET(pRing->stopTrb.c);
+			GenericUSBXHCI::CountRingToED(pRing, static_cast<int32_t>(trbIndex64), &shortfall);
 		}
 	}
 	if (!abortAll) {
@@ -555,7 +553,7 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 			command->SetUIMScratch(5U, frameNumber);
 			firstSeen = frameNumber;
 		}
-		if (cto && frameNumber - firstSeen > cto) {
+		if (cto && frameNumber && frameNumber - firstSeen > cto) {
 			pAsyncTd->shortfall = shortfall;
 			pAsyncTd->absoluteShortfall = absoluteShortfall;
 			returnATransfer = true;
@@ -572,7 +570,7 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 				command->SetUIMScratch(3U, static_cast<uint32_t>(trbIndex64));
 				command->SetUIMScratch(4U, absoluteShortfall ? (shortfall | OLDAS_MASK) : shortfall);
 				command->SetUIMScratch(6U, frameNumber);
-			} else if (frameNumber - TRTime > ndto) {
+			} else if (frameNumber && frameNumber - TRTime > ndto) {
 				pAsyncTd->shortfall = bytesShortfell;
 				pAsyncTd->absoluteShortfall = oldAS;
 				returnATransfer = true;
@@ -593,9 +591,13 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 	 * Note: Mavericks updates a couple
 	 *   of diagnostic counters here.
 	 */
+#if 1
 	next = pAsyncTd->lastTrbIndex + 1;
 	if (next >= static_cast<int32_t>(pRing->numTRBs) - 1)
 		next = 0;
+#else
+	next = GenericUSBXHCI::NextTransferDQ(pRing, pAsyncTd->lastTrbIndex);
+#endif
 	if (!stopped)
 		provider->QuiesceEndpoint(pRing->slot, pRing->endpoint);
 	provider->SetTRDQPtr(pRing->slot, pRing->endpoint, pAsyncTd->streamId, next);

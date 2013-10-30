@@ -378,7 +378,7 @@ bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId
 	 * Note: Isoch Endpoints are ruled out in CheckSlotForTimeouts
 	 */
 	pAsyncEp = pRing->asyncEndpoint;
-	if (!pAsyncEp)
+	if (!pAsyncEp || !pAsyncEp->scheduledHead)
 		return false;
 	if (abortAll)
 		pEpContext = GetSlotContext(slot, endpoint);
@@ -393,8 +393,6 @@ bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId
 				return false;
 		}
 	} else
-		return false;
-	if (!pAsyncEp->scheduledHead)
 		return false;
 	if (pAsyncEp->scheduledHead->command)
 		ndto = pAsyncEp->scheduledHead->command->GetNoDataTimeout();
