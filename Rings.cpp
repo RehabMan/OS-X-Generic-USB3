@@ -8,7 +8,6 @@
 //
 
 #include "GenericUSBXHCI.h"
-#include "XHCITypes.h"
 
 #define CLASS GenericUSBXHCI
 #define super IOUSBControllerV3
@@ -75,38 +74,6 @@ void CLASS::DeallocRing(ringStruct* pRing)
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::ParkRing(ringStruct* pRing)
-{
-	int32_t retFromCMD;
-	uint8_t slot, endpoint;
-	TRBStruct localTrb = { 0 };
-
-	slot = pRing->slot;
-#if 0
-	if (GetSlCtxSpeed(GetSlotContext(slot)) > kUSBDeviceSpeedHigh)
-		return;
-#endif
-	endpoint = pRing->endpoint;
-	if (QuiesceEndpoint(slot, endpoint) == EP_STATE_DISABLED)
-		return;
-	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
-	localTrb.d |= XHCI_TRB_3_EP_SET(static_cast<uint32_t>(endpoint));
-	/*
-	 * Use a 16-byte aligned zero-filled spare space in Event Ring 0
-	 *   to park the ring. (see InitEventRing)
-	 */
-	SetTRBAddr64(&localTrb, _eventRing[0].erstba + sizeof localTrb);
-	localTrb.a |= XHCI_TRB_3_CYCLE_BIT;	// Note: set DCS to 1 so it doesn't move
-	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_SET_TR_DEQUEUE, 0);
-	if (retFromCMD != -1 && retFromCMD > -1000)
-		return;
-#if 0
-	PrintContext(GetSlotContext(slot));
-	PrintContext(GetSlotContext(slot, endpoint));
-#endif
-}
-
-__attribute__((visibility("hidden")))
 ringStruct* CLASS::CreateRing(int32_t slot, int32_t endpoint, uint32_t maxStream)
 {
 	SlotStruct* pSlot = SlotPtr(slot);
@@ -130,18 +97,24 @@ ringStruct* CLASS::CreateRing(int32_t slot, int32_t endpoint, uint32_t maxStream
 }
 
 __attribute__((visibility("hidden")))
-int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uint32_t* pShortFall)
+int32_t CLASS::CountRingToED(ringStruct const* pRing, int32_t trbIndexInRingQueue, uint32_t* pShortFall)
 {
 	int32_t next;
 	uint32_t trbType;
 	TRBStruct* pTrb = &pRing->ptr[trbIndexInRingQueue];
 
+	/*
+	 * Note: CountRingToED is called with an index taken from
+	 *   a Transfer Event TRB.  It's not likely the index
+	 *   can ever be pRing->enqueueIndex, but check to make sure.
+	 */
+	if (trbIndexInRingQueue == pRing->enqueueIndex)
+		return trbIndexInRingQueue;
 	trbType = XHCI_TRB_3_TYPE_GET(pTrb->d);
-	while ((pTrb->d & XHCI_TRB_3_CHAIN_BIT) &&
-		   trbType != XHCI_TRB_TYPE_EVENT_DATA &&
-		   trbType != XHCI_TRB_TYPE_LINK) {
+	while (trbType != XHCI_TRB_TYPE_EVENT_DATA &&
+		   (pTrb->d & XHCI_TRB_3_CHAIN_BIT)) {
 		next = trbIndexInRingQueue + 1;
-		if (next >= static_cast<int32_t>(pRing->numTRBs) - 1)
+		if (trbType == XHCI_TRB_TYPE_LINK || next >= static_cast<int32_t>(pRing->numTRBs) - 1)
 			next = 0;
 		if (next == static_cast<int32_t>(pRing->enqueueIndex))
 			break;
@@ -152,4 +125,18 @@ int32_t CLASS::CountRingToED(ringStruct* pRing, int32_t trbIndexInRingQueue, uin
 			*pShortFall += XHCI_TRB_2_BYTES_GET(pTrb->c);
 	}
 	return trbIndexInRingQueue;
+}
+
+__attribute__((visibility("hidden")))
+uint16_t CLASS::NextTransferDQ(ringStruct const* pRing, int32_t index)
+{
+	/*
+	 * Note: Assumes index != pRing->enqueueIndex
+	 */
+	++index;
+	if ((index >= static_cast<int32_t>(pRing->numTRBs) - 1) ||
+		(index != pRing->enqueueIndex &&
+		 XHCI_TRB_3_TYPE_GET(pRing->ptr[index].d) == XHCI_TRB_TYPE_LINK))
+		index = 0;
+	return static_cast<uint16_t>(index);
 }

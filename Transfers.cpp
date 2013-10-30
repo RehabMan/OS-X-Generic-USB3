@@ -181,6 +181,38 @@ int32_t CLASS::SetTRDQPtr(int32_t slot, int32_t endpoint, uint32_t streamId, int
 }
 
 __attribute__((visibility("hidden")))
+void CLASS::ParkRing(ringStruct* pRing)
+{
+	int32_t retFromCMD;
+	uint8_t slot, endpoint;
+	TRBStruct localTrb = { 0 };
+
+	slot = pRing->slot;
+#if 0
+	if (GetSlCtxSpeed(GetSlotContext(slot)) > kUSBDeviceSpeedHigh)
+		return;
+#endif
+	endpoint = pRing->endpoint;
+	if (QuiesceEndpoint(slot, endpoint) == EP_STATE_DISABLED)
+		return;
+	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
+	localTrb.d |= XHCI_TRB_3_EP_SET(static_cast<uint32_t>(endpoint));
+	/*
+	 * Use a 16-byte aligned zero-filled spare space in Event Ring 0
+	 *   to park the ring. (see InitEventRing)
+	 */
+	SetTRBAddr64(&localTrb, _eventRing[0].erstba + sizeof localTrb);
+	localTrb.a |= XHCI_TRB_3_CYCLE_BIT;	// Note: set DCS to 1 so it doesn't move
+	retFromCMD = WaitForCMD(&localTrb, XHCI_TRB_TYPE_SET_TR_DEQUEUE, 0);
+	if (retFromCMD != -1 && retFromCMD > -1000)
+		return;
+#if 0
+	PrintContext(GetSlotContext(slot));
+	PrintContext(GetSlotContext(slot, endpoint));
+#endif
+}
+
+__attribute__((visibility("hidden")))
 void CLASS::ClearStopTDs(int32_t slot, int32_t endpoint)
 {
 	SlotStruct* pSlot = SlotPtr(slot);
@@ -628,15 +660,4 @@ void CLASS::PutBackTRB(ringStruct* pRing, TRBStruct* pTrb)
 		pRing->enqueueIndex = pRing->numTRBs - 1U;
 		pRing->cycleState ^= 1U;
 	}
-}
-
-__attribute__((visibility("hidden")))
-void CLASS::AdvanceTransferDQ(ringStruct* pRing, int32_t index)
-{
-	++index;
-	if ((index >= static_cast<int32_t>(pRing->numTRBs) - 1) ||
-		(index != pRing->enqueueIndex &&
-		 XHCI_TRB_3_TYPE_GET(pRing->ptr[index].d) == XHCI_TRB_TYPE_LINK))
-		index = 0;
-	pRing->dequeueIndex = static_cast<uint16_t>(index);
 }

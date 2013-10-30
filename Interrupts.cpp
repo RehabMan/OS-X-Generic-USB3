@@ -732,7 +732,7 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 			next = 0U;
 		pRing->dequeueIndex = next;
 #else
-		AdvanceTransferDQ(pRing, trbIndexInRingQueue);
+		pRing->dequeueIndex = NextTransferDQ(pRing, trbIndexInRingQueue);
 #endif
 		return true;
 	}
@@ -765,7 +765,7 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 		next = 0U;
 	pRing->dequeueIndex = next;
 #else
-	AdvanceTransferDQ(pRing, trbIndexInRingQueue);
+	pRing->dequeueIndex = NextTransferDQ(pRing, trbIndexInRingQueue);
 #endif
 	if (ED) {
 		shortfall = pAsyncTd->bytesThisTD - shortfall;
