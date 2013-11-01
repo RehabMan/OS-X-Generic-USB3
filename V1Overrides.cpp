@@ -63,15 +63,17 @@ void CLASS::UIMCheckForTimeouts(void)
 {
 	uint32_t frameNumber, sts, mfIndex;
 	uint8_t slot;
-	bool isAssociatedRHPortEnabled;
 
 	if (!_controllerAvailable || _wakingFromHibernation)
 		return;
 	frameNumber = GetFrameNumber32();
 	sts = Read32Reg(&_pXHCIOperationalRegisters->USBSts);
 	if (m_invalid_regspace) {
+#if 0
 		for (slot = 1U; slot <= _numSlots; ++slot)
-			CheckSlotForTimeouts(slot, 0U, false);
+			if (!ConstSlotPtr(slot)->isInactive())
+				CheckSlotForTimeouts(slot, 0U, true);
+#endif
 		if (_expansionData) {
 			_watchdogTimerActive = false;
 			if (_watchdogUSBTimer)
@@ -83,12 +85,15 @@ void CLASS::UIMCheckForTimeouts(void)
 		IOLog("%s: HSE bit set:%x (1)\n", __FUNCTION__, sts);
 		_HSEDetected = true;
 	}
+#if 0
 	for (slot = 1U; slot <= _numSlots; ++slot) {
-		isAssociatedRHPortEnabled = IsStillConnectedAndEnabled(slot);
-		SlotPtr(slot)->oneBitCache = isAssociatedRHPortEnabled;
-		if (!isAssociatedRHPortEnabled)
-			CheckSlotForTimeouts(slot, frameNumber, false);
+		SlotStruct* pSlot = SlotPtr(slot);
+		if (pSlot->isInactive())
+			continue;
+		if (!(pSlot->oneBitCache = IsStillConnectedAndEnabled(slot)))
+			CheckSlotForTimeouts(slot, frameNumber, true);
 	}
+#endif
 	if (_powerStateChangingTo != kUSBPowerStateStable && _powerStateChangingTo < kUSBPowerStateOn && _powerStateChangingTo > kUSBPowerStateRestart)
 		return;
 	mfIndex = Read32Reg(&_pXHCIRuntimeRegisters->MFIndex);
@@ -97,9 +102,15 @@ void CLASS::UIMCheckForTimeouts(void)
 	mfIndex &= XHCI_MFINDEX_MASK;
 	if (!mfIndex)
 		return;
-	for (slot = 1U; slot <= _numSlots; ++slot)
-		if (ConstSlotPtr(slot)->oneBitCache)
-			CheckSlotForTimeouts(slot, frameNumber, true);
+	for (slot = 1U; slot <= _numSlots; ++slot) {
+		SlotStruct const* pSlot = ConstSlotPtr(slot);
+		if (pSlot->isInactive())
+			continue;
+#if 0
+		if (pSlot->oneBitCache)
+#endif
+			CheckSlotForTimeouts(slot, frameNumber, pSlot->deviceNeedsReset);
+	}
 }
 
 IOReturn CLASS::UIMCreateControlTransfer(short functionNumber, short endpointNumber, IOUSBCommand* command,

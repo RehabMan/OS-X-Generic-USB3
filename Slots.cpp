@@ -245,12 +245,9 @@ bool CLASS::IsStillConnectedAndEnabled(int32_t slot)
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::CheckSlotForTimeouts(int32_t slot, uint32_t frameNumber, bool isAssociatedRHPortEnabled)
+void CLASS::CheckSlotForTimeouts(int32_t slot, uint32_t frameNumber, bool abortAll)
 {
 	SlotStruct* pSlot = SlotPtr(slot);
-	if (pSlot->isInactive())
-		return;
-	bool abortAll = pSlot->deviceNeedsReset || !isAssociatedRHPortEnabled;
 	for (int32_t endpoint = 1; endpoint != kUSBMaxPipes; ++endpoint) {
 		ringStruct* pRing = pSlot->ringArrayForEndpoint[endpoint];
 		if (pRing->isInactive() ||

@@ -323,6 +323,11 @@ IOReturn CLASS::UIMEnableAddressEndpoints(USBDeviceAddress address, bool enable)
 			_addressMapper.Active[address] = false;
 			return kIOReturnInternalError;
 		}
+		/*
+		 * Note: May be called from maxCapabilityForDomainState
+		 */
+		if (_myBusState < kUSBBusStateRunning)
+			return kIOReturnSuccess;
 		for (int32_t endpoint = 1; endpoint != kUSBMaxPipes; ++endpoint) {
 			ringStruct* pRing = GetRing(slot, endpoint, 0U);
 			if (pRing->isInactive())

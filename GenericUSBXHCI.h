@@ -602,14 +602,14 @@ public:
 	IOReturn AllocRing(ringStruct*, int32_t);
 	void InitPreallocedRing(ringStruct*);
 	static void DeallocRing(ringStruct*);
-	static int32_t CountRingToED(ringStruct*, int32_t, uint32_t*);
+	static int32_t CountRingToED(ringStruct const*, int32_t, uint32_t*);
 	void ParkRing(ringStruct*);
 	IOReturn ReturnAllTransfersAndReinitRing(int32_t, int32_t, uint32_t);
 	IOReturn ReinitTransferRing(int32_t, int32_t, uint32_t);
 	int32_t SetTRDQPtr(int32_t, int32_t, uint32_t, int32_t);
 	static bool CanTDFragmentFit(ringStruct const*, uint32_t);
 	static uint32_t FreeSlotsOnRing(ringStruct const*);
-	static void AdvanceTransferDQ(ringStruct*, int32_t);
+	static uint16_t NextTransferDQ(ringStruct const*, int32_t);
 	/*
 	 * Non-standard XHCI Extensions
 	 */
