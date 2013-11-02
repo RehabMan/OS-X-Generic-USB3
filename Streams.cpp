@@ -129,7 +129,7 @@ IOReturn CLASS::CreateStream(ringStruct* pRing, uint16_t streamId)
 	pStreamRing->nextIsocFrame = 0ULL;
 	pStreamRing->returnInProgress = false;
 	pStreamRing->deleteInProgress = false;
-	pStreamRing->schedulingPending = false;
+	pStreamRing->needsDoorbell = false;
 	if (pStreamRing->md)
 		return kIOReturnInternalError;
 	pStreamRing->md = pRing->md;

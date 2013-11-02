@@ -100,10 +100,8 @@ struct ringStruct
 	uint8_t endpoint; // 0x59
 	bool returnInProgress; // 0x5A
 	bool deleteInProgress; // 0x5B
-	bool schedulingPending; // 0x5C
-#if 0
-	bool needSetDQ;	// 0x5D (Added Mavericks)
-#endif
+	bool needsDoorbell; // 0x5C
+	bool needsSetTRDQPtr;	// 0x5D (Added Mavericks)
 
 	__attribute__((always_inline)) bool isInactive(void) const { return !this || !this->md; }
 } __attribute__((aligned(128)));
@@ -117,7 +115,7 @@ struct EventRingStruct
 	uint16_t volatile bounceDequeueIndex;// 0x2
 	uint16_t volatile bounceEnqueueIndex;// 0x4
 	uint8_t cycleState; // 0x6
-	bool foundSome; 	// 0x7
+	bool erdpNeedsUpdate; 	// 0x7
 	uint16_t numxHCEntries;	// 0x8
 	uint16_t numBounceEntries;	// 0xA
 	int32_t volatile numBounceQueueOverflows;	// 0xC

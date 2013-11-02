@@ -153,7 +153,7 @@ void CLASS::postFilterEventRing(int32_t interrupter)
 	 */
 	if (m_invalid_regspace)
 		return;
-	if (!ePtr->foundSome) {
+	if (!ePtr->erdpNeedsUpdate) {
 		/*
 		 * Check if EHB is on
 		 */
@@ -168,7 +168,7 @@ void CLASS::postFilterEventRing(int32_t interrupter)
 	erdp = ePtr->erdp + ePtr->xHCDequeueIndex * sizeof *ePtr->erstPtr;
 	erdp |= XHCI_ERDP_LO_BUSY;
 	Write64Reg(&_pXHCIRuntimeRegisters->irs[interrupter].erdp, erdp, true);
-	ePtr->foundSome = false;
+	ePtr->erdpNeedsUpdate = false;
 }
 
 __attribute__((noinline, visibility("hidden")))
@@ -194,7 +194,7 @@ bool CLASS::FilterEventRing(int32_t interrupter, bool* pInvokeContinuation)
 		ePtr->xHCDequeueIndex = 0U;
 		ePtr->cycleState ^= 1U;
 	}
-	ePtr->foundSome = true;
+	ePtr->erdpNeedsUpdate = true;
 	switch (XHCI_TRB_3_TYPE_GET(localTrb.d)) {
 		case TRB_RENESAS_CMD_COMP:
 			if (_vendorID != kVendorRenesas)
@@ -493,7 +493,7 @@ void CLASS::InitEventRing(int32_t which, bool restarting)
 	Write32Reg(&irSet->iman, XHCI_IMAN_INTR_ENA);
 	ePtr->xHCDequeueIndex = 0U;
 	ePtr->cycleState = 1U;
-	ePtr->foundSome = false;
+	ePtr->erdpNeedsUpdate = false;
 }
 
 __attribute__((visibility("hidden")))

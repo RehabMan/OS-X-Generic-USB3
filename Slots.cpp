@@ -163,18 +163,28 @@ void CLASS::NukeSlot(uint8_t slot)
 		}
 		uint16_t lastStream = pSlot->lastStreamForEndpoint[endpoint];
 		for (uint16_t streamId = 0U; streamId <= lastStream; ++streamId) {
-			if (streamId)
-				pRing[streamId].md = 0;
-			else
-				DeallocRing(&pRing[streamId]);
 			if ((pRing[streamId].epType | CTRL_EP) == ISOC_IN_EP) {
 				if (pRing[streamId].isochEndpoint)
 					NukeIsochEP(pRing[streamId].isochEndpoint);
 			} else {
+#if 1
 				if (pRing[streamId].asyncEndpoint)
 					pRing[streamId].asyncEndpoint->nuke();
+#else
+				/*
+				 * TBD: This is now safe, as Abort() no longer
+				 *   calls SetTRDQPtr, however this code will carry
+				 *   out the completions from aborted transactions.
+				 *   Want that?
+				 */
+				if (pRing[streamId].asyncEndpoint) {
+					pRing[streamId].asyncEndpoint->Abort();
+					pRing[streamId].asyncEndpoint->release();
+				}
+#endif
 			}
 		}
+		DeallocRing(pRing);
 		IOFree(pRing, (1U + static_cast<size_t>(pSlot->maxStreamForEndpoint[endpoint])) * sizeof *pRing);
 		pSlot->maxStreamForEndpoint[endpoint] = 0U;
 		pSlot->lastStreamForEndpoint[endpoint] = 0U;
