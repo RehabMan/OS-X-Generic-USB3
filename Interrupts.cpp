@@ -687,6 +687,11 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 
 	if (slot <= 0 || slot > _numSlots || ConstSlotPtr(slot)->isInactive() || !endpoint)
 		return false;
+#if 0
+	if (err == XHCI_TRB_ERROR_XACT &&
+		DoSoftRetries(shortfall, slot, endpoint, addr))
+		return true;
+#endif
 	if (IsStreamsEndpoint(slot, endpoint)) {
 		if (!addr)
 			return false;	// save the trouble
@@ -777,7 +782,7 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 	if (err != XHCI_TRB_ERROR_SUCCESS) {
 		callCompletion = true;
 		flush = !pAsyncTd->finalTDInTransaction;
-		rc = TranslateXHCIStatus(err, (endpoint & 1) != 0, GetSlCtxSpeed(GetSlotContext(slot)), false);
+		rc = TranslateXHCIStatus(err, slot, (endpoint & 1) != 0);
 	} else {
 		callCompletion = pAsyncTd->interruptThisTD;
 		flush = false;

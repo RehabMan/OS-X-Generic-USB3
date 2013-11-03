@@ -310,7 +310,7 @@ void CLASS::StopEndpoint(int32_t slot, int32_t endpoint, bool suspend)
 		SetNeedsReset(slot, true);
 }
 
-__attribute__((always_inline, visibility("hidden")))
+__attribute__((visibility("hidden")))
 void CLASS::ResetEndpoint(int32_t slot, int32_t endpoint, bool TSP)
 {
 	TRBStruct localTrb = { 0 };

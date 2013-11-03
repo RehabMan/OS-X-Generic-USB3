@@ -145,7 +145,7 @@ skip_low_full:
 		PrintContext(GetInputContextPtr(2));
 #endif
 	}
-	return TranslateXHCIStatus(-1000 - retFromCMD, false, kUSBDeviceSpeedSuper, false);
+	return TranslateXHCIStatus(-1000 - retFromCMD, deviceSlot, false);
 }
 
 __attribute__((visibility("hidden")))

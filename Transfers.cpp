@@ -669,3 +669,46 @@ void CLASS::PutBackTRB(ringStruct* pRing, TRBStruct* pTrb)
 		pRing->cycleState ^= 1U;
 	}
 }
+
+__attribute__((visibility("hidden")))
+bool CLASS::DoSoftRetries(uint32_t trb_shortfall, uint32_t slot, uint32_t endpoint, uint64_t trb_addr)
+{
+#if 0
+	uint8_t port;
+#endif
+	ringStruct* pRing = GetRing(slot, endpoint, 0U);
+	if (!pRing)
+		return false;
+	if (pRing->softRetries.addr != trb_addr) {
+		pRing->softRetries.count = 1U;
+		pRing->softRetries.addr = trb_addr;
+		pRing->softRetries.shortfall = trb_shortfall;
+	} else if (!pRing->softRetries.shortfall) {
+		pRing->softRetries.count = 1U;
+		pRing->softRetries.addr = trb_addr;
+		pRing->softRetries.shortfall = 0U;
+	} else if ((++pRing->softRetries.count) > 2U) {
+#if 0
+		++this->0x23E7C;
+#endif
+		return false;
+	}
+#if 0
+	++this->0x23E6C;
+	port = getRootPortNumber(slot) - 1U;
+	if (port < _rootHubNumPorts) {
+		uint32_t portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);
+		if (!m_invalid_regspace && (portSC & XHCI_PS_CCS)) {
+			// increment some counter 0x23E88, 0x23E90, 0x2CF90
+		}
+	}
+	if (pRing->softRetries.count == 2U)
+		++this->0x23E74;
+#endif
+	ResetEndpoint(slot, endpoint, true);
+	if (IsStreamsEndpoint(slot, endpoint))
+		RestartStreams(slot, endpoint, 0U);
+	else
+		StartEndpoint(slot, endpoint, 0U);
+	return true;
+}

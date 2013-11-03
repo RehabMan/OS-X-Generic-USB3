@@ -354,6 +354,7 @@ IOReturn CLASS::UIMFinalize(void)
 	FinalizeRHThreadCalls();
 	/*
 	 * Note: Mavericks releases extra buffer used by ExecuteGetPortBandwidthWorkaround()
+	 *   and XHCIDiagnostics object.
 	 */
 	_uimInitialized = false;
 	return kIOReturnSuccess;
