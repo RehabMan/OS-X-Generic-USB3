@@ -176,7 +176,7 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 	pRing->nextIsocFrame = 0ULL;
 	pRing->returnInProgress = false;
 	pRing->deleteInProgress = false;
-	pRing->schedulingPending = false;
+	pRing->needsDoorbell = false;
 	GetInputContext();
 	pContext = GetInputContextPtr();
 	pEpContext = GetSlotContext(slot, endpoint);
@@ -282,7 +282,7 @@ IOReturn CLASS::StartEndpoint(int32_t slot, int32_t endpoint, uint16_t streamId)
 	 * Added Mavericks
 	 */
 	ringStruct* pRing = GetRing(slot, endpoint, streamId);
-	if (pRing && pRing->needSetDQ)
+	if (pRing && pRing->needsSetTRDQPtr)
 		SetTRDQPtr(slot, endpoint, streamId, pRing->dequeueIndex);
 #endif
 	Write32Reg(&_pXHCIDoorbellRegisters[slot], (static_cast<uint32_t>(streamId) << 16) | (static_cast<uint32_t>(endpoint) & 0xFFU));
@@ -310,7 +310,7 @@ void CLASS::StopEndpoint(int32_t slot, int32_t endpoint, bool suspend)
 		SetNeedsReset(slot, true);
 }
 
-__attribute__((always_inline, visibility("hidden")))
+__attribute__((visibility("hidden")))
 void CLASS::ResetEndpoint(int32_t slot, int32_t endpoint, bool TSP)
 {
 	TRBStruct localTrb = { 0 };

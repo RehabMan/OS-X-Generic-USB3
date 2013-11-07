@@ -386,7 +386,7 @@ IOReturn CLASS::GetPortBandwidth(uint8_t HubSlot, uint8_t speed, uint8_t* pBuffe
 		ReleaseInputContext();
 		if (retFromCMD == -1)
 			return kIOReturnInternalError;
-		return TranslateXHCIStatus(-1000 - retFromCMD, false, speed, false);
+		return TranslateXHCIStatus(-1000 - retFromCMD, HubSlot, false);
 	}
 	if (!HubSlot) {
 		bcopy(reinterpret_cast<uint8_t const*>(GetInputContextPtr()) + 1, pBuffer, _rootHubNumPorts);
@@ -511,7 +511,7 @@ uint32_t CLASS::GetDeviceContextSize(void)
 #pragma mark -
 
 __attribute__((visibility("hidden")))
-IOReturn CLASS::TranslateXHCIStatus(int32_t xhci_err, bool direction, uint8_t speed, bool)
+IOReturn CLASS::TranslateXHCIStatus(int32_t xhci_err, uint32_t slot, bool direction)
 {
 	switch (xhci_err) {
 		case XHCI_TRB_ERROR_SUCCESS:
@@ -528,7 +528,12 @@ IOReturn CLASS::TranslateXHCIStatus(int32_t xhci_err, bool direction, uint8_t sp
 		case XHCI_TRB_ERROR_EVENT_LOST:
 			return kIOReturnOverrun;
 		case XHCI_TRB_ERROR_XACT:
-			return speed < kUSBDeviceSpeedHigh ? kIOUSBHighSpeedSplitError : kIOReturnNotResponding;
+			if (slot && slot <= _numSlots) {
+				ContextStruct* pContext = GetSlotContext(slot);
+				if (pContext && XHCI_SCTX_2_TT_HUB_SID_GET(pContext->_s.dwSctx2))
+					return kIOUSBHighSpeedSplitError;
+			}
+			return kIOReturnNotResponding;
 		case XHCI_TRB_ERROR_STALL:
 			return kIOUSBPipeStalled;
 		case XHCI_TRB_ERROR_RESOURCE:

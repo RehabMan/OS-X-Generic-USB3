@@ -11,15 +11,12 @@
 #include "Async.h"
 #include "XHCITypes.h"
 
-#define CLASS GenericUSBXHCI
-#define super IOUSBControllerV3
-
 #pragma mark -
 #pragma mark XHCIAsyncEndpoint
 #pragma mark -
 
 __attribute__((visibility("hidden")))
-XHCIAsyncEndpoint* XHCIAsyncEndpoint::withParameters(CLASS* provider, ringStruct* pRing, uint32_t maxPacketSize, uint32_t maxBurst, uint32_t multiple)
+XHCIAsyncEndpoint* XHCIAsyncEndpoint::withParameters(GenericUSBXHCI* provider, ringStruct* pRing, uint32_t maxPacketSize, uint32_t maxBurst, uint32_t multiple)
 {
 	XHCIAsyncEndpoint* obj;
 	obj = static_cast<XHCIAsyncEndpoint*>(IOMalloc(sizeof *obj));
@@ -53,7 +50,7 @@ void XHCIAsyncEndpoint::setParameters(uint32_t maxPacketSize, uint32_t maxBurst,
 }
 
 __attribute__((visibility("hidden")))
-bool XHCIAsyncEndpoint::checkOwnership(CLASS* provider, ringStruct* pRing)
+bool XHCIAsyncEndpoint::checkOwnership(GenericUSBXHCI* provider, ringStruct* pRing)
 {
 	return this->provider == provider && this->pRing == pRing;
 }
@@ -185,7 +182,7 @@ void XHCIAsyncEndpoint::ScheduleTDs(void)
 		return;
 	if (aborting) {
 		if (pRing->returnInProgress)
-			pRing->schedulingPending = true;
+			pRing->needsDoorbell = true;
 		return;
 	}
 	do {
@@ -215,7 +212,7 @@ void XHCIAsyncEndpoint::ScheduleTDs(void)
 		}
 		PutTD(&scheduledHead, &scheduledTail, pTd, &numTDsScheduled);
 		if (pRing->returnInProgress)
-			pRing->schedulingPending = true;
+			pRing->needsDoorbell = true;
 		else
 			provider->StartEndpoint(pRing->slot, pRing->endpoint, pTd->streamId);
 	} while(queuedHead);
@@ -228,7 +225,7 @@ IOReturn XHCIAsyncEndpoint::Abort(void)
 	pRing->returnInProgress = true;
 	while (scheduledHead) {
 		IOUSBCommand* command = scheduledHead->command;
-		FlushTDs(command, 1);
+		FlushTDs(command, 0);
 		MoveTDsFromReadyQToDoneQ(command);
 	}
 	pRing->returnInProgress = false;
@@ -375,26 +372,29 @@ void XHCIAsyncEndpoint::PutTDonDoneQueue(XHCIAsyncTD* pTd)
  *   2 - always update TRDQPtr
  */
 __attribute__((visibility("hidden")))
-void XHCIAsyncEndpoint::FlushTDs(IOUSBCommand* command, int updateDequeueOption)
+void XHCIAsyncEndpoint::FlushTDs(IOUSBCommand* command, int32_t updateDequeueOption)
 {
 	XHCIAsyncTD* pTd;
 	uint32_t streamId;
 	int32_t indexInQueue;
-	bool updateDequeueIndex;
 
 	pTd = scheduledHead;
 	if (!command || !pTd)
 		return;
-	updateDequeueIndex = false;
-	indexInQueue = 0;
+	indexInQueue = -1;
 	streamId = 0U;
 	while (pTd && pTd->command == command) {
 		GetTD(&scheduledHead, &scheduledTail, &numTDsScheduled);
-		streamId = pTd->streamId;
-		indexInQueue = pTd->lastTrbIndex + 1;
-		if (indexInQueue >= static_cast<int32_t>(pRing->numTRBs) - 1)
-			indexInQueue = 0;
-		updateDequeueIndex = true;
+		if (updateDequeueOption) {
+			streamId = pTd->streamId;
+#if 1
+			indexInQueue = pTd->lastTrbIndex + 1;
+			if (indexInQueue >= static_cast<int32_t>(pRing->numTRBs) - 1)
+				indexInQueue = 0;
+#else
+			indexInQueue = GenericUSBXHCI::NextTransferDQ(pRing, pTd->lastTrbIndex);
+#endif
+		}
 		PutTDonDoneQueue(pTd);
 		pTd = scheduledHead;
 	}
@@ -406,17 +406,19 @@ void XHCIAsyncEndpoint::FlushTDs(IOUSBCommand* command, int updateDequeueOption)
 				return;
 			break;
 	}
+	if (indexInQueue < 0)
+		return;
 #if 0
 	/*
 	 * Note: Added Mavericks
 	 */
-	if (updateDequeueIndex && !provider->_controllerAvailable) {
-		pRing->needSetDQ = true;
+	if (!provider->_controllerAvailable) {
+		pRing->dequeueIndex = static_cast<uint16_t>(indexInQueue);
+		pRing->needsSetTRDQPtr = true;
 		return;
 	}
 #endif
-	if (updateDequeueIndex)
-		provider->SetTRDQPtr(pRing->slot, pRing->endpoint, streamId, indexInQueue);
+	provider->SetTRDQPtr(pRing->slot, pRing->endpoint, streamId, indexInQueue);
 }
 
 __attribute__((visibility("hidden")))
@@ -509,27 +511,27 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 {
 	uint64_t addr;
 	int64_t trbIndex64;
-	XHCIAsyncTD* pAsyncTd;
+	XHCIAsyncTD* pTd;
 	IOUSBCommand* command;
 	IOReturn passthruReturnCode;
 	uint32_t shortfall, ndto, cto, bytesShortfell, firstSeen, TRTime;
 	int32_t next;
 	bool returnATransfer = false, absoluteShortfall = false, oldAS;
 
-	pAsyncTd = scheduledHead;
-	if (!pAsyncTd)
+	pTd = scheduledHead;
+	if (!pTd)
 		return;
 	addr = GenericUSBXHCI::GetTRBAddr64(&pRing->stopTrb);
 	trbIndex64 = GenericUSBXHCI::DiffTRBIndex(addr, pRing->physAddr);
 	if (trbIndex64 < 0 || trbIndex64 >= pRing->numTRBs - 1U) {
 		trbIndex64 = pRing->dequeueIndex;
-		shortfall = pAsyncTd->bytesThisTD;
+		shortfall = pTd->bytesThisTD;
 	} else {
 		if ((pRing->stopTrb.d & XHCI_TRB_3_ED_BIT) != 0U) {
-			shortfall = pAsyncTd->bytesThisTD - XHCI_TRB_2_REM_GET(pRing->stopTrb.c);
+			shortfall = pTd->bytesThisTD - XHCI_TRB_2_REM_GET(pRing->stopTrb.c);
 			if (provider->_errataBits & kErrataAbsoluteEDTLA) {
 				absoluteShortfall = true;
-				shortfall += pAsyncTd->bytesPreceedingThisTD;
+				shortfall += pTd->bytesPreceedingThisTD;
 			}
 		} else {
 			if (XHCI_TRB_2_ERROR_GET(pRing->stopTrb.c) == XHCI_TRB_ERROR_LENGTH)
@@ -543,7 +545,7 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 		}
 	}
 	if (!abortAll) {
-		command = pAsyncTd->command;
+		command = pTd->command;
 		if (!command)
 			return;
 		ndto = command->GetNoDataTimeout();
@@ -554,8 +556,8 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 			firstSeen = frameNumber;
 		}
 		if (cto && frameNumber && frameNumber - firstSeen > cto) {
-			pAsyncTd->shortfall = shortfall;
-			pAsyncTd->absoluteShortfall = absoluteShortfall;
+			pTd->shortfall = shortfall;
+			pTd->absoluteShortfall = absoluteShortfall;
 			returnATransfer = true;
 		}
 		if (ndto) {
@@ -571,8 +573,8 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 				command->SetUIMScratch(4U, absoluteShortfall ? (shortfall | OLDAS_MASK) : shortfall);
 				command->SetUIMScratch(6U, frameNumber);
 			} else if (frameNumber && frameNumber - TRTime > ndto) {
-				pAsyncTd->shortfall = bytesShortfell;
-				pAsyncTd->absoluteShortfall = oldAS;
+				pTd->shortfall = bytesShortfell;
+				pTd->absoluteShortfall = oldAS;
 				returnATransfer = true;
 			}
 		}
@@ -580,8 +582,8 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 			return;
 		passthruReturnCode = kIOUSBTransactionTimeout;
 	} else {
-		pAsyncTd->shortfall = shortfall;
-		pAsyncTd->absoluteShortfall = absoluteShortfall;
+		pTd->shortfall = shortfall;
+		pTd->absoluteShortfall = absoluteShortfall;
 		passthruReturnCode = kIOReturnNotResponding;
 	}
 	GetTD(&scheduledHead, &scheduledTail, &numTDsScheduled);
@@ -592,16 +594,16 @@ void XHCIAsyncEndpoint::UpdateTimeouts(bool abortAll, uint32_t frameNumber, bool
 	 *   of diagnostic counters here.
 	 */
 #if 1
-	next = pAsyncTd->lastTrbIndex + 1;
+	next = pTd->lastTrbIndex + 1;
 	if (next >= static_cast<int32_t>(pRing->numTRBs) - 1)
 		next = 0;
 #else
-	next = GenericUSBXHCI::NextTransferDQ(pRing, pAsyncTd->lastTrbIndex);
+	next = GenericUSBXHCI::NextTransferDQ(pRing, pTd->lastTrbIndex);
 #endif
 	if (!stopped)
 		provider->QuiesceEndpoint(pRing->slot, pRing->endpoint);
-	provider->SetTRDQPtr(pRing->slot, pRing->endpoint, pAsyncTd->streamId, next);
-	RetireTDs(pAsyncTd, passthruReturnCode, true, true);
+	provider->SetTRDQPtr(pRing->slot, pRing->endpoint, pTd->streamId, next);
+	RetireTDs(pTd, passthruReturnCode, true, true);
 }
 
 __attribute__((visibility("hidden")))

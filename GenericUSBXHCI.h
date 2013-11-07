@@ -513,7 +513,7 @@ public:
 	int32_t FindSlotFromPort(uint16_t);
 	IOReturn HandlePortDebouncing(uint16_t*, uint16_t*, uint16_t, uint16_t, uint8_t);
 #endif
-	IOReturn TranslateXHCIStatus(int32_t, bool, uint8_t, bool);
+	IOReturn TranslateXHCIStatus(int32_t, uint32_t, bool);
 	static IOReturn TranslateCommandCompletion(int32_t);
 	static IOReturn GatedGetFrameNumberWithTime(OSObject*, void*, void*, void*, void*);
 #if 0
@@ -594,6 +594,7 @@ public:
 	void AddIsocFramesToSchedule(GenericUSBXHCIIsochEP*);
 	void AddIsocFramesToSchedule_stage2(GenericUSBXHCIIsochEP*, uint16_t, uint64_t*, bool*);
 	IOReturn RetireIsocTransactions(GenericUSBXHCIIsochEP*, bool);
+	bool DoSoftRetries(uint32_t, uint32_t, uint32_t, uint64_t);
 	/*
 	 * Rings
 	 */

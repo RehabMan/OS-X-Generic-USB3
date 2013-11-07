@@ -76,14 +76,12 @@ IOReturn CLASS::ReturnAllTransfersAndReinitRing(int32_t slot, int32_t endpoint, 
 			if (pIsochEp->tdsScheduled)
 				pIsochEp->tdsScheduled = false;
 			AbortIsochEP(pIsochEp);
-			pRing->dequeueIndex = pRing->enqueueIndex;
 		}
 	}
-	if (pRing->dequeueIndex != pRing->enqueueIndex) {
-		XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
-		if (pAsyncEp)
-			pAsyncEp->Abort();
-	}
+	if (pRing->dequeueIndex != pRing->enqueueIndex &&
+		pRing->asyncEndpoint)
+		pRing->asyncEndpoint->Abort();
+	pRing->dequeueIndex = pRing->enqueueIndex;
 	return ReinitTransferRing(slot, endpoint, streamId);
 }
 
@@ -113,22 +111,27 @@ IOReturn CLASS::ReinitTransferRing(int32_t slot, int32_t endpoint, uint32_t stre
 	 * Added Mavericks
 	 */
 	if (!_controllerAvailable) {
-		pRing->needSetDQ = true;
+		pRing->needsSetTRDQPtr = true;
 		return kIOReturnSuccess;
 	}
 #endif
 	retFromCMD = SetTRDQPtr(slot, endpoint, streamId, pRing->dequeueIndex);
-	if (pRing->schedulingPending) {
-		if ((pRing->epType | CTRL_EP) != ISOC_IN_EP) {
-			XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
-			if (pAsyncEp)
-				pAsyncEp->ScheduleTDs();
-		}
+	/*
+	 * Note: Ignore a context state error because CreateEndpoint doesn't
+	 *   care, and UIMAbortStream should succeed even if called e.g. on
+	 *   a disabled endpoint.
+	 */
+	if (retFromCMD == -1000 - XHCI_TRB_ERROR_CONTEXT_STATE)
+		return kIOReturnSuccess;
+	if (pRing->needsDoorbell) {
+		if ((pRing->epType | CTRL_EP) != ISOC_IN_EP &&
+			pRing->asyncEndpoint)
+			pRing->asyncEndpoint->ScheduleTDs();
 		if (IsStreamsEndpoint(slot, endpoint))
 			RestartStreams(slot, endpoint, 0U);
 		else
 			StartEndpoint(slot, endpoint, 0U);
-		pRing->schedulingPending = false;
+		pRing->needsDoorbell = false;
 	}
 	return TranslateCommandCompletion(retFromCMD);
 }
@@ -142,10 +145,15 @@ int32_t CLASS::SetTRDQPtr(int32_t slot, int32_t endpoint, uint32_t streamId, int
 	if (!pRing)
 		return -1256;
 	ContextStruct* pContext = GetSlotContext(slot, endpoint);
-	uint32_t epState = XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0);
-	if (epState != EP_STATE_STOPPED && epState != EP_STATE_ERROR) {
-		if (!IsStreamsEndpoint(slot, endpoint) ||
-			pRing->dequeueIndex != pRing->enqueueIndex)
+	switch (XHCI_EPCTX_0_EPSTATE_GET(pContext->_e.dwEpCtx0)) {
+		case EP_STATE_STOPPED:
+		case EP_STATE_ERROR:
+			break;
+		case EP_STATE_RUNNING:
+			if (IsStreamsEndpoint(slot, endpoint) &&
+				pRing->dequeueIndex == pRing->enqueueIndex)
+				break;
+		default:
 			return -1000 - XHCI_TRB_ERROR_CONTEXT_STATE;
 	}
 	localTrb.d |= XHCI_TRB_3_SLOT_SET(slot);
@@ -660,4 +668,47 @@ void CLASS::PutBackTRB(ringStruct* pRing, TRBStruct* pTrb)
 		pRing->enqueueIndex = pRing->numTRBs - 1U;
 		pRing->cycleState ^= 1U;
 	}
+}
+
+__attribute__((visibility("hidden")))
+bool CLASS::DoSoftRetries(uint32_t trb_shortfall, uint32_t slot, uint32_t endpoint, uint64_t trb_addr)
+{
+#if 0
+	uint8_t port;
+#endif
+	ringStruct* pRing = GetRing(slot, endpoint, 0U);
+	if (!pRing)
+		return false;
+	if (pRing->softRetries.addr != trb_addr) {
+		pRing->softRetries.count = 1U;
+		pRing->softRetries.addr = trb_addr;
+		pRing->softRetries.shortfall = trb_shortfall;
+	} else if (!pRing->softRetries.shortfall) {
+		pRing->softRetries.count = 1U;
+		pRing->softRetries.addr = trb_addr;
+		pRing->softRetries.shortfall = 0U;
+	} else if ((++pRing->softRetries.count) > 2U) {
+#if 0
+		++this->0x23E7C;
+#endif
+		return false;
+	}
+#if 0
+	++this->0x23E6C;
+	port = getRootPortNumber(slot) - 1U;
+	if (port < _rootHubNumPorts) {
+		uint32_t portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);
+		if (!m_invalid_regspace && (portSC & XHCI_PS_CCS)) {
+			// increment some counter 0x23E88, 0x23E90, 0x2CF90
+		}
+	}
+	if (pRing->softRetries.count == 2U)
+		++this->0x23E74;
+#endif
+	ResetEndpoint(slot, endpoint, true);
+	if (IsStreamsEndpoint(slot, endpoint))
+		RestartStreams(slot, endpoint, 0U);
+	else
+		StartEndpoint(slot, endpoint, 0U);
+	return true;
 }

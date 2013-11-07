@@ -105,8 +105,8 @@ int32_t CLASS::CountRingToED(ringStruct const* pRing, int32_t trbIndexInRingQueu
 
 	/*
 	 * Note: CountRingToED is called with an index taken from
-	 *   a Transfer Event TRB.  It's not likely the index
-	 *   can ever be pRing->enqueueIndex, but check to make sure.
+	 *   a Transfer Event TRB.  For a stop TRB the index
+	 *   may be pRing->enqueueIndex, so check to make sure.
 	 */
 	if (trbIndexInRingQueue == pRing->enqueueIndex)
 		return trbIndexInRingQueue;

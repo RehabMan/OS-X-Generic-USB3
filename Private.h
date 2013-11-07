@@ -91,19 +91,22 @@ struct ringStruct
 	uint32_t lastSeenFrame; // 0x28
 	TRBStruct stopTrb; // 0x2C
 	uint64_t nextIsocFrame; // 0x40
-	uint8_t epType; // 0x48
-	union { // 0x50 - Note: Typed as XHCIIsochEndpoint*, but doubles as XHCIAsyncEndpoint*
+	struct {
+		uint64_t addr;	// 0x48 (Added Mavericks)
+		uint32_t shortfall;	// 0x50 (Added Mavericks)
+		uint32_t count;	// 0x54 (Added Mavericks)
+	} softRetries;
+	uint8_t epType; // 0x58
+	union { // 0x60 - Note: Typed as XHCIIsochEndpoint*, but doubles as XHCIAsyncEndpoint*
 		XHCIAsyncEndpoint* asyncEndpoint;
 		GenericUSBXHCIIsochEP* isochEndpoint;
 	};
-	uint8_t slot; // 0x58
-	uint8_t endpoint; // 0x59
-	bool returnInProgress; // 0x5A
-	bool deleteInProgress; // 0x5B
-	bool schedulingPending; // 0x5C
-#if 0
-	bool needSetDQ;	// 0x5D (Added Mavericks)
-#endif
+	uint8_t slot; // 0x68
+	uint8_t endpoint; // 0x69
+	bool returnInProgress; // 0x6A
+	bool deleteInProgress; // 0x6B
+	bool needsDoorbell; // 0x6C
+	bool needsSetTRDQPtr;	// 0x6D (Added Mavericks)
 
 	__attribute__((always_inline)) bool isInactive(void) const { return !this || !this->md; }
 } __attribute__((aligned(128)));
@@ -117,7 +120,7 @@ struct EventRingStruct
 	uint16_t volatile bounceDequeueIndex;// 0x2
 	uint16_t volatile bounceEnqueueIndex;// 0x4
 	uint8_t cycleState; // 0x6
-	bool foundSome; 	// 0x7
+	bool erdpNeedsUpdate; 	// 0x7
 	uint16_t numxHCEntries;	// 0x8
 	uint16_t numBounceEntries;	// 0xA
 	int32_t volatile numBounceQueueOverflows;	// 0xC

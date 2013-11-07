@@ -354,6 +354,7 @@ IOReturn CLASS::UIMFinalize(void)
 	FinalizeRHThreadCalls();
 	/*
 	 * Note: Mavericks releases extra buffer used by ExecuteGetPortBandwidthWorkaround()
+	 *   and XHCIDiagnostics object.
 	 */
 	_uimInitialized = false;
 	return kIOReturnSuccess;
@@ -385,12 +386,20 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 	if (pRing)
 		pRing->deleteInProgress = true;
 	if (!pRing->isInactive()) {
-		UIMAbortEndpoint(functionNumber, endpointNumber, direction);
 		/*
 		 * Note: Mavericks checks _controllerAvailable
 		 */
-		if (_errataBits & kErrataParkRing)
+		/*
+		 * Note: Always park a control endpoint because it's
+		 *   going to be deallocated without prior deconfigure.
+		 *   Never park a streams endpoint.
+		 *   Rest of endpoints - according to errata.
+		 */
+		if (!endpointNumber ||
+			((_errataBits & kErrataParkRing) && !pSlot->IsStreamsEndpoint(endpoint)))
 			ParkRing(pRing);
+		else
+			QuiesceEndpoint(slot, endpoint);
 	}
 	if (!endpointNumber) {
 		if (pRing) {

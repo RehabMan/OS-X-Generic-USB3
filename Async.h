@@ -41,7 +41,7 @@ struct XHCIAsyncEndpoint
 	void RetireTDs(XHCIAsyncTD*, IOReturn, bool, bool);
 	XHCIAsyncTD* GetTDFromFreeQueue(bool);
 	void PutTDonDoneQueue(XHCIAsyncTD*);
-	void FlushTDs(IOUSBCommand*, int);
+	void FlushTDs(IOUSBCommand*, int32_t);
 	void MoveTDsFromReadyQToDoneQ(IOUSBCommand*);
 	void MoveAllTDsFromReadyQToDoneQ(void);
 	void Complete(IOReturn);
@@ -78,11 +78,6 @@ struct XHCIAsyncTD
 	uint16_t streamId;	// 0x48
 	int16_t lastTrbIndex;	// 0x4A
 	bool absoluteShortfall;	// Added
-#if 0
-	bool flushed;	// 0x4C
-	bool lastFlushedTD;	// 0x4D
-	bool lastInRing;	// 0x4E
-#endif
 	XHCIAsyncEndpoint* provider;	// 0x50
 	XHCIAsyncTD* next;	// 0x58
 						// sizeof 0x60

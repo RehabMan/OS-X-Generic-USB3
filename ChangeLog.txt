@@ -1,6 +1,6 @@
 ChangeLog
 =========
-1.2.8d4
+1.2.8d6
 - Implement properties UseLegacyInt, IntelDoze, eliminate -gux_no_idle.
 - Add GenericUSBXHCIEventSource to do _completer.Flush().
 - Don't park a disabled ring.
@@ -9,6 +9,8 @@ ChangeLog
 - Eliminate unneeded calls to ClearStopTDS.
 - Some corrections in UIMEnableAddressEndpoints, CountRingToED, AdvanceTransferDQ.
 - Review UIMCheckForTimeouts.
+- Review UIMDeleteEndpoint, UIMAbortStream.
+- Implemented DoSoftRetries, updated TranslateXHCIStatus.
 
 1.2.7Fixes
 - Implement workaround for ASM1042 Absolute EDTLA bug.
