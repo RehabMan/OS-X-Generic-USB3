@@ -195,9 +195,7 @@ void CLASS::NukeSlot(uint8_t slot)
 	pSlot->md->release();
 	pSlot->md = 0;
 	pSlot->physAddr = 0ULL;
-	/*
-	 * TBD: pSlot->deviceNeedsReset = false; ???
-	 */
+	pSlot->deviceNeedsReset = false;
 }
 
 __attribute__((visibility("hidden")))

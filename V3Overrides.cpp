@@ -183,6 +183,10 @@ IOReturn CLASS::UIMAbortStream(UInt32 streamID, short functionNumber, short endp
 			return kIOReturnBadArgument;
 		uint32_t epState = QuiesceEndpoint(slot, endpoint);
 		rc1 = ReturnAllTransfersAndReinitRing(slot, endpoint, streamID);
+		/*
+		 * Note: UIMAbortStream on a single stream cannot be used
+		 *   to clear a streams endpoint stall.
+		 */
 		if (epState == EP_STATE_RUNNING)
 			RestartStreams(slot, endpoint, streamID);
 		return rc1;

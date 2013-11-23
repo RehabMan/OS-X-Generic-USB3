@@ -143,7 +143,7 @@ struct SlotStruct
 	uint16_t lastStreamForEndpoint[kUSBMaxPipes]; // 160 - originally uint32_t[]
 	ringStruct* ringArrayForEndpoint[kUSBMaxPipes]; // 288
 	bool deviceNeedsReset;	// 544
-	bool oneBitCache;
+	bool oneBitCache;	// Added
 
 	__attribute__((always_inline)) bool isInactive(void) const { return !this->md; }
 	__attribute__((always_inline)) bool IsStreamsEndpoint(int32_t endpoint) const { return maxStreamForEndpoint[endpoint] > 1U; }
@@ -175,7 +175,8 @@ struct PrintSink
 #define DIAGCTR_XFERLAYOUT 6
 #define DIAGCTR_ORPHANEDTDS 7
 #define DIAGCTR_SHORTSUCCESS 8
-#define NUM_DIAGCTRS 9
+#define DIAGCTR_BADDOORBELL 9
+#define NUM_DIAGCTRS 10
 
 /*
  * Mavericks Offsets

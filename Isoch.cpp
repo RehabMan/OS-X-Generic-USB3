@@ -60,8 +60,7 @@ IOReturn CLASS::CreateIsochEndpoint(int16_t functionAddress, int16_t endpointNum
 		}
 		if (oneMPS == pIsochEp->maxPacketSize * pIsochEp->maxBurst * pIsochEp->multiple)
 			return kIOReturnSuccess;
-		if (XHCI_EPCTX_0_EPSTATE_GET(GetSlotContext(slot, endpoint)->_e.dwEpCtx0) == EP_STATE_RUNNING)
-			StopEndpoint(slot, endpoint);
+		QuiesceEndpoint(slot, endpoint);
 	} else {
 		if (_numEndpoints >= _maxNumEndpoints)
 			return kIOUSBEndpointCountExceeded;

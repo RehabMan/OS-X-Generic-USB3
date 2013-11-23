@@ -685,6 +685,15 @@ bool CLASS::processTransferEvent2(TRBStruct const* pTrb, int32_t interrupter)
 	if (err == XHCI_TRB_ERROR_STOPPED || err == XHCI_TRB_ERROR_LENGTH)
 		return DoStopCompletion(pTrb);
 
+	if (err == XHCI_TRB_ERROR_ENDP_NOT_ON) {
+		/*
+		 * Note: Invalid doorbell rings may not be associated
+		 *   with a recognizable slot or endpoint, so record
+		 *   them separately.
+		 */
+		++_diagCounters[DIAGCTR_BADDOORBELL];
+		return true;
+	}
 	if (slot <= 0 || slot > _numSlots || ConstSlotPtr(slot)->isInactive() || !endpoint)
 		return false;
 #if 0

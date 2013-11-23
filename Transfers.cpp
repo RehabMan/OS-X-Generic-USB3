@@ -189,20 +189,15 @@ int32_t CLASS::SetTRDQPtr(int32_t slot, int32_t endpoint, uint32_t streamId, int
 }
 
 __attribute__((visibility("hidden")))
-void CLASS::ParkRing(ringStruct* pRing)
+void CLASS::ParkRing(uint8_t slot, uint8_t endpoint)
 {
 	int32_t retFromCMD;
-	uint8_t slot, endpoint;
 	TRBStruct localTrb = { 0 };
 
-	slot = pRing->slot;
 #if 0
 	if (GetSlCtxSpeed(GetSlotContext(slot)) > kUSBDeviceSpeedHigh)
 		return;
 #endif
-	endpoint = pRing->endpoint;
-	if (QuiesceEndpoint(slot, endpoint) == EP_STATE_DISABLED)
-		return;
 	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
 	localTrb.d |= XHCI_TRB_3_EP_SET(static_cast<uint32_t>(endpoint));
 	/*

@@ -262,6 +262,8 @@ void printDiagCounters(PrintSink* pSink, int32_t const* pDiagCounters)
 		pSink->print("# Orphaned Transfer Descriptors %u\n", pDiagCounters[DIAGCTR_ORPHANEDTDS]);
 	if (pDiagCounters[DIAGCTR_SHORTSUCCESS])
 		pSink->print("# Short Transfers with Success Code %u\n", pDiagCounters[DIAGCTR_SHORTSUCCESS]);
+	if (pDiagCounters[DIAGCTR_BADDOORBELL])
+		pSink->print("# Invalid Doorbell Rings %u\n", pDiagCounters[DIAGCTR_BADDOORBELL]);
 }
 
 #pragma mark -

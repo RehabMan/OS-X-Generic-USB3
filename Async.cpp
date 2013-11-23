@@ -294,44 +294,70 @@ struct XHCIAsyncTD* XHCIAsyncEndpoint::GetTDFromActiveQueueWithIndex(uint16_t in
 __attribute__((visibility("hidden")))
 void XHCIAsyncEndpoint::RetireTDs(XHCIAsyncTD* pTd, IOReturn passthruReturnCode, bool callCompletion, bool flush)
 {
-	uint8_t slot, endpoint;
+	bool reschedule = true;
 
 	PutTDonDoneQueue(pTd);
 	if (flush) {
-		slot = pRing->slot;
-		endpoint = pRing->endpoint;
-		/*
-		 * Notes:
-		 * If the endpoint is still running
-		 *   - if more TDs are queued for transaction-to-flush, must stop the EP, and set TRDQPtr
-		 *     in order to break the chain.
-		 *   - otherwise, if other transactions are scheduled beyond flushed one, it's not safe
-		 *     to set TRDQPtr since the xHC may have advanced past the flushed transaction.  Let the
-		 *     EP continue to run.  Any events for flushed TDs are safely discarded in processTransferEvent2.
-		 *   - otherwise, EP will safely idle after finishing flushed transaction, so can let
-		 *     it run. (TBD: what if dequeueIndex doesn't get updated when ring empties?)
-		 */
-		if ((!queuedHead || queuedHead->command != pTd->command) &&
-			XHCI_EPCTX_0_EPSTATE_GET(provider->GetSlotContext(slot, endpoint)->_e.dwEpCtx0) == EP_STATE_RUNNING) {
-			FlushTDs(pTd->command, 0);
-		} else {
-			provider->QuiesceEndpoint(slot, endpoint);
-			FlushTDs(pTd->command, 2);
-			MoveTDsFromReadyQToDoneQ(pTd->command);
-			if (scheduledHead) {
+		uint8_t slot = pRing->slot;
+		uint8_t endpoint = pRing->endpoint;
+		switch (XHCI_EPCTX_0_EPSTATE_GET(provider->GetSlotContext(slot, endpoint)->_e.dwEpCtx0)) {
+			case EP_STATE_RUNNING:
 				/*
-				 * Note: This was inverted in AppleUSBXHCI until OS 10.9.
+				 * Note: If the endpoint is still running and other transactions are scheduled
+				 *   beyond flushed one, it's not safe to set TRDQPtr since the xHC may have
+				 *   advanced past the flushed transaction.  Let the EP continue to run.
+				 *   Any events for flushed TDs are safely discarded in processTransferEvent2.
+				 *
+				 *   This condition is likely coming from a short packet.
 				 */
-				if (provider->IsStreamsEndpoint(slot, endpoint))
+				FlushTDs(pTd->command, 0);
+				MoveTDsFromReadyQToDoneQ(pTd->command);
+				if (!scheduledHead) {
+					/*
+					 * Note: This is necessary in order to break the chain and
+					 *   make sure pRing->dequeueIndex is up-to-date.
+					 */
+					provider->QuiesceEndpoint(slot, endpoint);
+					provider->SetTRDQPtr(slot, endpoint, pTd->streamId, pRing->enqueueIndex);
+					if (pTd->streamId)
+						provider->RestartStreams(slot, endpoint, pTd->streamId);
+				}
+				break;
+#if 0
+			case EP_STATE_DISABLED:
+			case EP_STATE_HALTED:
+			case EP_STATE_ERROR:
+#endif
+			default:
+				/*
+				 * Note: Let upstack take care of this EPState by calling
+				 *   UIMAbortStream or UIMClearEndpointStall to clean up the ring.
+				 *   A Halted condition in particular generally requires issuing a
+				 *     ClearFeature(ENDPOINT_HALT) to the device, and
+				 *     ClearFeature(CLEAR_TT_BUFFER) to a TT hub.
+				 *     It can't be fully handled by just ResetEndpoint().
+				 */
+				FlushTDs(pTd->command, 0);
+				MoveTDsFromReadyQToDoneQ(pTd->command);
+				reschedule = false;
+				break;
+			case EP_STATE_STOPPED:
+				/*
+				 * Note: Likely coming from UpdateTimeouts()
+				 */
+				FlushTDs(pTd->command, 2);
+				MoveTDsFromReadyQToDoneQ(pTd->command);
+				if (pTd->streamId)
 					provider->RestartStreams(slot, endpoint, 0U);
-				else
+				else if (scheduledHead)
 					provider->StartEndpoint(slot, endpoint, 0U);
-			}
+				break;
 		}
 	}
 	if (callCompletion)
 		Complete(passthruReturnCode);
-	ScheduleTDs();
+	if (reschedule)
+		ScheduleTDs();
 }
 
 __attribute__((visibility("hidden")))
