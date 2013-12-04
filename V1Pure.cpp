@@ -370,7 +370,6 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 	uint8_t slot, endpoint;
 	ringStruct* pRing;
 	SlotStruct* pSlot;
-	TRBStruct localTrb = { 0 };
 
 	slot = GetSlotID(functionNumber);
 	if (!slot)
@@ -385,76 +384,32 @@ IOReturn CLASS::UIMDeleteEndpoint(short functionNumber, short endpointNumber, sh
 	pRing = pSlot->ringArrayForEndpoint[endpoint];
 	if (pRing)
 		pRing->deleteInProgress = true;
-	if (!pRing->isInactive()) {
-		/*
-		 * Note: Mavericks checks _controllerAvailable
-		 */
-		/*
-		 * Note: Always park a control endpoint because it's
-		 *   going to be deallocated without prior deconfigure.
-		 *   Never park a streams endpoint.
-		 *   Rest of endpoints - according to errata.
-		 */
-		if (!endpointNumber ||
-			((_errataBits & kErrataParkRing) && !pSlot->IsStreamsEndpoint(endpoint)))
-			ParkRing(pRing);
-		else
-			QuiesceEndpoint(slot, endpoint);
-	}
-	if (!endpointNumber) {
-		if (pRing) {
-			XHCIAsyncEndpoint* pAsyncEp = pRing->asyncEndpoint;
-			if (pAsyncEp) {
-				pAsyncEp->Abort();
-				pAsyncEp->release();
+	/*
+	 * Note: Always park a control endpoint because it's
+	 *   going to be deallocated without prior deconfigure.
+	 *   Never park a streams endpoint.
+	 *   Rest of endpoints - according to errata.
+	 *
+	 * Mavericks checks _controllerAvailable before doing this.
+	 */
+	DeconfigureEndpoint(slot, endpoint, !endpointNumber || ((_errataBits & kErrataParkRing) && !pSlot->IsStreamsEndpoint(endpoint)));
+	if (pRing) {
+		if (pSlot->IsStreamsEndpoint(endpoint))
+			DeleteStreams(slot, endpoint);
+		if ((pRing->epType | CTRL_EP) == ISOC_IN_EP) {
+			if (pRing->isochEndpoint) {
+				DeleteIsochEP(pRing->isochEndpoint);
+				static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
+				pRing->isochEndpoint = 0;
+			}
+		} else {
+			if (pRing->asyncEndpoint) {
+				pRing->asyncEndpoint->Abort();
+				pRing->asyncEndpoint->release();
 				static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
 				pRing->asyncEndpoint = 0;
 			}
 		}
-	} else {
-#if 0
-		/*
-		 * Note: Mavericks
-		 */
-		if (!_controllerAvailable)
-			goto _DeleteStreams_below;
-#endif
-		GetInputContext();
-		ContextStruct* pContext = GetInputContextPtr();
-		pContext->_ic.dwInCtx0 = XHCI_INCTX_0_DROP_MASK(endpoint);
-		pContext->_ic.dwInCtx1 = XHCI_INCTX_1_ADD_MASK(0U);
-		pContext = GetInputContextPtr(1);
-		*pContext = *GetSlotContext(slot);
-		int32_t numCtx = static_cast<int32_t>(XHCI_SCTX_0_CTX_NUM_GET(pContext->_s.dwSctx0));
-		if (numCtx == endpoint) {
-			for (--numCtx; numCtx > 1 && pSlot->ringArrayForEndpoint[numCtx]->isInactive(); --numCtx);
-			pContext->_s.dwSctx0 &= ~XHCI_SCTX_0_CTX_NUM_SET(0x1FU);
-			pContext->_s.dwSctx0 |= XHCI_SCTX_0_CTX_NUM_SET(numCtx);
-		}
-		pContext->_s.dwSctx0 &= ~(1U << 24);
-		SetTRBAddr64(&localTrb, _inputContext.physAddr);
-		localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
-		WaitForCMD(&localTrb, XHCI_TRB_TYPE_CONFIGURE_EP, 0);
-		ReleaseInputContext();
-		if (pRing) {
-			DeleteStreams(slot, endpoint);
-			if ((pRing->epType | CTRL_EP) == ISOC_IN_EP) {
-				if (pRing->isochEndpoint) {
-					DeleteIsochEP(pRing->isochEndpoint);
-					static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
-					pRing->isochEndpoint = 0;
-				}
-			} else {
-				if (pRing->asyncEndpoint) {
-					pRing->asyncEndpoint->Abort();
-					pRing->asyncEndpoint->release();
-					static_cast<void>(__sync_fetch_and_sub(&_numEndpoints, 1));
-					pRing->asyncEndpoint = 0;
-				}
-			}
-		}
-	}
-	if (pRing) {
 		DeallocRing(pRing);
 		IOFree(pRing, (1U + static_cast<size_t>(pSlot->maxStreamForEndpoint[endpoint])) * sizeof *pRing);
 		pSlot->maxStreamForEndpoint[endpoint] = 0U;

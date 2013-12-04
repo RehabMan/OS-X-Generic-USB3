@@ -187,6 +187,8 @@ IOReturn CLASS::CreateEndpoint(int32_t slot, int32_t endpoint, uint16_t maxPacke
 			break;
 		case EP_STATE_RUNNING:
 			StopEndpoint(slot, endpoint);
+			if (XHCI_EPCTX_0_EPSTATE_GET(pEpContext->_e.dwEpCtx0) == EP_STATE_HALTED)
+				ResetEndpoint(slot, endpoint);
 		default:
 			pContext->_ic.dwInCtx0 = mask;
 			break;
@@ -333,7 +335,7 @@ uint32_t CLASS::QuiesceEndpoint(int32_t slot, int32_t endpoint)
 	 * Note: Added Mavericks
 	 */
 	if (!_controllerAvailable)
-		return 0U;
+		return EP_STATE_DISABLED;
 #endif
 #if 0
 	/*
@@ -407,6 +409,8 @@ bool CLASS::checkEPForTimeOuts(int32_t slot, int32_t endpoint, uint32_t streamId
 			case EP_STATE_RUNNING:
 				if (!streamId || abortAll) {
 					StopEndpoint(slot, endpoint);
+					if (XHCI_EPCTX_0_EPSTATE_GET(pEpContext->_e.dwEpCtx0) == EP_STATE_HALTED)
+						ResetEndpoint(slot, endpoint);
 					stopped = true;
 				}
 				break;
@@ -474,4 +478,44 @@ __attribute__((visibility("hidden")))
 uint8_t CLASS::TranslateEndpoint(int16_t endpointNumber, int16_t direction)
 {
 	return static_cast<uint8_t>((2 * endpointNumber) | (direction ? 1 : 0));
+}
+
+__attribute__((visibility("hidden")))
+void CLASS::DeconfigureEndpoint(uint8_t slot, uint8_t endpoint, bool parkRing)
+{
+	TRBStruct localTrb = { 0 };
+	ContextStruct* pContext;
+	int32_t prevNumCtx, numCtx;
+	if (QuiesceEndpoint(slot, endpoint) == EP_STATE_DISABLED)
+		return;
+	if (parkRing)
+		ParkRing(slot, endpoint);
+	if (endpoint < 2U)
+		return;
+	pContext = GetSlotContext(slot);
+	prevNumCtx = numCtx = static_cast<int32_t>(XHCI_SCTX_0_CTX_NUM_GET(pContext->_s.dwSctx0));
+	if (numCtx == endpoint) {
+		SlotStruct const* pSlot = ConstSlotPtr(slot);
+		for (--numCtx; numCtx > 1 && pSlot->ringArrayForEndpoint[numCtx]->isInactive(); --numCtx);
+	}
+	if (numCtx == 1) {
+		localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot)) | XHCI_TRB_3_DCEP_BIT;
+		WaitForCMD(&localTrb, XHCI_TRB_TYPE_CONFIGURE_EP, 0);
+		return;
+	}
+	GetInputContext();
+	pContext = GetInputContextPtr();
+	pContext->_ic.dwInCtx0 = XHCI_INCTX_0_DROP_MASK(endpoint);
+	if (numCtx != prevNumCtx) {
+		pContext->_ic.dwInCtx1 = XHCI_INCTX_1_ADD_MASK(0U);
+		pContext = GetInputContextPtr(1);
+		*pContext = *GetSlotContext(slot);
+		pContext->_s.dwSctx0 &= ~XHCI_SCTX_0_CTX_NUM_SET(0x1FU);
+		pContext->_s.dwSctx0 |= XHCI_SCTX_0_CTX_NUM_SET(numCtx);
+		pContext->_s.dwSctx0 &= ~(1U << 24);
+	}
+	SetTRBAddr64(&localTrb, _inputContext.physAddr);
+	localTrb.d |= XHCI_TRB_3_SLOT_SET(static_cast<uint32_t>(slot));
+	WaitForCMD(&localTrb, XHCI_TRB_TYPE_CONFIGURE_EP, 0);
+	ReleaseInputContext();
 }
