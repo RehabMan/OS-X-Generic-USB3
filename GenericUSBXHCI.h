@@ -10,6 +10,9 @@
 #ifndef __GENERICUSBXHCI_H__
 #define __GENERICUSBXHCI_H__
 
+//REVIEW_REHABMAN: can be removed after switching to 10.9 headers...
+#define __STDC_LIMIT_MACROS
+
 #define kMaxExternalHubPorts 15U
 #define kMaxRootPorts 30U
 #define kMaxStreamsAllowed 256U
