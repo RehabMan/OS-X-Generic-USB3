@@ -1,5 +1,8 @@
 ChangeLog
 =========
+1.2.8d8
+- Updated to use new location of _onThunderbolt in OS 10.10.
+
 1.2.8d7
 - Implement properties UseLegacyInt, IntelDoze, eliminate -gux_no_idle.
 - Add GenericUSBXHCIEventSource to do _completer.Flush().

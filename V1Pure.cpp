@@ -3,7 +3,7 @@
 //  GenericUSBXHCI
 //
 //  Created by Zenith432 on December 26th, 2012.
-//  Copyright (c) 2012-2013 Zenith432. All rights reserved.
+//  Copyright (c) 2012-2014 Zenith432. All rights reserved.
 //
 
 #include "GenericUSBXHCI.h"
@@ -47,7 +47,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		}
 	}
 	_errataBits = GetErrataBits(_vendorID, _deviceID, _revisionID);	// Note: originally |=
-	if (!_v3ExpansionData->_onThunderbolt)
+	if (!ON_THUNDERBOLT)
 		_expansionData->_isochMaxBusStall = 25000U;
 	OverrideErrataFromProps();
 	_pXHCICapRegisters = reinterpret_cast<struct XHCICapRegisters volatile*>(_deviceBase->getVirtualAddress());

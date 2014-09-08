@@ -3,7 +3,7 @@
 //  GenericUSBXHCI
 //
 //  Created by Zenith432 on January 3rd, 2013.
-//  Copyright (c) 2013 Zenith432. All rights reserved.
+//  Copyright (c) 2013-2014 Zenith432. All rights reserved.
 //
 
 #include "XHCITRB.h"
@@ -155,16 +155,33 @@ struct TRBCallbackEntry
 	int32_t* param;	// originally int32_t
 };
 
+#if 0
+struct XHCIRootHubResetParams
+{
+	IOReturn status;
+	uint8_t protocol;
+	uint16_t port;
+};
+#endif
+
 struct PrintSink
 {
 	void (*printer)(struct PrintSink*, char const*, va_list);
 	void print(char const*, ...) __attribute__((format(printf, 2, 3)));
 };
 
+#pragma mark -
+#pragma mark Options via kernel flags
+#pragma mark -
+
 #define GUX_OPTION_NO_SLEEP 1
 #define GUX_OPTION_DEFER_INTEL_EHC_PORTS 2
 #define GUX_OPTION_NO_MSI 8
 #define GUX_OPTION_MAVERICKS 16
+
+#pragma mark -
+#pragma mark Diagnostic Counters
+#pragma mark -
 
 #define DIAGCTR_SLEEP 0
 #define DIAGCTR_RESUME 1
@@ -178,9 +195,10 @@ struct PrintSink
 #define DIAGCTR_BADDOORBELL 9
 #define NUM_DIAGCTRS 10
 
-/*
- * Mavericks Offsets
- */
+#pragma mark -
+#pragma mark Mavericks Offsets
+#pragma mark -
+
 #define V1_locationID 0xE0
 #define V1_ignoreDisconnectBitmap 0xE4
 #define V3_rootHubStatusChangedBitmapSS 0xCC
@@ -198,20 +216,25 @@ struct PrintSink
 #define CHECK_FOR_MAVERICKS false
 #endif
 
+#pragma mark -
+#pragma mark Yosemite Quirks
+#pragma mark -
+
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 101000
+#define ON_THUNDERBOLT _v3ExpansionData->_onThunderbolt
+#else
+#define ON_THUNDERBOLT _expansionData->_onThunderbolt
+#endif
+
+#pragma mark -
+#pragma mark Globals
+#pragma mark -
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 extern int gux_log_level, gux_options;
-
-#if 0
-struct XHCIRootHubResetParams
-{
-	IOReturn status;
-	uint8_t protocol;
-	uint16_t port;
-};
-#endif
 
 #ifdef __cplusplus
 }
