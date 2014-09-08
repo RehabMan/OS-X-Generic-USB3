@@ -3,7 +3,7 @@
  *  GenericUSBXHCI
  *
  *  Created by Zenith432 on December 5th 2012.
- *  Copyright 2012-2013 Zenith432. All rights reserved.
+ *  Copyright 2012-2014 Zenith432. All rights reserved.
  *
  */
 
@@ -21,7 +21,7 @@ OSDefineMetaClassAndFinalStructors(GenericUSBXHCI, IOUSBControllerV3);
 #define	kIOUSBMessageMuxFromXHCIToEHCI				iokit_usb_msg(0xe2)		// 0xe00040e2  Message from the EHCI HC for ports mux transition from XHCI to EHCI
 #endif
 
-static __used char const copyright[] = "Copyright 2012-2013 Zenith432";
+static __used char const copyright[] = "Copyright 2012-2014 Zenith432";
 
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1075
 #error Target OS version must be 10.7.5 or above
@@ -98,7 +98,7 @@ unsigned long CLASS::maxCapabilityForDomainState(IOPMPowerFlags domainState)
 	 * Note: This check neutralizes the code below because PM backbone calls this method *before*
 	 *   powering the parent IOPCIDevice on when coming back from Sleep to On.
 	 */
-	if (!_v3ExpansionData || !*static_cast<bool const*>(getV3Ptr(V3_parentDeviceON)))
+	if (!_v3ExpansionData || !_v3ExpansionData->_parentDeviceON)
 		return state;
 	port = _v3ExpansionData->_rootHubPortsSSStartRange - 1U;
 	portLimit = port + _v3ExpansionData->_rootHubNumPortsSS;

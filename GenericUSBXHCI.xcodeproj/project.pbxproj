@@ -288,7 +288,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPYRIGHT_NOTICE = "Copyright © 2012-2014 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.8d8;
+				CURRENT_PROJECT_VERSION = 1.2.8d9;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
@@ -327,7 +327,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPYRIGHT_NOTICE = "Copyright © 2012-2014 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.8d8;
+				CURRENT_PROJECT_VERSION = 1.2.8d9;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
@@ -340,8 +340,10 @@
 				GCC_WARN_SIGN_COMPARE = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.8.5;
 				OTHER_CFLAGS = "-fno-stack-protector";
 				OTHER_LDFLAGS = "-Wl,-no_source_version";
+				SDKROOT = macosx10.9;
 				STRIPFLAGS = "-no_uuid";
 			};
 			name = Mavericks;
@@ -366,7 +368,7 @@
 				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
 				COMBINE_HIDPI_IMAGES = YES;
 				COPYRIGHT_NOTICE = "Copyright © 2012-2014 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.8d8;
+				CURRENT_PROJECT_VERSION = 1.2.8d9;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
@@ -380,7 +382,10 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.7.5;
-				OTHER_CFLAGS = "-fno-stack-protector";
+				OTHER_CFLAGS = (
+					"-fno-stack-protector",
+					"-D__STDC_LIMIT_MACROS",
+				);
 				OTHER_LDFLAGS = "-Wl,-no_source_version";
 				SDKROOT = macosx10.8;
 				STRIPFLAGS = "-no_uuid";

@@ -37,9 +37,8 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	}
 	SetVendorInfo();
 	if (CHECK_FOR_MAVERICKS) {
-		PGetErrata64Bits pFunc = (*reinterpret_cast<PGetErrata64Bits**>(this))[V3_GetErrata64Bits];
-		uint64_t errata64 = pFunc(this, _vendorID, _deviceID, _revisionID);
-		*static_cast<uint64_t*>(getV3Ptr(V3_errata64Bits)) = errata64;
+		uint64_t errata64 = GetErrata64Bits(_vendorID, _deviceID, _revisionID);
+		_v3ExpansionData->_errata64Bits = errata64;
 		if (errata64 & (1ULL << 34U)) {
 			/*
 			 * TBD: Mavericks 15517 - 156C7
@@ -534,7 +533,7 @@ void CLASS::UIMRootHubStatusChange(void)
 	if (CHECK_FOR_MAVERICKS) {
 		if (_errataBits & kErrataVMwarePortSwap)
 			statusChangedBitmap = VMwarePortStatusShuffle(statusChangedBitmap, _v3ExpansionData->_rootHubNumPortsSS);
-		reinterpret_cast<uint32_t*>(&_v3ExpansionData->_wakingFromStandby)[1] = statusChangedBitmap;
+		_v3ExpansionData->_rootHubStatusChangedBitmapSS = statusChangedBitmap;
 		return;
 	}
 	if (static_cast<uint16_t>(statusChangedBitmap >> 16))

@@ -196,19 +196,8 @@ struct PrintSink
 #define NUM_DIAGCTRS 10
 
 #pragma mark -
-#pragma mark Mavericks Offsets
+#pragma mark Mavericks Quirks
 #pragma mark -
-
-#define V1_locationID 0xE0
-#define V1_ignoreDisconnectBitmap 0xE4
-#define V3_rootHubStatusChangedBitmapSS 0xCC
-#define V3_errata64Bits 0xD0
-#define V3_companionPort 0xD8
-#define V3_hasPCIPwrMgmt 0xF9
-#define V3_acpiDevice 0x110
-#define V3_minimumIdlePowerStateValid 0x129
-#define V3_parentDeviceON 0x12A
-#define V3_GetErrata64Bits 418
 
 #ifdef __LP64__
 #define CHECK_FOR_MAVERICKS ((gux_options & GUX_OPTION_MAVERICKS) != 0U)
