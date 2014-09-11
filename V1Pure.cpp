@@ -37,7 +37,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	}
 	SetVendorInfo();
 	if (CHECK_FOR_MAVERICKS) {
-		uint64_t errata64 = GetErrata64Bits(_vendorID, _deviceID, _revisionID);
+		uint64_t errata64 = super::GetErrata64Bits(_vendorID, _deviceID, _revisionID);
 		_v3ExpansionData->_errata64Bits = errata64;
 		if (errata64 & (1ULL << 34U)) {
 			/*

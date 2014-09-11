@@ -72,7 +72,6 @@ struct XHCIAsyncEndpoint;
 union ContextStruct;
 
 typedef void (*TRBCallback)(GenericUSBXHCI*, TRBStruct*, int32_t*);
-typedef uint64_t (*PGetErrata64Bits)(void*, uint16_t, uint16_t, uint16_t);
 
 struct ringStruct
 {
@@ -209,7 +208,7 @@ struct PrintSink
 #pragma mark Yosemite Quirks
 #pragma mark -
 
-#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 101000
+#if __MAC_OS_X_VERSION_MAX_ALLOWED < 101000
 #define ON_THUNDERBOLT _v3ExpansionData->_onThunderbolt
 #else
 #define ON_THUNDERBOLT _expansionData->_onThunderbolt

@@ -23,10 +23,6 @@ OSDefineMetaClassAndFinalStructors(GenericUSBXHCI, IOUSBControllerV3);
 
 static __used char const copyright[] = "Copyright 2012-2014 Zenith432";
 
-#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1075
-#error Target OS version must be 10.7.5 or above
-#endif
-
 #pragma mark -
 #pragma mark IOService
 #pragma mark -

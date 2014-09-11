@@ -684,6 +684,8 @@ public:
 	IOReturn XHCIRootHubSuspendPort(uint8_t, uint16_t, bool);
 	IOReturn XHCIRootHubClearPortConnectionChange(uint16_t);
 	IOReturn XHCIRootHubClearPortChangeBit(uint16_t, uint32_t);
+
+#include "Compatibility.h"
 };
 
 #endif

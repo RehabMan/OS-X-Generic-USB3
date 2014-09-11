@@ -2,6 +2,8 @@ ChangeLog
 =========
 1.2.8d9
 - Adapted to minimal build environment of Xcode 5.1.1 with Mac OS 10.8.5 SDK. [Eliminates use of getV1Ptr, getV3Ptr and assumes fields introduced in OS 10.8.5 are found in IOUSBFamily header files.]
+- Added compatibility stubs for targeting OS 10.7.5 - 10.8.4, 10.8.5, 10.9.x.
+- Adapted for building with Xcode 6.x.
 
 1.2.8d8
 - Updated to use new location of _onThunderbolt in OS 10.10.
