@@ -24,6 +24,8 @@
 	<dict>
 		<key>GenericUSBXHCI</key>
 		<dict>
+			<key>RM,Version</key>
+			<string>${PRODUCT_NAME} ${MODULE_VERSION}</string>
 			<key>CFBundleIdentifier</key>
 			<string>net.osx86.kexts.${PRODUCT_NAME:rfc1034identifier}</string>
 			<key>IOClass</key>
