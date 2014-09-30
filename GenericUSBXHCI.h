@@ -3,7 +3,7 @@
  *  GenericUSBXHCI
  *
  *  Created by Zenith432 on December 5th 2012.
- *  Copyright 2012-2013 Zenith432. All rights reserved.
+ *  Copyright 2012-2014 Zenith432. All rights reserved.
  *
  */
 
@@ -689,11 +689,8 @@ public:
 	IOReturn XHCIRootHubSuspendPort(uint8_t, uint16_t, bool);
 	IOReturn XHCIRootHubClearPortConnectionChange(uint16_t);
 	IOReturn XHCIRootHubClearPortChangeBit(uint16_t, uint32_t);
-	/*
-	 * Accessors for _expansionData, _expansionDataV3
-	 */
-	void* getV1Ptr(intptr_t offset);
-	void* getV3Ptr(intptr_t offset);
+
+#include "Compatibility.h"
 };
 
 #endif

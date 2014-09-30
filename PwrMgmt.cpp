@@ -3,7 +3,7 @@
 //  GenericUSBXHCI
 //
 //  Created by Zenith432 on January 5th 2013.
-//  Copyright (c) 2013 Zenith432. All rights reserved.
+//  Copyright (c) 2013-2014 Zenith432. All rights reserved.
 //
 
 #include "GenericUSBXHCI.h"
@@ -28,7 +28,7 @@ void CLASS::CheckSleepCapability(void)
 		IOLog("%s: xHC will be unloaded across sleep\n", getName());
 	_expansionData->_controllerCanSleep = haveSleep;
 	if (CHECK_FOR_MAVERICKS)
-		*static_cast<bool*>(getV3Ptr(V3_hasPCIPwrMgmt)) = haveSleep;
+		_v3ExpansionData->_hasPCIPwrMgmt = haveSleep;
 	/*
 	 * Note:
 	 *   Always set the Card Type to Built-in, in order
@@ -51,7 +51,7 @@ IOReturn CLASS::RHCompleteSuspendOnAllPorts(void)
 
 	wait = 0U;
 	if (CHECK_FOR_MAVERICKS)
-		idbmp = *static_cast<uint32_t const*>(getV1Ptr(V1_ignoreDisconnectBitmap));
+		idbmp = _expansionData->_ignoreDisconnectBitmap;
 	else
 		idbmp = 0U;
 	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
@@ -224,7 +224,7 @@ void CLASS::EnableWakeBits(void)
 {
 	if (_wakeEnabled || m_invalid_regspace || isInactive())
 		return;
-	uint32_t idbmp = *static_cast<uint32_t const*>(getV1Ptr(V1_ignoreDisconnectBitmap));
+	uint32_t idbmp = _expansionData->_ignoreDisconnectBitmap;
 	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
 		uint32_t portSC = GetPortSCForWriting(port);
 		if (m_invalid_regspace)

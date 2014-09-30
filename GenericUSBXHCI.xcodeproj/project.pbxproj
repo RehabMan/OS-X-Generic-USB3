@@ -10,6 +10,7 @@
 		E508CA0016A2030B005DEF4F /* Accessors.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E508C9FF16A2030B005DEF4F /* Accessors.cpp */; };
 		E50946D21806FC3C0034259A /* Async.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E50946D11806FC3C0034259A /* Async.cpp */; };
 		E50C5E3F16EF37FE00D655E1 /* Isoch.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E50C5E3E16EF37FE00D655E1 /* Isoch.cpp */; };
+		E50CAA1D19C0B74900E2412C /* Compatibility.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E50CAA1C19C0B74900E2412C /* Compatibility.cpp */; };
 		E52B1AC5168BA6D600860CF2 /* Leaf_Methods.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E52B1AC3168BA6D600860CF2 /* Leaf_Methods.cpp */; };
 		E52B1ACA168BA86400860CF2 /* V3Pure.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E52B1AC8168BA86400860CF2 /* V3Pure.cpp */; };
 		E53AAC301807016B0050AC2C /* Rings.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E53AAC2F1807016B0050AC2C /* Rings.cpp */; };
@@ -39,6 +40,8 @@
 		E50946D11806FC3C0034259A /* Async.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Async.cpp; sourceTree = "<group>"; };
 		E50C5E3E16EF37FE00D655E1 /* Isoch.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Isoch.cpp; sourceTree = "<group>"; };
 		E50C5E4016EF381600D655E1 /* Isoch.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Isoch.h; sourceTree = "<group>"; };
+		E50CAA1B19C0B17700E2412C /* Compatibility.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Compatibility.h; sourceTree = "<group>"; };
+		E50CAA1C19C0B74900E2412C /* Compatibility.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Compatibility.cpp; sourceTree = "<group>"; };
 		E518655A1695EFE400F068CF /* Private.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Private.h; sourceTree = "<group>"; };
 		E52B1AC3168BA6D600860CF2 /* Leaf_Methods.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Leaf_Methods.cpp; sourceTree = "<group>"; };
 		E52B1AC8168BA86400860CF2 /* V3Pure.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = V3Pure.cpp; sourceTree = "<group>"; };
@@ -125,6 +128,8 @@
 				E5D5A40616C80BFA0087F0E9 /* Async.h */,
 				E50946D11806FC3C0034259A /* Async.cpp */,
 				E5D588C316B563CC002E8D56 /* Command.cpp */,
+				E50CAA1B19C0B17700E2412C /* Compatibility.h */,
+				E50CAA1C19C0B74900E2412C /* Compatibility.cpp */,
 				E5FD15B7181180370035DB81 /* Completer.h */,
 				E5FD15B81811804B0035DB81 /* Completer.cpp */,
 				E5EA8C7E169822C800A263A2 /* Diagnostics.cpp */,
@@ -207,8 +212,7 @@
 		E5D81FE7166F8ABF0075A356 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0500;
-				ORGANIZATIONNAME = Zenith432;
+				LastUpgradeCheck = 0600;
 			};
 			buildConfigurationList = E5D81FEA166F8ABF0075A356 /* Build configuration list for PBXProject "GenericUSBXHCI" */;
 			compatibilityVersion = "Xcode 3.2";
@@ -260,6 +264,7 @@
 				E5C71C17168BAA480066307F /* V2Pure.cpp in Sources */,
 				E50946D21806FC3C0034259A /* Async.cpp in Sources */,
 				E5C71C1B168BAA540066307F /* V2Overrides.cpp in Sources */,
+				E50CAA1D19C0B74900E2412C /* Compatibility.cpp in Sources */,
 				E5DE0B28168BAC3A002BD641 /* V1Overrides.cpp in Sources */,
 				E5DE0B2D168BAC5E002BD641 /* V1Pure.cpp in Sources */,
 				E5EA8C7F169822C800A263A2 /* Diagnostics.cpp in Sources */,
@@ -283,14 +288,52 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		84BDE994181EF19800D4D80B /* Release */ = {
+		E57422AF19BDE8BF00AE6445 /* Yosemite */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				COPYRIGHT_NOTICE = "Copyright © 2012-2014 Zenith432. All rights reserved.";
+				CURRENT_PROJECT_VERSION = 1.2.8d9;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEPLOYMENT_POSTPROCESSING = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
+				GCC_ENABLE_CPP_EXCEPTIONS = NO;
+				GCC_ENABLE_CPP_RTTI = NO;
+				GCC_ENABLE_OBJC_EXCEPTIONS = NO;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_SIGN_COMPARE = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				OTHER_CFLAGS = "-fno-stack-protector";
+				OTHER_LDFLAGS = "-Wl,-no_source_version";
+				STRIPFLAGS = "-no_uuid";
+			};
+			name = Yosemite;
+		};
+		E57422B019BDE8BF00AE6445 /* Yosemite */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = Info.plist;
+				MODULE_NAME = net.osx86.kexts.GenericUSBXHCI;
+				MODULE_START = Startup;
+				MODULE_VERSION = "$(CURRENT_PROJECT_VERSION)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRIP_STYLE = "non-global";
+				WRAPPER_EXTENSION = kext;
+			};
+			name = Yosemite;
+		};
+		E584D8771801A06E005D520B /* Mavericks */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ARCHS = "$(ARCHS_STANDARD_64_BIT)";
 				COMBINE_HIDPI_IMAGES = YES;
-				COPYRIGHT_NOTICE = "Copyright © 2012-2013 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.8d7;
+				COPYRIGHT_NOTICE = "Copyright © 2012-2014 Zenith432. All rights reserved.";
+				CURRENT_PROJECT_VERSION = 1.2.8d9;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
@@ -332,8 +375,8 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
-				COPYRIGHT_NOTICE = "Copyright © 2012-2013 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.8d7;
+				COPYRIGHT_NOTICE = "Copyright © 2012-2014 Zenith432. All rights reserved.";
+				CURRENT_PROJECT_VERSION = 1.2.8d9;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
@@ -386,7 +429,10 @@
 				LLVM_LTO = NO;
 				"LLVM_LTO[arch=x86_64]" = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.7.5;
-				OTHER_CFLAGS = "-fno-stack-protector";
+				OTHER_CFLAGS = (
+					"-fno-stack-protector",
+					"-D__STDC_LIMIT_MACROS",
+				);
 				OTHER_LDFLAGS = "-Wl,-no_source_version";
 				"OTHER_LDFLAGS[arch=x86_64]" = "-dead_strip";
 				SDKROOT = macosx10.8;
@@ -417,20 +463,20 @@
 			buildConfigurations = (
 				E5D82002166F8ABF0075A356 /* Legacy */,
 				E584D8771801A06E005D520B /* Mavericks */,
-				84BDE994181EF19800D4D80B /* Release */,
+				E57422AF19BDE8BF00AE6445 /* Yosemite */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Yosemite;
 		};
 		E5D82003166F8ABF0075A356 /* Build configuration list for PBXNativeTarget "GenericUSBXHCI" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				E5D82005166F8ABF0075A356 /* Legacy */,
 				E584D8781801A06E005D520B /* Mavericks */,
-				84BDE995181EF19800D4D80B /* Release */,
+				E57422B019BDE8BF00AE6445 /* Yosemite */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Yosemite;
 		};
 /* End XCConfigurationList section */
 	};

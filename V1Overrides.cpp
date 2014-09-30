@@ -3,7 +3,7 @@
 //  GenericUSBXHCI
 //
 //  Created by Zenith432 on December 26th, 2012.
-//  Copyright (c) 2012-2013 Zenith432. All rights reserved.
+//  Copyright (c) 2012-2014 Zenith432. All rights reserved.
 //
 
 #include "GenericUSBXHCI.h"
@@ -53,7 +53,7 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 	if (CHECK_FOR_MAVERICKS)
 		return errata;
 	if (getProperty(kIOPCITunnelledKey, gIOServicePlane) == kOSBooleanTrue) {
-		_v3ExpansionData->_onThunderbolt = true;
+		ON_THUNDERBOLT = true;
 		requireMaxBusStall(25000U);
 	}
 	return errata;

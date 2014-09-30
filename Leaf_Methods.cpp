@@ -3,7 +3,7 @@
 //  GenericUSBXHCI
 //
 //  Created by Zenith432 on December 26th, 2012.
-//  Copyright (c) 2012-2013 Zenith432. All rights reserved.
+//  Copyright (c) 2012-2014 Zenith432. All rights reserved.
 //
 
 #include "GenericUSBXHCI.h"
@@ -73,22 +73,6 @@ void CLASS::CheckedSleep(uint32_t msec)
 		SleepWithGateReleased(_commandGate, msec);
 	else
 		IOSleep(msec);
-}
-
-__attribute__((visibility("hidden")))
-void* CLASS::getV1Ptr(intptr_t offset)
-{
-	if (_expansionData)
-		return reinterpret_cast<uint8_t*>(_expansionData) + offset;
-	return 0;
-}
-
-__attribute__((visibility("hidden")))
-void* CLASS::getV3Ptr(intptr_t offset)
-{
-	if (_v3ExpansionData)
-		return reinterpret_cast<uint8_t*>(_v3ExpansionData) + offset;
-	return 0;
 }
 
 __attribute__((visibility("hidden")))

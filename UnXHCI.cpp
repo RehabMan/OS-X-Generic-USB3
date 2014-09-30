@@ -3,7 +3,7 @@
 //  GenericUSBXHCI
 //
 //  Created by Zenith432 on January 26th, 2013.
-//  Copyright (c) 2013 Zenith432. All rights reserved.
+//  Copyright (c) 2013-2014 Zenith432. All rights reserved.
 //
 
 #include "GenericUSBXHCI.h"
@@ -70,7 +70,7 @@ bool CLASS::DiscoverMuxedPorts(void)
 		goto done;
 	n = static_cast<OSNumber*>(o)->unsigned32BitValue();
 	if (CHECK_FOR_MAVERICKS)
-		_providerACPIDevice = _v3ExpansionData ? *static_cast<IOACPIPlatformDevice**>(getV3Ptr(V3_acpiDevice)) : 0;
+		_providerACPIDevice = _v3ExpansionData ? _v3ExpansionData->_acpiDevice : 0;
 	else
 		_providerACPIDevice = CopyACPIDevice(_device);
 	if (!_providerACPIDevice)
@@ -187,7 +187,7 @@ uint32_t CLASS::CheckACPITablesForCaptiveRootHubPorts(uint8_t numPorts)
 		/*
 		 * IOReturn IOUSBControllerV3::GetConnectorType(IORegistryEntry* provider, UInt32 portNumber, UInt32 locationID, UInt8* connectorType);
 		 */
-		rc = GetConnectorType(_device, port, *static_cast<uint32_t const*>(getV1Ptr(V1_locationID)), &connectorType);
+		rc = GetConnectorType(_device, port, _expansionData->_locationID, &connectorType);
 		if (rc == kIOReturnSuccess && connectorType == kUSBProprietaryConnector)
 			v |= 1U << port;
 	}

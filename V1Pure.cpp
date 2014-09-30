@@ -3,7 +3,7 @@
 //  GenericUSBXHCI
 //
 //  Created by Zenith432 on December 26th, 2012.
-//  Copyright (c) 2012-2013 Zenith432. All rights reserved.
+//  Copyright (c) 2012-2014 Zenith432. All rights reserved.
 //
 
 #include "GenericUSBXHCI.h"
@@ -37,9 +37,8 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 	}
 	SetVendorInfo();
 	if (CHECK_FOR_MAVERICKS) {
-		PGetErrata64Bits pFunc = (*reinterpret_cast<PGetErrata64Bits**>(this))[V3_GetErrata64Bits];
-		uint64_t errata64 = pFunc(this, _vendorID, _deviceID, _revisionID);
-		*static_cast<uint64_t*>(getV3Ptr(V3_errata64Bits)) = errata64;
+		uint64_t errata64 = super::GetErrata64Bits(_vendorID, _deviceID, _revisionID);
+		_v3ExpansionData->_errata64Bits = errata64;
 		if (errata64 & (1ULL << 34U)) {
 			/*
 			 * TBD: Mavericks 15517 - 156C7
@@ -47,7 +46,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		}
 	}
 	_errataBits = GetErrataBits(_vendorID, _deviceID, _revisionID);	// Note: originally |=
-	if (!_v3ExpansionData->_onThunderbolt)
+	if (!ON_THUNDERBOLT)
 		_expansionData->_isochMaxBusStall = 25000U;
 	OverrideErrataFromProps();
 	_pXHCICapRegisters = reinterpret_cast<struct XHCICapRegisters volatile*>(_deviceBase->getVirtualAddress());
@@ -534,7 +533,7 @@ void CLASS::UIMRootHubStatusChange(void)
 	if (CHECK_FOR_MAVERICKS) {
 		if (_errataBits & kErrataVMwarePortSwap)
 			statusChangedBitmap = VMwarePortStatusShuffle(statusChangedBitmap, _v3ExpansionData->_rootHubNumPortsSS);
-		reinterpret_cast<uint32_t*>(&_v3ExpansionData->_wakingFromStandby)[1] = statusChangedBitmap;
+		_v3ExpansionData->_rootHubStatusChangedBitmapSS = statusChangedBitmap;
 		return;
 	}
 	if (static_cast<uint16_t>(statusChangedBitmap >> 16))

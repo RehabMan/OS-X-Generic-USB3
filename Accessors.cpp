@@ -3,7 +3,7 @@
 //  GenericUSBXHCI
 //
 //  Created by Zenith432 on January 12th 2013.
-//  Copyright (c) 2013 Zenith432. All rights reserved.
+//  Copyright (c) 2013-2014 Zenith432. All rights reserved.
 //
 
 #include "GenericUSBXHCI.h"
@@ -29,7 +29,7 @@ uint8_t CLASS::Read8Reg(uint8_t volatile const* p)
 	v = *p;
 	if (v != UINT8_MAX)
 		return v;
-	if (_v3ExpansionData->_onThunderbolt)
+	if (ON_THUNDERBOLT)
 		m_invalid_regspace = true;
 	return UINT8_MAX;
 }
@@ -43,7 +43,7 @@ uint16_t CLASS::Read16Reg(uint16_t volatile const* p)
 	v = *p;
 	if (v != UINT16_MAX)
 		return v;
-	if (_v3ExpansionData->_onThunderbolt)
+	if (ON_THUNDERBOLT)
 		m_invalid_regspace = true;
 	return UINT16_MAX;
 }
@@ -57,7 +57,7 @@ uint32_t CLASS::Read32Reg(uint32_t volatile const* p)
 	v = *p;
 	if (v != UINT32_MAX)
 		return v;
-	if (_v3ExpansionData->_onThunderbolt)
+	if (ON_THUNDERBOLT)
 		m_invalid_regspace = true;
 	return UINT32_MAX;
 }
@@ -73,21 +73,21 @@ uint64_t CLASS::Read64Reg(uint64_t volatile const* p)
 #ifdef __LP64__
 		if (_vendorID != kVendorFrescoLogic) {
 			v = *p;
-			if (v == UINT64_MAX && _v3ExpansionData->_onThunderbolt)
+			if (v == UINT64_MAX && ON_THUNDERBOLT)
 				goto scrap;
 			return v;
 		}
 #endif
 		lowv = *reinterpret_cast<uint32_t volatile const*>(p);
-		if (lowv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
+		if (lowv == UINT32_MAX && ON_THUNDERBOLT)
 			goto scrap;
 		highv = reinterpret_cast<uint32_t volatile const*>(p)[1];
-		if (highv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
+		if (highv == UINT32_MAX && ON_THUNDERBOLT)
 			goto scrap;
 		return (static_cast<uint64_t>(highv) << 32) | lowv;
 	}
 	lowv = *reinterpret_cast<uint32_t volatile const*>(p);
-	if (lowv == UINT32_MAX && _v3ExpansionData->_onThunderbolt)
+	if (lowv == UINT32_MAX && ON_THUNDERBOLT)
 		goto scrap;
 	return lowv;
 scrap:
