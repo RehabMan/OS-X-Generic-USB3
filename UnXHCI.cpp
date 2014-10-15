@@ -69,9 +69,11 @@ bool CLASS::DiscoverMuxedPorts(void)
 	if (!o)
 		goto done;
 	n = static_cast<OSNumber*>(o)->unsigned32BitValue();
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
 	if (CHECK_FOR_MAVERICKS)
 		_providerACPIDevice = _v3ExpansionData ? _v3ExpansionData->_acpiDevice : 0;
 	else
+#endif
 		_providerACPIDevice = CopyACPIDevice(_device);
 	if (!_providerACPIDevice)
 		goto done;

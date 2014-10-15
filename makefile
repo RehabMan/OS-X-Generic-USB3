@@ -11,16 +11,21 @@ ifeq ($(findstring 64,$(BITS)),64)
 OPTIONS:=$(OPTIONS) -arch x86_64
 endif
 
+INSTALLDIR=Legacy
+ifeq ($(OSTYPE),"darwin14")
+INSTALLDIR=Yosemite
+endif
+
 .PHONY: all
 all:
-	xcodebuild build $(OPTIONS) -configuration Release
-	xcodebuild build $(OPTIONS) -configuration Debug
+	xcodebuild build $(OPTIONS) -configuration Legacy
+	xcodebuild build $(OPTIONS) -configuration Yosemite
 	make -f xhcdump.mak
 
 .PHONY: clean
 clean:
-	xcodebuild clean $(OPTIONS) -configuration Release
-	xcodebuild clean $(OPTIONS) -configuration Debug
+	xcodebuild clean $(OPTIONS) -configuration Legacy
+	xcodebuild clean $(OPTIONS) -configuration Yosemite
 	rm ./xhcdump
 
 .PHONY: update_kernelcache
@@ -28,22 +33,17 @@ update_kernelcache:
 	sudo touch /System/Library/Extensions
 	sudo kextcache -update-volume /
 
-.PHONY: install_debug
-install_debug:
-	sudo cp -R ./Build/Debug/$(KEXT) /System/Library/Extensions
-	make update_kernelcache
-
 .PHONY: install
 install:
-	sudo cp -R ./Build/Release/$(KEXT) /System/Library/Extensions
+	sudo cp -R ./Build/$(INSTALLDIR)/$(KEXT) /System/Library/Extensions
 	make update_kernelcache
 
 .PHONY: distribute
 distribute:
 	if [ -e ./Distribute ]; then rm -r ./Distribute; fi
 	mkdir ./Distribute
-	#cp -R ./Build/Debug ./Distribute
-	cp -R ./Build/Release ./Distribute
+	cp -R ./Build/Legacy ./Distribute
+	cp -R ./Build/Yosemite ./Distribute
 	cp ./xhcdump ./Distribute
 	find ./Distribute -path *.DS_Store -delete
 	find ./Distribute -path *.dSYM -exec echo rm -r {} \; >/tmp/org.voodoo.rm.dsym.sh

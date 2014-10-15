@@ -24,6 +24,8 @@
 	#error Target OS version must be 10.7.5 or above.
 #endif
 
+#if 0
+
 #pragma mark -
 #pragma mark Introduced OS 10.10
 #pragma mark -
@@ -95,3 +97,5 @@ UInt64 CLASS::GetErrata64Bits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionI
 	return super::GetErrata64Bits(vendorID, deviceID, revisionID);
 }
 #endif
+
+#endif //0

@@ -36,6 +36,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		return kIOReturnNoResources;
 	}
 	SetVendorInfo();
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
 	if (CHECK_FOR_MAVERICKS) {
 		uint64_t errata64 = super::GetErrata64Bits(_vendorID, _deviceID, _revisionID);
 		_v3ExpansionData->_errata64Bits = errata64;
@@ -45,6 +46,7 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 			 */
 		}
 	}
+#endif
 	_errataBits = GetErrataBits(_vendorID, _deviceID, _revisionID);	// Note: originally |=
 	if (!ON_THUNDERBOLT)
 		_expansionData->_isochMaxBusStall = 25000U;
@@ -530,12 +532,14 @@ void CLASS::UIMRootHubStatusChange(void)
 	if (!_controllerAvailable || _wakingFromHibernation)
 		statusChangedBitmap = 0U;
 #endif
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
 	if (CHECK_FOR_MAVERICKS) {
 		if (_errataBits & kErrataVMwarePortSwap)
 			statusChangedBitmap = VMwarePortStatusShuffle(statusChangedBitmap, _v3ExpansionData->_rootHubNumPortsSS);
 		_v3ExpansionData->_rootHubStatusChangedBitmapSS = statusChangedBitmap;
 		return;
 	}
+#endif
 	if (static_cast<uint16_t>(statusChangedBitmap >> 16))
 		RHClearUnserviceablePorts();
 	if (_errataBits & kErrataVMwarePortSwap)

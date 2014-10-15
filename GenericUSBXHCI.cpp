@@ -86,11 +86,14 @@ IOReturn CLASS::message(UInt32 type, IOService* provider, void* argument)
 
 unsigned long CLASS::maxCapabilityForDomainState(IOPMPowerFlags domainState)
 {
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
 	uint8_t port, portLimit;
 	uint32_t portSC;
+#endif
 	unsigned long state = super::maxCapabilityForDomainState(domainState);
 	if (!CHECK_FOR_MAVERICKS)
 		return state;
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
 	if (_wakingFromHibernation)
 		return state;
 	if (!(_errataBits & kErrataIntelLynxPoint))
@@ -122,6 +125,7 @@ unsigned long CLASS::maxCapabilityForDomainState(IOPMPowerFlags domainState)
 	EnableAllEndpoints(true);
 	state = kUSBPowerStateOff;
 	_wakingFromHibernation = true;
+#endif
 	return state;
 }
 
@@ -235,6 +239,17 @@ kern_return_t Startup(kmod_info_t* ki, void * d)
 		IOLog("OS 10.7.5 or later required for GenericUSBXHCI\n");
 		return KERN_FAILURE;
 	}
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 101000
+    if (thisKernelVersion < MakeKernelVersion(14, 0, 0)) {
+        IOLog("OS 10.10.0 or later required for this build of GenericUSBXHCI\n");
+        return KERN_FAILURE;
+    }
+#else
+    if (thisKernelVersion >= MakeKernelVersion(14, 0, 0)) {
+        IOLog("This build of GenericUSBXHCI is not compatible with OS 10.10\n");
+        return KERN_FAILURE;
+    }
+#endif
 #ifdef __LP64__
 	if (thisKernelVersion >= MakeKernelVersion(12, 5, 0))
 		gux_options |= GUX_OPTION_MAVERICKS;

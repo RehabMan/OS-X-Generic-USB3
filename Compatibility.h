@@ -7,6 +7,8 @@
 //
 //
 
+#if 0
+
 #ifndef GenericUSBXHCI_Compatibility_h
 #define GenericUSBXHCI_Compatibility_h
 
@@ -38,3 +40,5 @@
 #endif
 
 #endif
+
+#endif //0

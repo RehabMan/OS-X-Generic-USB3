@@ -27,8 +27,12 @@ void CLASS::CheckSleepCapability(void)
 	else
 		IOLog("%s: xHC will be unloaded across sleep\n", getName());
 	_expansionData->_controllerCanSleep = haveSleep;
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
 	if (CHECK_FOR_MAVERICKS)
+    {
 		_v3ExpansionData->_hasPCIPwrMgmt = haveSleep;
+    }
+#endif
 	/*
 	 * Note:
 	 *   Always set the Card Type to Built-in, in order
@@ -50,9 +54,13 @@ IOReturn CLASS::RHCompleteSuspendOnAllPorts(void)
 	uint32_t wait, portSC, changePortSC, idbmp, wantedWakeBits;
 
 	wait = 0U;
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
 	if (CHECK_FOR_MAVERICKS)
+    {
 		idbmp = _expansionData->_ignoreDisconnectBitmap;
+    }
 	else
+#endif
 		idbmp = 0U;
 	for (uint8_t port = 0U; port < _rootHubNumPorts; ++port) {
 		changePortSC = 0U;
