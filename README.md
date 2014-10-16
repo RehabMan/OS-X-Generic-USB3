@@ -14,14 +14,18 @@ rm -rf /System/Library/Extensions/PXHCD.kext
 
 ### Downloads:
 
-Downloads are available on Google Code:
+Downloads are available on Bitbucket:
+
+https://bitbucket.org/RehabMan/os-x-generic-usb3/downloads
+
+Archived (old) builds are available on Google Code:
 
 https://code.google.com/p/os-x-generic-usb3/downloads/list
 
 
 ### Build Environment
 
-My build environment is currently Xcode 4.61, using SDK 10.8, targeting OS X 10.7.
+My build environment is currently Xcode 6.1, using SDK 10.8, targeting OS X 10.7.
 
 No other build environment is supported.
 
@@ -54,6 +58,8 @@ make BITS=32
 
 The source code is maintained at the following sites:
 
+https://bitbucket.org/RehabMan/os-x-generic-usb3
+
 https://code.google.com/p/os-x-generic-usb3/
 
 https://github.com/RehabMan/OS-X-Generic-USB3
@@ -70,6 +76,13 @@ TODO: provide link
 
 
 ### Change Log:
+
+2014-10-16 (RehabMan)
+
+- Merged with latest Zenith432 version
+
+- Created new Universal build for compatibility with 10.7.5 through 10.10
+
 
 2013-03-23 (RehabMan)
 
