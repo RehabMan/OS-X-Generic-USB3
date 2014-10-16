@@ -36,10 +36,14 @@ IOReturn CLASS::UIMInitialize(IOService* provider)
 		return kIOReturnNoResources;
 	}
 	SetVendorInfo();
-#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090 || defined(REHABMAN_UNIVERSAL_BUILD)
 	if (CHECK_FOR_MAVERICKS) {
-		uint64_t errata64 = super::GetErrata64Bits(_vendorID, _deviceID, _revisionID);
-		_v3ExpansionData->_errata64Bits = errata64;
+#ifdef REHABMAN_UNIVERSAL_BUILD
+        uint64_t errata64 = ((Mavericks_IOUSBControllerV3*)this)->GetErrata64Bits(_vendorID, _deviceID, _revisionID);
+#else
+        uint64_t errata64 = super::GetErrata64Bits(_vendorID, _deviceID, _revisionID);
+#endif
+		WRITE_V3EXPANSION(_errata64Bits, errata64);
 		if (errata64 & (1ULL << 34U)) {
 			/*
 			 * TBD: Mavericks 15517 - 156C7
@@ -532,18 +536,18 @@ void CLASS::UIMRootHubStatusChange(void)
 	if (!_controllerAvailable || _wakingFromHibernation)
 		statusChangedBitmap = 0U;
 #endif
-#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090 || defined(REHABMAN_UNIVERSAL_BUILD)
 	if (CHECK_FOR_MAVERICKS) {
 		if (_errataBits & kErrataVMwarePortSwap)
-			statusChangedBitmap = VMwarePortStatusShuffle(statusChangedBitmap, _v3ExpansionData->_rootHubNumPortsSS);
-		_v3ExpansionData->_rootHubStatusChangedBitmapSS = statusChangedBitmap;
+			statusChangedBitmap = VMwarePortStatusShuffle(statusChangedBitmap, READ_V3EXPANSION(_rootHubNumPortsSS));
+		WRITE_V3EXPANSION(_rootHubStatusChangedBitmapSS, statusChangedBitmap);
 		return;
 	}
 #endif
 	if (static_cast<uint16_t>(statusChangedBitmap >> 16))
 		RHClearUnserviceablePorts();
 	if (_errataBits & kErrataVMwarePortSwap)
-		statusChangedBitmap = VMwarePortStatusShuffle(statusChangedBitmap, _v3ExpansionData->_rootHubNumPortsSS);
+		statusChangedBitmap = VMwarePortStatusShuffle(statusChangedBitmap, READ_V3EXPANSION(_rootHubNumPortsSS));
 	_rootHubStatusChangedBitmap = static_cast<uint16_t>(statusChangedBitmap);
 }
 
@@ -607,7 +611,7 @@ IOReturn CLASS::GetRootHubDescriptor(IOUSBHubDescriptor* desc)
 
 	hubDesc.length = sizeof hubDesc;
 	hubDesc.hubType = kUSBHubDescriptorType;
-	hubDesc.numPorts = _v3ExpansionData->_rootHubNumPortsHS;
+	hubDesc.numPorts = READ_V3EXPANSION(_rootHubNumPortsHS);
 	hubDesc.characteristics = HostToUSBWord(static_cast<uint16_t>(XHCI_HCC_PPC(_HCCLow) ? kPerPortSwitchingBit : 0U));
 	hubDesc.powerOnToGood = 250U;
 	hubDesc.hubCurrent = 0U;
@@ -621,9 +625,9 @@ IOReturn CLASS::GetRootHubDescriptor(IOUSBHubDescriptor* desc)
 	} else if (CHECK_FOR_MAVERICKS)
 		appleCaptive = CheckACPITablesForCaptiveRootHubPorts(_rootHubNumPorts);
 	if (appleCaptive) {
-		if (_v3ExpansionData->_rootHubPortsHSStartRange > 1U)
-			appleCaptive >>= (_v3ExpansionData->_rootHubPortsHSStartRange - 1U);
-		appleCaptive &= (2U << _v3ExpansionData->_rootHubNumPortsHS) - 2U;
+		if (READ_V3EXPANSION(_rootHubPortsHSStartRange) > 1U)
+			appleCaptive >>= (READ_V3EXPANSION(_rootHubPortsHSStartRange) - 1U);
+		appleCaptive &= (2U << READ_V3EXPANSION(_rootHubNumPortsHS)) - 2U;
 	}
 	dstPtr = &hubDesc.removablePortFlags[0];
 	for (i = 0U; i < numBytes; i++) {

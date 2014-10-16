@@ -42,7 +42,7 @@ IOReturn CLASS::CreateInterruptEndpoint(int16_t functionAddress, int16_t endpoin
 	int16_t intervalExponent;
 
 	if (functionAddress == _hub3Address || functionAddress == _hub2Address) {
-		_v3ExpansionData->_rootHubPollingRate32 = pollingRate > 15 ? 4096U : (pollingRate > 4 ? (1U << (pollingRate - 4)) : 1U);
+        WRITE_V3EXPANSION(_rootHubPollingRate32, pollingRate > 15 ? 4096U : (pollingRate > 4 ? (1U << (pollingRate - 4)) : 1U));
 		return kIOReturnSuccess;
 	}
 	if (!functionAddress)

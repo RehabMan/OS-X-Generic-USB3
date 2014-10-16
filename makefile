@@ -3,6 +3,8 @@
 KEXT=GenericUSBXHCI.kext
 DIST=RehabMan-Generic-USB3
 
+#OPTIONS=LOGNAME=$(LOGNAME)
+
 ifeq ($(findstring 32,$(BITS)),32)
 OPTIONS:=$(OPTIONS) -arch i386
 endif
@@ -11,21 +13,25 @@ ifeq ($(findstring 64,$(BITS)),64)
 OPTIONS:=$(OPTIONS) -arch x86_64
 endif
 
-INSTALLDIR=Legacy
-ifeq ($(OSTYPE),"darwin14")
-INSTALLDIR=Yosemite
-endif
+INSTALLDIR=Universal
+#ifeq ($(OSTYPE),"darwin14")
+#INSTALLDIR=Yosemite
+#endif
 
 .PHONY: all
 all:
 	xcodebuild build $(OPTIONS) -configuration Legacy
 	xcodebuild build $(OPTIONS) -configuration Yosemite
+	xcodebuild build $(OPTIONS) -configuration Mavericks
+	xcodebuild build $(OPTIONS) -configuration Universal
 	make -f xhcdump.mak
 
 .PHONY: clean
 clean:
 	xcodebuild clean $(OPTIONS) -configuration Legacy
 	xcodebuild clean $(OPTIONS) -configuration Yosemite
+	xcodebuild clean $(OPTIONS) -configuration Mavericks
+	xcodebuild clean $(OPTIONS) -configuration Universal
 	rm ./xhcdump
 
 .PHONY: update_kernelcache
@@ -42,8 +48,10 @@ install:
 distribute:
 	if [ -e ./Distribute ]; then rm -r ./Distribute; fi
 	mkdir ./Distribute
-	cp -R ./Build/Legacy ./Distribute
-	cp -R ./Build/Yosemite ./Distribute
+	#cp -R ./Build/Legacy ./Distribute
+	#cp -R ./Build/Mavericks ./Distribute
+	#cp -R ./Build/Yosemite ./Distribute
+	cp -R ./Build/Universal ./Distribute
 	cp ./xhcdump ./Distribute
 	find ./Distribute -path *.DS_Store -delete
 	find ./Distribute -path *.dSYM -exec echo rm -r {} \; >/tmp/org.voodoo.rm.dsym.sh

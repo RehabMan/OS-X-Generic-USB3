@@ -27,10 +27,10 @@ void CLASS::CheckSleepCapability(void)
 	else
 		IOLog("%s: xHC will be unloaded across sleep\n", getName());
 	_expansionData->_controllerCanSleep = haveSleep;
-#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090 || defined(REHABMAN_UNIVERSAL_BUILD)
 	if (CHECK_FOR_MAVERICKS)
     {
-		_v3ExpansionData->_hasPCIPwrMgmt = haveSleep;
+        WRITE_V3EXPANSION(_hasPCIPwrMgmt, haveSleep);
     }
 #endif
 	/*
@@ -54,10 +54,14 @@ IOReturn CLASS::RHCompleteSuspendOnAllPorts(void)
 	uint32_t wait, portSC, changePortSC, idbmp, wantedWakeBits;
 
 	wait = 0U;
-#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090 || defined(REHABMAN_UNIVERSAL_BUILD)
 	if (CHECK_FOR_MAVERICKS)
     {
-		idbmp = _expansionData->_ignoreDisconnectBitmap;
+#if __MAC_OS_X_VERSION_MAX_ALLOWED < 1090
+        idbmp = ((Yosemite_ExpansionData*)_expansionData)->_ignoreDisconnectBitmap;
+#else
+        idbmp = _expansionData->_ignoreDisconnectBitmap;
+#endif
     }
 	else
 #endif

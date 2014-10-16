@@ -86,14 +86,14 @@ IOReturn CLASS::message(UInt32 type, IOService* provider, void* argument)
 
 unsigned long CLASS::maxCapabilityForDomainState(IOPMPowerFlags domainState)
 {
-#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090 || defined(REHABMAN_UNIVERSAL_BUILD)
 	uint8_t port, portLimit;
 	uint32_t portSC;
 #endif
 	unsigned long state = super::maxCapabilityForDomainState(domainState);
 	if (!CHECK_FOR_MAVERICKS)
 		return state;
-#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 1090 || defined(REHABMAN_UNIVERSAL_BUILD)
 	if (_wakingFromHibernation)
 		return state;
 	if (!(_errataBits & kErrataIntelLynxPoint))
@@ -106,10 +106,10 @@ unsigned long CLASS::maxCapabilityForDomainState(IOPMPowerFlags domainState)
 	 * Note: This check neutralizes the code below because PM backbone calls this method *before*
 	 *   powering the parent IOPCIDevice on when coming back from Sleep to On.
 	 */
-	if (!_v3ExpansionData || !_v3ExpansionData->_parentDeviceON)
+    if (!_v3ExpansionData || !READ_V3EXPANSION(_parentDeviceON))
 		return state;
-	port = _v3ExpansionData->_rootHubPortsSSStartRange - 1U;
-	portLimit = port + _v3ExpansionData->_rootHubNumPortsSS;
+    port = READ_V3EXPANSION(_rootHubPortsSSStartRange) - 1U;
+    portLimit = port + READ_V3EXPANSION(_rootHubNumPortsSS);
 	for (; port < portLimit; ++port) {
 		portSC = Read32Reg(&_pXHCIOperationalRegisters->prs[port].PortSC);
 		if (m_invalid_regspace)
@@ -239,6 +239,7 @@ kern_return_t Startup(kmod_info_t* ki, void * d)
 		IOLog("OS 10.7.5 or later required for GenericUSBXHCI\n");
 		return KERN_FAILURE;
 	}
+#ifndef REHABMAN_UNIVERSAL_BUILD
 #if __MAC_OS_X_VERSION_MAX_ALLOWED >= 101000
     if (thisKernelVersion < MakeKernelVersion(14, 0, 0)) {
         IOLog("OS 10.10.0 or later required for this build of GenericUSBXHCI\n");
@@ -250,9 +251,12 @@ kern_return_t Startup(kmod_info_t* ki, void * d)
         return KERN_FAILURE;
     }
 #endif
+#endif
 #ifdef __LP64__
 	if (thisKernelVersion >= MakeKernelVersion(12, 5, 0))
 		gux_options |= GUX_OPTION_MAVERICKS;
+    if (thisKernelVersion >= MakeKernelVersion(14, 0, 0))
+        gux_options |= GUX_OPTION_YOSEMITE;
 #endif
 	if (PE_parse_boot_argn("-gux_nosleep", &v, sizeof v))
 		gux_options |= GUX_OPTION_NO_SLEEP;

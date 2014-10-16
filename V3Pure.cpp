@@ -256,7 +256,7 @@ IOReturn CLASS::RestoreControllerStateFromSleep(void)
 
 IOReturn CLASS::DozeController(void)
 {
-	if (!_v3ExpansionData->_externalDeviceCount &&
+	if (!READ_V3EXPANSION(_externalDeviceCount) &&
 		(_errataBits & kErrataSWAssistedIdle)) {
 		uint16_t xhcc = _device->configRead16(PCI_XHCI_INTEL_XHCC);
 		if (xhcc == UINT16_MAX) {

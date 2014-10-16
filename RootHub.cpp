@@ -491,18 +491,18 @@ __attribute__((noinline, visibility("hidden")))
 uint16_t CLASS::PortNumberCanonicalToProtocol(uint16_t canonical, uint8_t* pProtocol)
 {
 	if (_errataBits & kErrataVMwarePortSwap)
-		canonical = canonical / 2U + ((canonical & 1U) ? _v3ExpansionData->_rootHubNumPortsSS : 0U);
-	if (canonical + 1U >= _v3ExpansionData->_rootHubPortsSSStartRange &&
-		canonical + 1U < _v3ExpansionData->_rootHubPortsSSStartRange + _v3ExpansionData->_rootHubNumPortsSS) {
+		canonical = canonical / 2U + ((canonical & 1U) ? READ_V3EXPANSION(_rootHubNumPortsSS) : 0U);
+	if (canonical + 1U >= READ_V3EXPANSION(_rootHubPortsSSStartRange) &&
+		canonical + 1U < READ_V3EXPANSION(_rootHubPortsSSStartRange) + READ_V3EXPANSION(_rootHubNumPortsSS)) {
 		if (pProtocol)
 			*pProtocol = kUSBDeviceSpeedSuper;
-		return canonical - _v3ExpansionData->_rootHubPortsSSStartRange + 2U;
+		return canonical - READ_V3EXPANSION(_rootHubPortsSSStartRange) + 2U;
 	}
-	if (canonical + 1U >= _v3ExpansionData->_rootHubPortsHSStartRange &&
-		canonical + 1U < _v3ExpansionData->_rootHubPortsHSStartRange + _v3ExpansionData->_rootHubNumPortsHS) {
+	if (canonical + 1U >= READ_V3EXPANSION(_rootHubPortsHSStartRange) &&
+		canonical + 1U < READ_V3EXPANSION(_rootHubPortsHSStartRange) + READ_V3EXPANSION(_rootHubNumPortsHS)) {
 		if (pProtocol)
 			*pProtocol = kUSBDeviceSpeedHigh;
-		return canonical - _v3ExpansionData->_rootHubPortsHSStartRange + 2U;
+		return canonical - READ_V3EXPANSION(_rootHubPortsHSStartRange) + 2U;
 	}
 	return 0U;
 }
@@ -512,17 +512,17 @@ uint16_t CLASS::PortNumberProtocolToCanonical(uint16_t port, uint8_t protocol)
 {
 	switch ((protocol & kUSBSpeed_Mask) >> kUSBSpeed_Shift) {
 		case kUSBDeviceSpeedSuper:
-			if (port && port <= _v3ExpansionData->_rootHubNumPortsSS) {
+			if (port && port <= READ_V3EXPANSION(_rootHubNumPortsSS)) {
 				if (_errataBits & kErrataVMwarePortSwap)
 					return port * 2U - 2U;
-				return port + _v3ExpansionData->_rootHubPortsSSStartRange - 2U;
+				return port + READ_V3EXPANSION(_rootHubPortsSSStartRange) - 2U;
 			}
 			break;
 		case kUSBDeviceSpeedHigh:
-			if (port && port <= _v3ExpansionData->_rootHubNumPortsHS) {
+			if (port && port <= READ_V3EXPANSION(_rootHubNumPortsHS)) {
 				if (_errataBits & kErrataVMwarePortSwap)
 					return port * 2U - 1U;
-				return port + _v3ExpansionData->_rootHubPortsHSStartRange - 2U;
+				return port + READ_V3EXPANSION(_rootHubPortsHSStartRange) - 2U;
 			}
 			break;
 	}
@@ -535,16 +535,16 @@ uint16_t CLASS::GetCompanionRootPort(uint8_t protocol, uint16_t port)
 	if (_errataBits & kErrataVMwarePortSwap)
 		return port ^ 1U;
 	if (protocol == kUSBDeviceSpeedHigh) {
-		port -= _v3ExpansionData->_rootHubPortsHSStartRange;
-		if (port + 1U >= _v3ExpansionData->_rootHubNumPortsSS)
+		port -= READ_V3EXPANSION(_rootHubPortsHSStartRange);
+		if (port + 1U >= READ_V3EXPANSION(_rootHubNumPortsSS))
 			return UINT16_MAX;
-		return port + _v3ExpansionData->_rootHubPortsSSStartRange;
+		return port + READ_V3EXPANSION(_rootHubPortsSSStartRange);
 	}
 	if (protocol == kUSBDeviceSpeedSuper) {
-		port -= _v3ExpansionData->_rootHubPortsSSStartRange;
-		if (port + 1U >= _v3ExpansionData->_rootHubNumPortsHS)
+		port -= READ_V3EXPANSION(_rootHubPortsSSStartRange);
+		if (port + 1U >= READ_V3EXPANSION(_rootHubNumPortsHS))
 			return UINT16_MAX;
-		return port + _v3ExpansionData->_rootHubPortsHSStartRange;
+		return port + READ_V3EXPANSION(_rootHubPortsHSStartRange);
 	}
 	return UINT16_MAX;
 }

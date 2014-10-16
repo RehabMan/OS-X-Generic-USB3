@@ -195,10 +195,10 @@ __attribute__((visibility("hidden")))
 void CLASS::DecodeExtendedCapability(uint32_t hccParams)
 {
 	if (_errataBits & kErrataVMwarePortSwap) {
-		_v3ExpansionData->_rootHubNumPortsSS = _rootHubNumPorts / 2U;
-		_v3ExpansionData->_rootHubPortsSSStartRange = 1U;
-		_v3ExpansionData->_rootHubNumPortsHS = _v3ExpansionData->_rootHubNumPortsSS;
-		_v3ExpansionData->_rootHubPortsHSStartRange = _v3ExpansionData->_rootHubPortsSSStartRange + _v3ExpansionData->_rootHubNumPortsSS;
+        WRITE_V3EXPANSION(_rootHubNumPortsSS, _rootHubNumPorts / 2U);
+        WRITE_V3EXPANSION(_rootHubPortsSSStartRange, 1U);
+        WRITE_V3EXPANSION(_rootHubNumPortsHS, READ_V3EXPANSION(_rootHubNumPortsSS));
+        WRITE_V3EXPANSION(_rootHubPortsHSStartRange, READ_V3EXPANSION(_rootHubPortsSSStartRange) + READ_V3EXPANSION(_rootHubNumPortsSS));
 		return;
 	}
 	uint32_t ecp = XHCI_HCC_XECP(hccParams);
@@ -225,14 +225,14 @@ void CLASS::DecodeSupportedProtocol(XHCIXECPStruct volatile* pCap)
 		case 3U:
 			if (pSPCap->nameString != ' BSU')
 				break;
-			_v3ExpansionData->_rootHubNumPortsSS = pSPCap->compatiblePortCount;
-			_v3ExpansionData->_rootHubPortsSSStartRange = pSPCap->compatiblePortOffset;
+            WRITE_V3EXPANSION(_rootHubNumPortsSS, pSPCap->compatiblePortCount);
+            WRITE_V3EXPANSION(_rootHubPortsSSStartRange, pSPCap->compatiblePortOffset);
 			break;
 		case 2U:
 			if (pSPCap->nameString != ' BSU')
 				break;
-			_v3ExpansionData->_rootHubNumPortsHS = pSPCap->compatiblePortCount;
-			_v3ExpansionData->_rootHubPortsHSStartRange = pSPCap->compatiblePortOffset;
+            WRITE_V3EXPANSION(_rootHubNumPortsHS, pSPCap->compatiblePortCount);
+            WRITE_V3EXPANSION(_rootHubPortsHSStartRange, pSPCap->compatiblePortOffset);
 			break;
 	}
 }

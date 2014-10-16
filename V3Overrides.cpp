@@ -97,7 +97,7 @@ IOReturn CLASS::GetRootHub3Descriptor(IOUSB3HubDescriptor* desc)
 
 	hubDesc.length = sizeof hubDesc;
 	hubDesc.hubType = kUSB3HubDescriptorType;
-	hubDesc.numPorts = _v3ExpansionData->_rootHubNumPortsSS;
+	hubDesc.numPorts = READ_V3EXPANSION(_rootHubNumPortsSS);
 	hubDesc.characteristics = HostToUSBWord(static_cast<uint16_t>(XHCI_HCC_PPC(_HCCLow) ? kPerPortSwitchingBit : 0U));
 	hubDesc.powerOnToGood = 250U;
 	hubDesc.hubCurrent = 0U;
@@ -113,9 +113,9 @@ IOReturn CLASS::GetRootHub3Descriptor(IOUSB3HubDescriptor* desc)
 	} else if (CHECK_FOR_MAVERICKS)
 		appleCaptive = CheckACPITablesForCaptiveRootHubPorts(_rootHubNumPorts);
 	if (appleCaptive) {
-		if (_v3ExpansionData->_rootHubPortsSSStartRange > 1U)
-			appleCaptive >>= (_v3ExpansionData->_rootHubPortsSSStartRange - 1U);
-		appleCaptive &= (2U << _v3ExpansionData->_rootHubNumPortsSS) - 2U;
+		if (READ_V3EXPANSION(_rootHubPortsSSStartRange) > 1U)
+			appleCaptive >>= (READ_V3EXPANSION(_rootHubPortsSSStartRange) - 1U);
+		appleCaptive &= (2U << READ_V3EXPANSION(_rootHubNumPortsSS)) - 2U;
 	}
 	dstPtr = &hubDesc.removablePortFlags[0];
 	for (i = 0U; i < numBytes; i++) {

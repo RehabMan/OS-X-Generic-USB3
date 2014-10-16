@@ -53,7 +53,7 @@ UInt32 CLASS::GetErrataBits(UInt16 vendorID, UInt16 deviceID, UInt16 revisionID)
 	if (CHECK_FOR_MAVERICKS)
 		return errata;
 	if (getProperty(kIOPCITunnelledKey, gIOServicePlane) == kOSBooleanTrue) {
-		ON_THUNDERBOLT = true;
+		WRITE_ON_THUNDERBOLT(true);
 		requireMaxBusStall(25000U);
 	}
 	return errata;
