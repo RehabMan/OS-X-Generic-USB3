@@ -60,8 +60,6 @@ The source code is maintained at the following sites:
 
 https://bitbucket.org/RehabMan/os-x-generic-usb3
 
-https://code.google.com/p/os-x-generic-usb3/
-
 https://github.com/RehabMan/OS-X-Generic-USB3
 
 
