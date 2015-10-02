@@ -245,6 +245,10 @@ kern_return_t Startup(kmod_info_t* ki, void * d)
         IOLog("OS 10.10.0 or later required for this build of GenericUSBXHCI\n");
         return KERN_FAILURE;
     }
+    if (thisKernelVersion >= MakeKernelVersion(15, 0, 0)) {
+        IOLog("GenericUSBXHCI does not work on OS 10.11 or later\n");
+        return KERN_FAILURE;
+    }
 #else
     if (thisKernelVersion >= MakeKernelVersion(14, 0, 0)) {
         IOLog("This build of GenericUSBXHCI is not compatible with OS 10.10\n");
