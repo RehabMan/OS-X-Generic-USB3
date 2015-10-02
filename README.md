@@ -75,6 +75,11 @@ TODO: provide link
 
 ### Change Log:
 
+2015-10-02 (RehabMan)
+
+- The kext will now fail to load on 10.11+
+
+
 2014-10-16 (RehabMan)
 
 - Merged with latest Zenith432 version
