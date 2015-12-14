@@ -3,6 +3,13 @@
 KEXT=GenericUSBXHCI.kext
 DIST=RehabMan-Generic-USB3
 
+VERSION_ERA=$(shell ./print_version.sh)
+ifeq "$(VERSION_ERA)" "10.10-"
+	INSTDIR=/System/Library/Extensions
+else
+	INSTDIR=/Library/Extensions
+endif
+
 #OPTIONS=LOGNAME=$(LOGNAME)
 
 ifeq ($(findstring 32,$(BITS)),32)
@@ -20,17 +27,17 @@ INSTALLDIR=Universal
 
 .PHONY: all
 all:
-	xcodebuild build $(OPTIONS) -configuration Legacy
-	xcodebuild build $(OPTIONS) -configuration Yosemite
-	xcodebuild build $(OPTIONS) -configuration Mavericks
+	#xcodebuild build $(OPTIONS) -configuration Legacy
+	#xcodebuild build $(OPTIONS) -configuration Yosemite
+	#xcodebuild build $(OPTIONS) -configuration Mavericks
 	xcodebuild build $(OPTIONS) -configuration Universal
 	make -f xhcdump.mak
 
 .PHONY: clean
 clean:
-	xcodebuild clean $(OPTIONS) -configuration Legacy
-	xcodebuild clean $(OPTIONS) -configuration Yosemite
-	xcodebuild clean $(OPTIONS) -configuration Mavericks
+	#xcodebuild clean $(OPTIONS) -configuration Legacy
+	#xcodebuild clean $(OPTIONS) -configuration Yosemite
+	#xcodebuild clean $(OPTIONS) -configuration Mavericks
 	xcodebuild clean $(OPTIONS) -configuration Universal
 	rm ./xhcdump
 
@@ -41,7 +48,7 @@ update_kernelcache:
 
 .PHONY: install
 install:
-	sudo cp -R ./Build/$(INSTALLDIR)/$(KEXT) /System/Library/Extensions
+	sudo cp -R ./Build/$(INSTALLDIR)/$(KEXT) $(INSTDIR)
 	make update_kernelcache
 
 .PHONY: distribute

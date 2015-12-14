@@ -32,9 +32,48 @@ OSDefineMetaClassAndFinalStructors(GenericUSBXHCI, IOUSBControllerV3);
 
 static __used char const copyright[] = "Copyright 2012-2014 Zenith432";
 
+/*
+ * Courtesy RehabMan
+ */
+#define MakeKernelVersion(maj,min,rev) (static_cast<uint32_t>((maj)<<16)|static_cast<uint16_t>((min)<<8)|static_cast<uint8_t>(rev))
+
 #pragma mark -
 #pragma mark IOService
 #pragma mark -
+
+IOService* CLASS::probe(IOService* provider, SInt32* score)
+{
+    uint32_t v;
+#if 0
+    uint32_t thisKernelVersion = MakeKernelVersion(version_major, version_minor, version_revision);
+    bool force11 = false;
+    if (PE_parse_boot_argn("-gux_force11", &v, sizeof v))
+        force11 = true;
+    if (!force11 && thisKernelVersion >= MakeKernelVersion(15, 0, 0)) {
+        IOLog("GenericUSBXHCI not loading on OS 10.11 or later without -gux_force11\n");
+        return NULL;
+    }
+#endif
+    if (PE_parse_boot_argn("-gux_disable", &v, sizeof v))
+        return NULL;
+
+    //REVIEW: This code can be disabled if we load only for specific devices with IOPCIPrimaryMatch
+    // Problem is getting a complete list of non-Intel,non-Fresco XHC devices it might work with.
+    // For now, take a blacklist approach instead of whitelist.
+#if 1
+    // don't load for Intel/Fresco Logic XHC
+    IOPCIDevice* pciDevice = OSDynamicCast(IOPCIDevice, provider);
+    if (!pciDevice)
+        return NULL;
+    UInt32 dvID = pciDevice->extendedConfigRead32(kIOPCIConfigVendorID);
+    UInt16 vendor = dvID;
+    //REVIEW: need better method (Info.plist based) for blacklist...
+    if (0x8086 == vendor || 0x1b73 == vendor)
+        return NULL;
+#endif
+
+    return super::probe(provider, score);
+}
 
 bool CLASS::willTerminate(IOService* provider, IOOptionBits options)
 {
@@ -224,11 +263,6 @@ int gux_log_level = 1;
 __attribute__((visibility("hidden")))
 int gux_options = 0;
 
-/*
- * Courtesy RehabMan
- */
-#define MakeKernelVersion(maj,min,rev) (static_cast<uint32_t>((maj)<<16)|static_cast<uint16_t>((min)<<8)|static_cast<uint8_t>(rev))
-
 __attribute__((visibility("hidden")))
 kern_return_t Startup(kmod_info_t* ki, void * d)
 {
@@ -243,10 +277,6 @@ kern_return_t Startup(kmod_info_t* ki, void * d)
 #if __MAC_OS_X_VERSION_MAX_ALLOWED >= 101000
     if (thisKernelVersion < MakeKernelVersion(14, 0, 0)) {
         IOLog("OS 10.10.0 or later required for this build of GenericUSBXHCI\n");
-        return KERN_FAILURE;
-    }
-    if (thisKernelVersion >= MakeKernelVersion(15, 0, 0)) {
-        IOLog("GenericUSBXHCI does not work on OS 10.11 or later\n");
         return KERN_FAILURE;
     }
 #else

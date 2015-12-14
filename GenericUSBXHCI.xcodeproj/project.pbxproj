@@ -75,6 +75,7 @@
 		E5FC455B181D65A2007BFF5B /* GenericUSBXHCIEventSource.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = GenericUSBXHCIEventSource.cpp; sourceTree = "<group>"; };
 		E5FD15B7181180370035DB81 /* Completer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Completer.h; sourceTree = "<group>"; };
 		E5FD15B81811804B0035DB81 /* Completer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Completer.cpp; sourceTree = "<group>"; };
+		EDE4EEDD1C1E651600D4DF43 /* makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.make; path = makefile; sourceTree = "<group>"; usesTabs = 1; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -91,6 +92,7 @@
 		E5D81FE5166F8ABF0075A356 = {
 			isa = PBXGroup;
 			children = (
+				EDE4EEDD1C1E651600D4DF43 /* makefile */,
 				E5D81FF7166F8ABF0075A356 /* GenericUSBXHCI */,
 				E5D81FF4166F8ABF0075A356 /* Frameworks */,
 				E5D81FF3166F8ABF0075A356 /* Products */,
@@ -294,7 +296,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPYRIGHT_NOTICE = "Copyright © 2012-2014 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.9;
+				CURRENT_PROJECT_VERSION = 1.2.10;
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
 				GCC_ENABLE_CPP_EXCEPTIONS = NO;
@@ -342,7 +344,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPYRIGHT_NOTICE = "Copyright © 2012-2014 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.9;
+				CURRENT_PROJECT_VERSION = 1.2.10;
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
 				GCC_ENABLE_CPP_EXCEPTIONS = NO;
@@ -385,7 +387,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPYRIGHT_NOTICE = "Copyright © 2012-2014 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.9;
+				CURRENT_PROJECT_VERSION = 1.2.10;
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
 				GCC_ENABLE_CPP_EXCEPTIONS = NO;
@@ -429,7 +431,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPYRIGHT_NOTICE = "Copyright © 2012-2014 Zenith432. All rights reserved.";
-				CURRENT_PROJECT_VERSION = 1.2.9;
+				CURRENT_PROJECT_VERSION = 1.2.10;
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DYLIB_COMPATIBILITY_VERSION = 1.0.0;
 				GCC_ENABLE_CPP_EXCEPTIONS = NO;

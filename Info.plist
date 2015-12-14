@@ -32,6 +32,8 @@
 			<string>net.osx86.kexts.${PRODUCT_NAME:rfc1034identifier}</string>
 			<key>IOClass</key>
 			<string>GenericUSBXHCI</string>
+			<key>#IOPCIPrimaryMatch</key>
+			<string>0x01941033</string>
 			<key>IOPCIClassMatch</key>
 			<string>0x0c033000</string>
 			<key>IOPCIPauseCompatible</key>
