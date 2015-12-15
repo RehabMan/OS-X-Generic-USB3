@@ -57,20 +57,33 @@ IOService* CLASS::probe(IOService* provider, SInt32* score)
     if (PE_parse_boot_argn("-gux_disable", &v, sizeof v))
         return NULL;
 
-    //REVIEW: This code can be disabled if we load only for specific devices with IOPCIPrimaryMatch
-    // Problem is getting a complete list of non-Intel,non-Fresco XHC devices it might work with.
-    // For now, take a blacklist approach instead of whitelist.
-#if 1
-    // don't load for Intel/Fresco Logic XHC
     IOPCIDevice* pciDevice = OSDynamicCast(IOPCIDevice, provider);
     if (!pciDevice)
         return NULL;
+
+    // don't load if blacklisted against particular vendor/device-id combinations
     UInt32 dvID = pciDevice->extendedConfigRead32(kIOPCIConfigVendorID);
     UInt16 vendor = dvID;
-    //REVIEW: need better method (Info.plist based) for blacklist...
-    if (0x8086 == vendor || 0x1b73 == vendor)
-        return NULL;
-#endif
+    UInt16 device = dvID>>16;
+    // check Info.plist configuration
+    char keyVendor[sizeof("vvvv")];
+    char keyBoth[sizeof("vvvv_dddd")];
+    snprintf(keyVendor, sizeof(keyVendor), "%04x", vendor);
+    snprintf(keyBoth, sizeof(keyBoth), "%04x_%04x", vendor, device);
+    OSDictionary* whitelist = OSDynamicCast(OSDictionary, getProperty("DeviceWhitelist"));
+    OSDictionary* blacklist = OSDynamicCast(OSDictionary, getProperty("DeviceBlacklist"));
+    if (!whitelist && !blacklist) {
+        // default: don't load for Intel/Fresco Logic XHC
+        if (0x8086 == vendor || 0x1b73 == vendor)
+            return NULL;
+    }
+    else {
+        // otherwise: always start if in whitelist, else check blacklist
+        if ((!whitelist || !whitelist->getObject(keyBoth)) &&
+            blacklist && (blacklist->getObject(keyVendor) || blacklist->getObject(keyBoth))) {
+            return NULL;
+        }
+    }
 
     return super::probe(provider, score);
 }

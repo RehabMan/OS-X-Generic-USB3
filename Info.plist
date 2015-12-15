@@ -50,6 +50,18 @@
 			<true/>
 			<key>IntelDoze</key>
 			<false/>
+			<key>DeviceWhitelist</key>
+			<dict>
+				<key>1b73_1000</key>
+				<integer>0</integer>
+			</dict>
+			<key>DeviceBlacklist</key>
+			<dict>
+				<key>8086</key>
+				<integer>0</integer>
+				<key>1b73</key>
+				<integer>0</integer>
+			</dict>
 		</dict>
 	</dict>
 	<key>NSHumanReadableCopyright</key>
