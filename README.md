@@ -16,7 +16,7 @@ rm -rf /System/Library/Extensions/PXHCD.kext
 
 Downloads are available on Bitbucket:
 
-https://bitbucket.org/RehabMan/os-x-generic-usb3/downloads
+https://bitbucket.org/RehabMan/os-x-generic-usb3/downloads/
 
 Archived (old) builds are available on Google Code:
 
